@@ -3,12 +3,24 @@ node_modules/
 dist/
 build/
 *.tsbuildinfo
-# Exception: the kiosk Electron apps have build/ folders that hold
+# Exception: the kiosk Electron app has a build/ folder that holds
 # app icons + icon generator scripts. Those are SOURCE, not
 # generated, so they must ship with the repo.
-!kiosk-app/build/
-!kiosk-app/build/**
 !printloop-kiosk-app/build/
+!printloop-kiosk-app/build/**
+
+# Accidental tsc / vite emits next to source
+printloop-kiosk-app/src/**/*.js
+printloop-kiosk-app/src/**/*.js.map
+printloop-kiosk-app/src/**/*.d.ts
+printloop-kiosk-app/src/**/*.d.ts.map
+printloop-kiosk-app/vite.config.js
+printloop-kiosk-app/vite.config.js.map
+printloop-kiosk-app/vite.config.d.ts
+printloop-kiosk-app/vite.config.d.ts.map
+
+# Installer binaries (build them; don't commit them)
+*.exe
 !printloop-kiosk-app/build/**
 
 # ── Local secrets (never commit) ─────────────────────────────────────

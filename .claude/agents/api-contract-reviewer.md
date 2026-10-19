@@ -5,7 +5,7 @@ description: Validates API request/response shapes across backend, frontend, age
 
 # API Contract Reviewer Subagent
 
-Ensures API consistency across 4 services: backend, frontend, kiosk agent, render worker.
+Ensures API consistency across backend, frontend, kiosk, and render worker.
 
 ## Services & Contracts
 
@@ -13,7 +13,7 @@ Ensures API consistency across 4 services: backend, frontend, kiosk agent, rende
 |---------|------|-------------------|
 | Backend | 4000 | `01-backend/src/routes/*.routes.ts` |
 | Frontend | 5173 | `printloop-new-frontend/src/store/services/*.ts` |
-| Agent | - | `printloop-agent/src/agent.ts` |
+| Kiosk | - | `printloop-kiosk-app/src/main/*.ts` |
 | Render Worker | - | `render-worker/src/pipeline/render.ts` |
 
 ## Review Areas

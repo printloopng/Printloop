@@ -164,7 +164,7 @@ export async function ippConnectionPrefs(): Promise<{
  *                  the backend to have LAN reachability (Tailscale subnet
  *                  router, on-prem deploy, etc.).
  *  - `kiosk-pull`: the backend marks the job RELEASING and an on-site
- *                  agent (`printloop-agent`) polls /api/agent/jobs/ready,
+ *                  kiosk app polls /api/agent/jobs/ready,
  *                  downloads the bytes via signed URL, and dispatches to
  *                  the printer over the LAN it shares with the agent. No
  *                  inbound LAN access from the cloud needed.

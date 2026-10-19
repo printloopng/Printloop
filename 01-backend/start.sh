@@ -3,10 +3,9 @@
 #
 # Tailscale is OPTIONAL and only used for the `cloud-push` dispatch
 # mode (where the cloud backend itself opens the socket to a LAN
-# printer). For the recommended `kiosk-pull` mode — an on-site agent
-# (printloop-agent/) fetches each ready job and dispatches it
-# locally — Tailscale is unnecessary: leave TS_AUTHKEY UNSET on the
-# Railway env vars.
+# printer). For the recommended `kiosk-pull` mode — the shop kiosk app
+# fetches each ready job and dispatches it locally — Tailscale is
+# unnecessary: leave TS_AUTHKEY UNSET on the Railway env vars.
 #
 # Tailscale, when used:
 #   - The user runs Tailscale as a subnet router at home advertising
