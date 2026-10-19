@@ -1,11 +1,5 @@
 import { apiSlice } from "./apiSlice";
 
-/**
- * RTK Query bindings for the platform admin console
- * (`/api/platform/*` — SUPER_ADMIN only; see
- * 01-backend/routes/platform.routes.ts).
- */
-
 export interface PlatformTenant {
   id: string;
   name: string;

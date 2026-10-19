@@ -60,7 +60,7 @@ export const createKiosk = async (
           name: kiosk.name,
           location: kiosk.location,
           campus: kiosk.campus,
-          apiKey: kiosk.apiKey, // Return API key only on creation
+          apiKey: kiosk.apiKey,
           status: kiosk.status,
           createdAt: kiosk.createdAt,
         },
@@ -288,7 +288,7 @@ export const regenerateApiKey = async (
         kiosk: {
           id: kiosk.id,
           name: kiosk.name,
-          apiKey: kiosk.apiKey, // Only return new key in this response
+          apiKey: kiosk.apiKey,
         },
       },
     });

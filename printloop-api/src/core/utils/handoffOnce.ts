@@ -1,4 +1,4 @@
-const consumed = new Map<string, number>(); // jti → expiry (ms epoch)
+const consumed = new Map<string, number>();
 
 const SWEEP_EVERY = 200;
 let opsSinceSweep = 0;

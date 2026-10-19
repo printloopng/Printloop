@@ -1,7 +1,3 @@
-/**
- * Editor Export Service
- * V2-XX — Export Univer documents to PDF/PWG for print pipeline
- */
 
 import { AppDataSource } from '../config/database';
 import { EditorSession, EditorSessionStatus } from '../entities/editorSession.entity';
@@ -19,7 +15,7 @@ export interface ExportResult {
 }
 
 export interface UniverExportPayload {
-  document: any; // Univer document snapshot
+  document: any;
   format: 'pdf' | 'pwg';
   options?: {
     dpi?: number;
@@ -38,9 +34,6 @@ export class EditorExportService {
     this.libreofficeUrl = config.editor?.libreofficeUrl || 'http://localhost:9980';
   }
 
-  /**
-   * Export Univer document to PDF or PWG
-   */
   async exportDocument(
     sessionId: string,
     format: 'pdf' | 'pwg',
@@ -67,7 +60,6 @@ export class EditorExportService {
       throw new Error(`Cannot export: session is ${session.status}`);
     }
 
-    // Try Univer export first (better fidelity)
     let exportResult: ExportResult;
     try {
       exportResult = await this.exportViaUniver(session.univerDocument, format);
@@ -76,7 +68,6 @@ export class EditorExportService {
       exportResult = await this.exportViaLibreOffice(session.univerDocument, format);
     }
 
-    // Update edit record
     const edit = session.documentEdit;
     edit.editedDocumentUrl = exportResult.documentUrl;
     edit.editedDocumentMeta = {
@@ -96,7 +87,6 @@ export class EditorExportService {
     ];
     await editRepo.save(edit);
 
-    // Update print job
     const job = edit.printJob;
     if (job) {
       job.editedDocumentUrl = exportResult.documentUrl;
@@ -105,7 +95,6 @@ export class EditorExportService {
       await jobRepo.save(job);
     }
 
-    // Mark session as completed
     session.status = EditorSessionStatus.COMPLETED;
     session.lastActivityAt = new Date();
     await sessionRepo.save(session);
@@ -118,9 +107,6 @@ export class EditorExportService {
     };
   }
 
-  /**
-   * Export via Univer export service (best fidelity)
-   */
   private async exportViaUniver(
     univerDocument: any,
     format: 'pdf' | 'pwg'
@@ -139,7 +125,7 @@ export class EditorExportService {
     try {
       const response = await axios.post(`${this.univerExportUrl}`, payload, {
         responseType: 'arraybuffer',
-        timeout: 120000, // 2 minutes
+        timeout: 120000,
         maxContentLength: 100 * 1024 * 1024,
         headers: {
           'Content-Type': 'application/json',
@@ -149,7 +135,6 @@ export class EditorExportService {
       const buffer = Buffer.from(response.data);
       const pageCount = this.estimatePageCount(buffer, format);
 
-      // Save buffer and upload
       const { saveBuffer } = await import('../utils/fileStore');
       const extension = format === 'pdf' ? 'pdf' : 'pwg';
       const stored = await saveBuffer(buffer, `temp-export-${Date.now()}.${extension}`);
@@ -166,15 +151,10 @@ export class EditorExportService {
     }
   }
 
-  /**
-   * Fallback export via LibreOffice headless
-   */
   private async exportViaLibreOffice(
     univerDocument: any,
     format: 'pdf' | 'pwg'
   ): Promise<ExportResult> {
-    // Convert Univer doc to a format LibreOffice can handle
-    // This is a simplified fallback - in production you'd have a proper converter
     const htmlContent = this.univerToHtml(univerDocument);
 
     const formData = new FormData();
@@ -194,7 +174,6 @@ export class EditorExportService {
       const buffer = Buffer.from(response.data);
       const pageCount = this.estimatePageCount(buffer, format);
 
-      // Save buffer temporarily and upload
       const { saveBuffer } = await import('../utils/fileStore');
       const extension = format === 'pdf' ? 'pdf' : 'pwg';
       const stored = await saveBuffer(buffer, `temp-export-${Date.now()}.${extension}`);
@@ -211,11 +190,7 @@ export class EditorExportService {
     }
   }
 
-  /**
-   * Convert Univer document to HTML for LibreOffice
-   */
   private univerToHtml(doc: any): string {
-    // Simplified conversion - in production use proper Univer-to-HTML converter
     const bodyContent = doc.data?.documents?.[Object.keys(doc.data.documents || {})[0]]?.body?.dataStream
       ?.map((segment: any) => segment.text || '')
       .join('') || 'Untitled Document';
@@ -235,28 +210,19 @@ export class EditorExportService {
     `;
   }
 
-  /**
-   * Estimate page count from exported buffer
-   */
   private estimatePageCount(buffer: Buffer, format: 'pdf' | 'pwg'): number {
     if (format === 'pwg') {
-      // PWG raster has page count in header
       const header = buffer.toString('ascii', 0, Math.min(1024, buffer.length));
       const match = header.match(/PWG-Raster-Page-Count:\s*(\d+)/i);
       if (match) return parseInt(match[1], 10);
     } else {
-      // PDF - count /Page occurrences (rough)
       const content = buffer.toString('ascii', 0, Math.min(50000, buffer.length));
       const matches = content.match(/\/Page\b/g);
       if (matches) return matches.length;
     }
-    // Fallback: estimate by file size (~50KB per page for text PDF)
     return Math.max(1, Math.ceil(buffer.length / 50000));
   }
 
-  /**
-   * Get available export formats
-   */
   getAvailableFormats(): Array<{ format: 'pdf' | 'pwg'; name: string; description: string }> {
     return [
       {

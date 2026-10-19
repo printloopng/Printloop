@@ -34,7 +34,6 @@ async function getBinaryPath(binaryName: string): Promise<string> {
       await fs.access(c);
       return c;
     } catch {
-      // continue
     }
   }
   throw new Error(`Binary ${binaryName} not found in vendor or system PATH`);
@@ -167,7 +166,6 @@ export async function generatePreviewImages(inputPdfPath: string, maxPages: numb
     logger.warn({ stderr }, 'Ghostscript preview stderr');
   }
 
-  // Collect generated preview files
   const previews: string[] = [];
   for (let i = 1; i <= maxPages; i++) {
     const previewPath = path.join(outputDir, `${baseName}-preview-${i}.jpg`);

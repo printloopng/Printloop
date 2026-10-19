@@ -1,6 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
-// Window.electronAPI's type lives in src/renderer/types.ts.
 contextBridge.exposeInMainWorld('electronAPI', {
   getVersion: () => ipcRenderer.invoke('app:get-version'),
   getPlatform: () => ipcRenderer.invoke('app:get-platform'),

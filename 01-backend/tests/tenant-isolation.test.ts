@@ -129,7 +129,6 @@ describe('Tenant isolation (cross-tenant guard rails)', () => {
         role: TenantMemberRole.STAFF,
       }),
     );
-    // ownerA is also staff of tenantB — but NOT a member of B.
   });
 
   afterAll(async () => {

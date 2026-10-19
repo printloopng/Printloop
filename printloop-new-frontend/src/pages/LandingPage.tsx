@@ -17,17 +17,6 @@ import {
 } from "@/components/ui/scrollFx";
 import Paper3D from "@/components/ui/Paper3D";
 
-/**
- * Landing page (V2-43/43b): scroll-driven editorial motion.
- * Sticky masthead + reading-progress bar, typeset hero (each word
- * pressed on like movable type), parallax ornaments + ghost issue
- * number, scroll-spun stamp badge, velocity-reactive marquee, a
- * scroll-scrubbed connector that draws the loop across the three
- * steps, count-up stats, magnetic CTAs — all from scrollFx.tsx,
- * no animation libraries.
- */
-
-/** Hero headline as movable type: each word stamps in, staggered. */
 const HERO_WORDS: { w?: string; br?: boolean; cls?: string }[] = [
   { w: "Your" },
   { w: "campus" },
@@ -38,7 +27,6 @@ const HERO_WORDS: { w?: string; br?: boolean; cls?: string }[] = [
   { w: "right." },
 ];
 
-/** Circular rubber-stamp badge that rotates as the reader scrolls. */
 function LoopStamp() {
   const ref = useScrollSpin(0.06, -8);
   return (
@@ -84,12 +72,6 @@ function LoopStamp() {
   );
 }
 
-/**
- * Scroll-scrubbed dispatch route across the three step cards: the
- * ochre line draws itself as the section travels the viewport, and a
- * persimmon node pops at each stop. Desktop only — on mobile the
- * cards stack and the route has nothing to connect.
- */
 function StepConnector() {
   const lineRef = useRef<SVGPathElement>(null);
   const dotsRef = useRef<(SVGCircleElement | null)[]>([]);
@@ -99,8 +81,6 @@ function StepConnector() {
     { x: 684, y: 22 },
   ];
   const ref = useScrollScrub((p) => {
-    // Map the middle stretch of the section's travel to 0..1 so the
-    // draw happens while the cards are actually on screen.
     const draw = Math.min(1, Math.max(0, (p - 0.18) / 0.42));
     if (lineRef.current) lineRef.current.style.strokeDashoffset = String(1 - draw);
     [0.12, 0.55, 0.96].forEach((t, i) => {
@@ -149,17 +129,7 @@ function StepConnector() {
   );
 }
 
-/**
- * The pinned scene (V2-43c): a 260vh track whose sticky stage holds
- * the viewport while the visitor's scroll plays the product demo —
- * a document flies from a phone, gets stamped with its 6-char code
- * at the Paystack gate, and lands in the printer tray. Reversible
- * (scroll back = rewind). Desktop md+ only; mobile and
- * reduced-motion users get the static three-card spread instead.
- * All per-frame work is direct style mutation via refs — no React
- * re-renders inside the scrub.
- */
-const STATION_X = [16.66, 50, 83.33]; // % across the route, on card centers
+const STATION_X = [16.66, 50, 83.33];
 
 function PinnedMethod() {
   const paper = useRef<HTMLDivElement>(null);
@@ -221,24 +191,20 @@ function PinnedMethod() {
             Three moves. <em className="italic text-ochre">A small ritual.</em>
           </h2>
 
-          {/* The route: phone → Paystack gate → printer tray */}
           <div className="relative h-48 mb-6">
             <div className="absolute left-[8%] right-[8%] top-[108px] h-[2px] bg-ink/15" />
 
-            {/* Phone */}
             <div className="absolute -translate-x-1/2" style={{ left: `${STATION_X[0]}%`, top: 36 }}>
               <div className="w-12 h-[76px] border-2 border-ink rounded-lg bg-paper-light flex items-start justify-center pt-2">
                 <div className="w-5 h-1 bg-ink/30 rounded-full" />
               </div>
             </div>
-            {/* Paystack gate */}
             <div className="absolute -translate-x-1/2" style={{ left: `${STATION_X[1]}%`, top: 36 }}>
               <div className="w-16 h-[76px] border-2 border-ink bg-paper-light flex flex-col items-center justify-center gap-1.5">
                 <span className="pl-serif font-extrabold text-2xl leading-none">₦</span>
                 <div className="w-8 h-1 bg-ink/30" />
               </div>
             </div>
-            {/* Printer + tray slot */}
             <div className="absolute -translate-x-1/2" style={{ left: `${STATION_X[2]}%`, top: 60 }}>
               <div className="w-24 h-[52px] border-2 border-ink bg-paper-light relative">
                 <div className="absolute left-2 right-2 bottom-2 h-1.5 bg-ink" />
@@ -246,7 +212,6 @@ function PinnedMethod() {
               </div>
             </div>
 
-            {/* The travelling document */}
             <div
               ref={paper}
               className="absolute top-[64px] w-12 h-16 bg-paper-light border-2 border-ink rounded-sm shadow-[4px_4px_0_#1A1410] z-10 p-1.5"
@@ -264,7 +229,6 @@ function PinnedMethod() {
               </div>
             </div>
 
-            {/* Collection moment */}
             <div
               ref={ready}
               className="absolute transition-all duration-300"
@@ -274,7 +238,6 @@ function PinnedMethod() {
             </div>
           </div>
 
-          {/* Step copy — active stage lifts, others dim */}
           <div className="grid grid-cols-3 gap-6 mb-8">
             {STEPS.map((step, i) => (
               <div
@@ -297,7 +260,6 @@ function PinnedMethod() {
             ))}
           </div>
 
-          {/* Scene progress rail */}
           <div className="flex items-center gap-3">
             <div className="flex-1 h-[3px] bg-paper-deep relative overflow-hidden">
               <div
@@ -359,7 +321,6 @@ const STATS: { to: number; prefix?: string; suffix?: string; label: string }[] =
   { to: 6, label: "CHARACTERS TO COLLECT" },
 ];
 
-// Internal dividers for the boxed stats strip: 2×2 on mobile, 1×4 on md+.
 const STAT_BORDERS = [
   "border-r-2 border-b-2 md:border-b-0",
   "border-b-2 md:border-b-0 md:border-r-2",
@@ -372,9 +333,6 @@ export default function LandingPage() {
   const driftFast = useParallax(0.09);
   const ghostDrift = useParallax(0.12);
   const heroType = useInView({ threshold: 0.2 });
-  // Reduced-motion visitors get the static card spread at every width
-  // instead of the pinned scene (a 260vh track with no animation would
-  // just be dead scroll for them).
   const reduced = usePrefersReducedMotion();
 
   return (
@@ -390,7 +348,6 @@ export default function LandingPage() {
         ]}
       />
 
-      {/* ── Masthead — sticky, with reading progress ───────────────── */}
       <div className="sticky top-0 z-40">
         <div className="bg-paper border-b-2 border-ink px-4 sm:px-6 lg:px-8 py-3 sm:py-4 flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
           <div className="font-serif font-extrabold text-[22px] sm:text-[26px] lg:text-[28px] tracking-tight">
@@ -426,7 +383,6 @@ export default function LandingPage() {
       </div>
 
       <main className="flex-1">
-        {/* ── Hero ──────────────────────────────────────────────────── */}
         <section className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 lg:py-20 relative overflow-hidden">
           <div
             ref={driftSlow}
@@ -508,7 +464,6 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* ── Stats strip — counts up as it enters ──────────────────── */}
         <section className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pb-10 sm:pb-12">
           <div className="border-2 border-ink grid grid-cols-2 md:grid-cols-4 bg-paper-light">
             {STATS.map((s, i) => (
@@ -527,7 +482,6 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* ── The proof — CSS-3D paper stack, scroll-driven ─────────── */}
         <section className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 border-t-2 border-ink overflow-hidden">
           <Reveal variant="rise">
             <div className="flex items-baseline justify-between gap-3 mb-2">
@@ -548,11 +502,6 @@ export default function LandingPage() {
           <Paper3D />
         </section>
 
-        {/* ── How it works ───────────────────────────────────────────
-            Desktop: the pinned one-continuous-shot scene. Mobile and
-            reduced-motion: the static three-card spread (with the
-            scrubbed connector, which renders fully drawn under
-            reduced motion). */}
         {!reduced && <PinnedMethod />}
         <div className={reduced ? "" : "md:hidden"}>
           <section className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-12 border-t-2 border-ink">
@@ -591,7 +540,6 @@ export default function LandingPage() {
           </section>
         </div>
 
-        {/* ── Pull quote ─────────────────────────────────────────────── */}
         <section className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 border-t-2 border-ink text-center relative overflow-hidden">
           <Reveal variant="fade">
             <div className="editorial-folio text-3xl mb-4">❦</div>
@@ -609,7 +557,6 @@ export default function LandingPage() {
           </Reveal>
         </section>
 
-        {/* ── For print shops — the other side of the loop ──────────── */}
         <section className="bg-ink text-paper border-t-2 border-ink overflow-hidden">
           <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 grid md:grid-cols-[1fr_auto] gap-8 items-center">
             <Reveal variant="left">
@@ -649,7 +596,6 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* ── Footer CTA ─────────────────────────────────────────────── */}
         <section className="bg-ink text-paper py-10 sm:py-14 px-4 sm:px-6 lg:px-8 border-t border-paper/15">
           <div className="max-w-5xl mx-auto text-center">
             <Reveal variant="rise">

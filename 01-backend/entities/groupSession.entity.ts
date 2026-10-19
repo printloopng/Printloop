@@ -20,13 +20,9 @@ export class GroupSession {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  /** Owning tenant — group sessions are scoped to a single tenant's
-   *  customer base. */
   @Column({ type: 'uuid', nullable: true })
   tenantId: string | null;
 
-  // Plain id (no FK): a host may be a signed-in user OR an anonymous
-  // guest host identified by a client-held random id.
   @Column({ type: 'uuid', nullable: true })
   hostUserId: string | null;
 

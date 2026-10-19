@@ -2,15 +2,6 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSetupPaystackSubaccountMutation } from "@/store/services/saasApi";
 
-/**
- * `/saas/setup/subaccount` — create the Paystack subaccount that
- * receives the tenant's share of every customer payment.
- *
- * After this is set, every customer charge goes through Paystack
- * Split: PrintLoop's commission lands in our main account, the
- * remainder lands in this subaccount. The bank-account step is
- * separate (Transfer Recipient — for actual disbursement).
- */
 export default function SetupSubaccountPage() {
   const navigate = useNavigate();
   const [setupSubaccount, state] = useSetupPaystackSubaccountMutation();
@@ -36,7 +27,6 @@ export default function SetupSubaccountPage() {
         navigate("/saas/dashboard");
       }
     } catch {
-      // Error surfaced below.
     }
   };
 

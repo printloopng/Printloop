@@ -1,7 +1,3 @@
-/**
- * Strip block comments and full-line // comments (keep eslint/@ts directives).
- * Skips migrations.
- */
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";

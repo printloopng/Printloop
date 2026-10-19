@@ -29,8 +29,6 @@ function QueueStrip({ queue }: { queue: QueueStatus }) {
   );
 }
 
-// Same alphabet the API issues codes from (core/utils/releaseCode.ts):
-// no 0/O or 1/I, so nothing on the keypad can be misread.
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const CODE_LENGTH = 6;
 const KEY_ROWS = ['23456789', 'ABCDEFGH', 'JKLMNPQR', 'STUVWXYZ'];
@@ -86,7 +84,6 @@ export function CodeEntryScreen({ queue, onSubmit, onSettings }: CodeEntryScreen
           
           {error && <div className="error">{error}</div>}
           
-          {/* Physical keyboards / barcode scanners type into this. */}
           <input
             ref={inputRef}
             type="text"

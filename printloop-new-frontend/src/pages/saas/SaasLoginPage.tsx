@@ -3,12 +3,6 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { useLoginMutation } from "@/store/services/authApi";
 
-/**
- * /saas/login — the printshop operator's front door (V2-57).
- * Same credentials as everywhere else (customer auth endpoint),
- * but routing is role-aware: shop owners/staff land on the shop
- * console, plain customers go to their dashboard.
- */
 export default function SaasLoginPage() {
   const navigate = useNavigate();
   const [login, { isLoading }] = useLoginMutation();
@@ -39,9 +33,6 @@ export default function SaasLoginPage() {
         user?.role === "super_admin" ||
         (Array.isArray(user?.memberships) && user.memberships.length > 0);
       if (isOperator) {
-        // Clear any stale shop selection left over from the student app
-        // — the shop console resolves its tenant from the signed-in
-        // user, and a leftover X-Tenant-Slug would 403 every /saas call.
         sessionStorage.removeItem("activeTenantSlug");
         sessionStorage.removeItem("reviewedPricesForTenant");
         navigate("/saas/dashboard");

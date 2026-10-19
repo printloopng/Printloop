@@ -24,29 +24,7 @@ import { WebhookEvent } from '../entities/tenantWebhook.entity';
 const router = Router();
 const printerExt = new PrinterServiceExtensions();
 
-/**
- * ─────────────────────────────────────────────────────────────────────
- *  Agent-pull API
- *  ─────────────────────────────────────────────────────────────────────
- *  This router serves the "kiosk agent" — a small Node process that
- *  runs on each on-site machine and bridges cloud-stored jobs to the
- *  local LAN printer. The agent polls /jobs/ready, downloads the file
- *  via /jobs/:id/file, dispatches over IPP / raw-9100 on the LAN, and
- *  reports back via /complete or /failed.
- *
- *  This lets us run the BACKEND in the cloud (Railway) while the
- *  PRINTER stays on a private LAN that the cloud can't reach. No
- *  VPN / tunnel / port-forward is required — the agent only ever
- *  makes outbound HTTPS calls.
- *
- *  All endpoints (except /file) authenticate via the kiosk's X-Kiosk-
- *  Key. The file download uses a short-lived signed JWT so the kiosk
- *  agent can stream bytes without the API key being included in the
- *  download URL (it ends up in HTTP logs, etc.).
- * ─────────────────────────────────────────────────────────────────────
- */
-
-const FILE_TOKEN_TTL_SECONDS = 5 * 60; // 5 min — generous for slow LAN
+const FILE_TOKEN_TTL_SECONDS = 5 * 60;
 
 function buildFileToken(jobId: string, kioskId: string): string {
   return jwt.sign(
@@ -75,32 +53,15 @@ function verifyFileToken(
 }
 
 function publicBaseUrl(req: Request): string {
-  // Honour X-Forwarded-Proto / Host (Railway, behind a reverse proxy
-  // that terminates TLS). Falls back to the request's own values.
   const proto = (req.headers['x-forwarded-proto'] as string) || req.protocol;
   const host = (req.headers['x-forwarded-host'] as string) || req.get('host') || '';
   return `${proto}://${host}`;
 }
 
-/**
- * GET /api/agent/jobs/ready
- *
- * Returns all jobs marked RELEASING that this kiosk should claim. The
- * agent polls this every few seconds. Filtered to jobs whose
- * `kioskId` matches the authenticated kiosk (single-kiosk-per-agent),
- * or jobs with no kiosk binding (any agent can grab them — useful for
- * single-kiosk installs where the kiosk-ID convention isn't worth it).
- */
 router.get('/jobs/ready', kioskAuth, async (req: Request, res: Response) => {
   try {
     const kiosk = req.kiosk as Kiosk;
     const repo = AppDataSource.getRepository(PrintJob);
-    // Tenant-scope every result to this kiosk's tenant. Two clauses for
-    // the OR of "bound to me" or "unbound (any agent grabs it)".
-    // Entity declares `tenantId: string | null` (legacy from V2-3
-    // when the column was added nullable), but the V2-8 migration
-    // made the column NOT NULL. Cast to string for TypeORM's
-    // FindOptionsWhere — tightening the entity types is a follow-up.
     const kioskTid = kiosk.tenantId as string;
     const jobs = await repo.find({
       where: [
@@ -111,9 +72,6 @@ router.get('/jobs/ready', kioskAuth, async (req: Request, res: Response) => {
       take: 10,
     });
 
-    // For each job, gather the file metadata + a signed download URL.
-    // Personal-batch jobs have items[]; everything else has a single
-    // fileId. We surface BOTH shapes so the agent can iterate.
     const base = publicBaseUrl(req);
     const out = await Promise.all(
       jobs.map(async (job) => {
@@ -124,10 +82,6 @@ router.get('/jobs/ready', kioskAuth, async (req: Request, res: Response) => {
           printConfiguration: any;
           totalPages: number;
         }>;
-        // Helper: effective page count after applying the customer's
-        // page-range selection. The agent's SNMP confirmation expects
-        // `totalPages × copies` impressions, so we must report what
-        // will ACTUALLY print, not the document's underlying length.
         const effectivePages = (docTotal: number, cfg: any): number => {
           const total = Math.max(1, Number(docTotal) || 1);
           if (!cfg || cfg.pages !== 'range' || !cfg.pageRange) return total;
@@ -147,9 +101,6 @@ router.get('/jobs/ready', kioskAuth, async (req: Request, res: Response) => {
               it.id,
             )}&t=${encodeURIComponent(buildFileToken(job.id, kiosk.id))}`,
             printConfiguration: it.printConfiguration,
-            // Effective page count for the agent's SNMP-based
-            // physical-print confirm. expectedPages on the agent =
-            // totalPages × printConfiguration.copies.
             totalPages: effectivePages(it.totalPages, it.printConfiguration),
           }));
         } else {
@@ -183,13 +134,6 @@ router.get('/jobs/ready', kioskAuth, async (req: Request, res: Response) => {
   }
 });
 
-/**
- * GET /api/agent/jobs/:id/file?t=<signed-token>&item=<item-id?>
- *
- * Streams the document bytes for the given job (or batch item). Token
- * auth instead of kiosk-key so the URL can be passed around safely
- * inside the agent without leaking the long-lived kiosk credential.
- */
 router.get('/jobs/:id/file', async (req: Request, res: Response) => {
   try {
     const token = String(req.query.t || '');
@@ -207,7 +151,6 @@ router.get('/jobs/:id/file', async (req: Request, res: Response) => {
       return;
     }
 
-    // Serve pre-rendered PWG if available (and not a batch item request)
     if (!req.query.item && printJob.renderedKey) {
       const s3Bucket = process.env.S3_BUCKET;
       const s3Region = process.env.AWS_REGION || 'us-east-1';
@@ -231,9 +174,6 @@ router.get('/jobs/:id/file', async (req: Request, res: Response) => {
       return;
     }
 
-    // Resolve fileId + the relevant printConfiguration. For personal-
-    // batch each item has its own settings; for single-file jobs the
-    // settings live on the PrintJob row itself.
     let fileId: string | undefined;
     let cfg: any = {};
     if (req.query.item) {
@@ -249,7 +189,6 @@ router.get('/jobs/:id/file', async (req: Request, res: Response) => {
     } else {
       fileId = printJob.fileId;
       cfg = printJob.printConfiguration || {};
-      // Stash the tenantId so the file lookup below scopes correctly.
       (req as any).__tokenJobTenantId = printJob.tenantId;
     }
     const fileTenantId =
@@ -267,11 +206,6 @@ router.get('/jobs/:id/file', async (req: Request, res: Response) => {
       return;
     }
 
-    // ── 1. Always hand the agent a PDF. ─────────────────────────────
-    // The agent's raw-9100 transport sends bytes after
-    // "@PJL ENTER LANGUAGE=PDF", so JPG / PNG would arrive as garbage
-    // to the printer. `ensurePdf` passthrough for PDFs (byte-exact)
-    // and A4-wraps images via pdf-lib.
     let pdfBytes: Buffer;
     try {
       const ensured = await ensurePdf(rawBytes, file.fileName || 'document.pdf');
@@ -286,17 +220,8 @@ router.get('/jobs/:id/file', async (req: Request, res: Response) => {
       return;
     }
 
-    // ── 2. Apply page range if the customer chose one. ──────────────
-    // The agent's raw-9100 path has no way to express "print page 5
-    // only" — it sends whatever bytes it gets. We do the slicing here
-    // so the printer physically produces only the pages the customer
-    // selected and paid for. parsePageRange handles "1-3,5,7-".
     if (cfg && cfg.pages === 'range' && cfg.pageRange) {
       try {
-        // We trust the stored totalPages over re-parsing; pdf-lib does
-        // its own count inside extractPages but we pass the raw range
-        // string + the document's total so out-of-bounds entries
-        // clip cleanly.
         const { PDFDocument } = await import('pdf-lib');
         const doc = await PDFDocument.load(pdfBytes, { updateMetadata: false }).catch(() => null);
         const total = doc ? doc.getPageCount() : 0;
@@ -305,34 +230,14 @@ router.get('/jobs/:id/file', async (req: Request, res: Response) => {
           pdfBytes = await extractPages(pdfBytes, wanted);
         }
       } catch (e: any) {
-        // If page-range slicing fails (malformed PDF, etc.), fall
-        // back to the full document. The agent's logs will show the
-        // mismatch between expected page count and what the SNMP
-        // counter advances, which surfaces to the operator.
         console.warn('[agent] page-range slice failed, sending full document:', e?.message);
       }
     }
 
-    // ── 3. Force grayscale if the customer chose B&W. ───────────────
-    // The Sharp ignores our PJL color directives for PDF input, so the
-    // only firmware-proof way to honor a B&W selection is to strip the
-    // color from the bytes here via Ghostscript. No-op passthrough that
-    // returns the original (color) bytes if gs isn't installed (logs a
-    // warning) — a color print beats a failed print. Only triggers on
-    // an explicit non-'color' value, so jobs without a color setting
-    // print unchanged.
     if (cfg && cfg.color && cfg.color !== 'color') {
       pdfBytes = await toGrayscale(pdfBytes);
     }
 
-    // ── 4. Bake the chosen orientation into the page geometry. ──────
-    // Same firmware-proof rationale as grayscale: the Sharp obeys the
-    // PDF's own page geometry for PDF input but ignores the PJL
-    // ORIENTATION hint. fitToOrientation scales each page to fit the
-    // chosen sheet (pillarbox a portrait page onto landscape, letterbox a
-    // landscape page onto portrait) — never rotated, never cropped; pages
-    // already in that orientation pass through untouched. Only runs when
-    // the job carries an explicit orientation.
     if (cfg && (cfg.orientation === 'landscape' || cfg.orientation === 'portrait')) {
       pdfBytes = await fitToOrientation(pdfBytes, cfg.orientation);
     }
@@ -350,12 +255,6 @@ router.get('/jobs/:id/file', async (req: Request, res: Response) => {
   }
 });
 
-/**
- * POST /api/agent/jobs/:id/start
- *
- * Agent claims a RELEASING job and moves it to PRINTING. Done with a
- * conditional UPDATE so two agents can't both claim the same job.
- */
 router.post('/jobs/:id/start', kioskAuth, async (req: Request, res: Response) => {
   try {
     const kiosk = req.kiosk as Kiosk;
@@ -383,13 +282,6 @@ router.post('/jobs/:id/start', kioskAuth, async (req: Request, res: Response) =>
   }
 });
 
-/**
- * POST /api/agent/jobs/:id/complete
- *
- * Agent reports the print landed at the printer. We mark DONE, bump
- * the kiosk's counters, and queue cleanup of the file. Same downstream
- * effect as the old cloud-push /printer/complete.
- */
 router.post('/jobs/:id/complete', kioskAuth, async (req: Request, res: Response) => {
   try {
     const kiosk = req.kiosk as Kiosk;
@@ -406,11 +298,6 @@ router.post('/jobs/:id/complete', kioskAuth, async (req: Request, res: Response)
       return;
     }
 
-    // V2-44 job-truth: record what the agent could PROVE. Stored as
-    // "<method>:<state>" — e.g. "ipp-job-state:confirmed" means the
-    // printer itself reported the job completed; "none:unconfirmed"
-    // means raw-9100 fire-and-forget. Older agents send no body —
-    // their rows simply stay NULL (pre-V2-44 behaviour).
     const VALID_STATES = new Set(['confirmed', 'unconfirmed']);
     const VALID_METHODS = new Set(['ipp-job-state', 'queue-drain', 'none']);
     const confState = String(req.body?.confirmation || '');
@@ -424,9 +311,6 @@ router.post('/jobs/:id/complete', kioskAuth, async (req: Request, res: Response)
       );
     }
 
-    // Reuse the existing completion path so kiosk counters, cleanup
-    // scheduling, and audit log entries all stay consistent with the
-    // cloud-push mode.
     const result = await printerExt.completePrintJob({
       code: job.code || '',
       kioskId: kiosk.id,
@@ -442,15 +326,6 @@ router.post('/jobs/:id/complete', kioskAuth, async (req: Request, res: Response)
   }
 });
 
-/**
- * POST /api/agent/printer/capabilities
- *
- * V2-44 (P2) — the agent auto-discovered what the printer can do via
- * IPP Get-Printer-Attributes and reports it. We store the flags on
- * the kiosk row; the marketplace rollup (discovery.routes) then only
- * claims colour/A3 a shop's hardware actually has. NULL stays NULL
- * for transports that can't be queried — unknown is not false.
- */
 router.post('/printer/capabilities', kioskAuth, async (req: Request, res: Response) => {
   try {
     const kiosk = req.kiosk as Kiosk;
@@ -482,14 +357,6 @@ router.post('/printer/capabilities', kioskAuth, async (req: Request, res: Respon
   }
 });
 
-/**
- * POST /api/agent/jobs/:id/failed
- *
- * Agent reports the print failed at the printer (offline, paper jam,
- * IPP error). We mark FAILED and surface the reason in the audit log;
- * the customer can then raise it with the shop (V2-53: no automatic
- * refunds — refunds are eliminated).
- */
 router.post('/jobs/:id/failed', kioskAuth, async (req: Request, res: Response) => {
   try {
     const kiosk = req.kiosk as Kiosk;
@@ -510,8 +377,6 @@ router.post('/jobs/:id/failed', kioskAuth, async (req: Request, res: Response) =
       return;
     }
     console.error(`[agent] job ${req.params.id} FAILED: ${reason}`);
-    // job.failed webhook (Dimension 14 — V2-15). kiosk.tenantId is
-    // the scope; the job we just updated belongs to it.
     if (kiosk.tenantId) {
       emitTenantEvent(kiosk.tenantId, WebhookEvent.JOB_FAILED, {
         printJobId: req.params.id,

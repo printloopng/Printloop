@@ -1,4 +1,3 @@
-/* Real BATCH: 2 files → ONE code → kiosk prints both byte-exact. */
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');

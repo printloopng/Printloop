@@ -1,40 +1,5 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-/**
- * Tighten `tenantId` from nullable to NOT NULL on every customer-
- * facing table that's been audited to set it on every insert path.
- *
- * Pre-flight checklist (per JOURNAL Phase V2-7):
- *   ✓ Legacy backfill in ensureLegacyTenant populates every existing
- *     row with tenantId='legacy'.
- *   ✓ Every PrintJob insert path sets tenantId (V2-5, V2-6, V2-7).
- *   ✓ Every Transaction insert path sets tenantId (paystack webhook,
- *     job.controller createJob).
- *   ✓ Every File insert path sets tenantId (customerPrint x2, cups,
- *     participantUpload) — V2-8.
- *   ✓ AuditLog inserts via writeAudit() now stamp tenantId — V2-8.
- *   ✓ Kiosk inserts via kioskService.createKiosk() take tenantId — V2-8.
- *   ✓ Promotion inserts (admin route + seed) stamp tenantId — V2-8.
- *   ✓ PrintJobItem inserts in customerPrint batch — V2-8.
- *   ✓ GroupSession created with tenantId — V2-7.
- *   ✓ User created with tenantId in onboarding.signupTenant.
- *   ✓ Wallet created with tenantId in onboarding.signupTenant.
- *   ✓ PricingConfig seeded with tenantId in onboarding.signupTenant.
- *
- * Tables tightened (12):
- *   users, wallets, kiosks, print_jobs, print_job_items, payments,
- *   files, pricing_configs, promotions, group_sessions, audit_logs,
- *   transactions
- *
- * SQLite specifics: every tighten is a full table rewrite because
- * SQLite can't change a column's nullability in place. Same pattern
- * as TightenTenantUniqueness — disable FKs, recreate, copy, swap,
- * recreate indexes.
- *
- * Down: deliberately throws. Reverting NOT NULL is only useful if
- * the migration was a mistake; with real production data, the
- * rollback path is "restore from backup", not "drop NOT NULL".
- */
 export class TightenTenantIdNotNull1717700000000
   implements MigrationInterface
 {
@@ -43,13 +8,6 @@ export class TightenTenantIdNotNull1717700000000
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`PRAGMA foreign_keys = OFF`);
     try {
-      // Boot-order safety: ensureLegacyTenant runs at the SEED step,
-      // which is AFTER migrations. So on a first-time v2 boot against
-      // a v1 DB the legacy tenant doesn't exist when this migration
-      // runs, and the defensive backfills below would leave tenantId
-      // NULL — which would fail the NOT NULL rewrite. Inline-create
-      // the legacy tenant here (INSERT OR IGNORE — no-op if a later
-      // ensureLegacyTenant call already created it).
       await queryRunner.query(`
         INSERT OR IGNORE INTO "tenants"
           ("id", "name", "slug", "status", "commissionPct", "createdAt", "updatedAt")
@@ -67,9 +25,6 @@ export class TightenTenantIdNotNull1717700000000
         )
       `);
 
-      // Defensive backfill: if any row still has tenantId NULL by the
-      // time this migration runs, point it at the legacy tenant. Only
-      // tables with `tenantId NULL` rows possible at this point.
       await queryRunner.query(`
         UPDATE "users"            SET "tenantId" = (SELECT id FROM tenants WHERE slug = 'legacy') WHERE "tenantId" IS NULL
       `);
@@ -107,8 +62,6 @@ export class TightenTenantIdNotNull1717700000000
         UPDATE "transactions"     SET "tenantId" = (SELECT id FROM tenants WHERE slug = 'legacy') WHERE "tenantId" IS NULL
       `);
 
-      // Each rewriter creates the new table with NOT NULL, copies
-      // data, drops the old, renames the new, recreates indexes.
       await this.rewriteUsersTenantNotNull(queryRunner);
       await this.rewriteWalletsTenantNotNull(queryRunner);
       await this.rewriteKiosksTenantNotNull(queryRunner);
@@ -132,8 +85,6 @@ export class TightenTenantIdNotNull1717700000000
         'multi-tenant DB has no safe recovery. Restore from backup if needed.',
     );
   }
-
-  // ─── Rewriters ────────────────────────────────────────────────────
 
   private async rewriteUsersTenantNotNull(qr: QueryRunner): Promise<void> {
     await qr.query(`
@@ -162,10 +113,6 @@ export class TightenTenantIdNotNull1717700000000
         CONSTRAINT "UQ_users_print_token" UNIQUE ("printToken")
       )
     `);
-    // Explicit columns — `SELECT *` would copy in source order, but
-    // tenantId was added via ALTER TABLE ADD COLUMN (which appends to
-    // the end) while the new table has it at position 2. Same fix for
-    // every rewrite below.
     await qr.query(`
       INSERT INTO "users_nn" (
         "id","tenantId","firstName","lastName","email","phoneNumber",
@@ -526,10 +473,6 @@ export class TightenTenantIdNotNull1717700000000
   }
 
   private async rewriteAuditLogsTenantNotNull(qr: QueryRunner): Promise<void> {
-    // audit_logs keeps tenantId NULLABLE — boot/migration logs run
-    // before any tenant context. Documented in the entity comment.
-    // No-op here; left as a future cleanup if we decide to split
-    // platform vs tenant audit streams into separate tables.
   }
 
   private async rewriteTransactionsTenantNotNull(qr: QueryRunner): Promise<void> {

@@ -5,10 +5,6 @@ import { writeAudit } from '../services/audit.service';
 
 const kioskService = new KioskService();
 
-/**
- * Create a new kiosk
- * POST /admin/kiosks
- */
 export const createKiosk = async (
   req: Request,
   res: Response
@@ -64,7 +60,7 @@ export const createKiosk = async (
           name: kiosk.name,
           location: kiosk.location,
           campus: kiosk.campus,
-          apiKey: kiosk.apiKey, // Return API key only on creation
+          apiKey: kiosk.apiKey,
           status: kiosk.status,
           createdAt: kiosk.createdAt,
         },
@@ -79,10 +75,6 @@ export const createKiosk = async (
   }
 };
 
-/**
- * List all kiosks
- * GET /admin/kiosks
- */
 export const listKiosks = async (
   req: Request,
   res: Response
@@ -116,7 +108,6 @@ export const listKiosks = async (
           totalJobsPrinted: k.totalJobsPrinted,
           totalPagesPrinted: k.totalPagesPrinted,
           createdAt: k.createdAt,
-          // Never return apiKey in list response
         })),
         count: kiosks.length,
       },
@@ -130,10 +121,6 @@ export const listKiosks = async (
   }
 };
 
-/**
- * Get single kiosk by ID
- * GET /admin/kiosks/:id
- */
 export const getKiosk = async (
   req: Request,
   res: Response
@@ -173,7 +160,6 @@ export const getKiosk = async (
           notes: kiosk.notes,
           createdAt: kiosk.createdAt,
           updatedAt: kiosk.updatedAt,
-          // Never return apiKey in detail response for security
         },
       },
     });
@@ -186,10 +172,6 @@ export const getKiosk = async (
   }
 };
 
-/**
- * Update kiosk status
- * PATCH /admin/kiosks/:id/status
- */
 export const updateKioskStatus = async (
   req: Request,
   res: Response
@@ -241,10 +223,6 @@ export const updateKioskStatus = async (
   }
 };
 
-/**
- * Update kiosk details
- * PATCH /admin/kiosks/:id
- */
 export const updateKiosk = async (
   req: Request,
   res: Response
@@ -253,7 +231,6 @@ export const updateKiosk = async (
     const { id } = req.params;
     const updates = req.body;
 
-    // Don't allow updating apiKey through this endpoint
     delete updates.apiKey;
     delete updates.id;
     delete updates.createdAt;
@@ -285,10 +262,6 @@ export const updateKiosk = async (
   }
 };
 
-/**
- * Regenerate API key for kiosk
- * POST /admin/kiosks/:id/regenerate-key
- */
 export const regenerateApiKey = async (
   req: Request,
   res: Response
@@ -306,8 +279,6 @@ export const regenerateApiKey = async (
       return;
     }
 
-    // Don't put the new key in the audit detail — it's a secret and
-    // the AuditLog table is queryable by any admin.
     await writeAudit(req, 'kiosk.api_key_regenerated', `kiosk:${kiosk.id}`);
 
     res.json({
@@ -317,7 +288,7 @@ export const regenerateApiKey = async (
         kiosk: {
           id: kiosk.id,
           name: kiosk.name,
-          apiKey: kiosk.apiKey, // Only return new key in this response
+          apiKey: kiosk.apiKey,
         },
       },
     });
@@ -330,16 +301,6 @@ export const regenerateApiKey = async (
   }
 };
 
-/**
- * Probe the kiosk's printer reachability over the LAN.
- * POST /admin/kiosks/:id/test-connection
- *
- * Plain TCP connect to {631, 6310, 9100} on the kiosk's saved
- * `ipAddress`. Doesn't issue a real IPP request (the appliance may be
- * IPPS-only or have a self-signed cert) — a successful connect is
- * enough to distinguish "powered on, on-LAN" from "wrong IP / off".
- * Audited.
- */
 export const testKioskConnection = async (
   req: Request,
   res: Response,
@@ -377,10 +338,6 @@ export const testKioskConnection = async (
   }
 };
 
-/**
- * Get offline kiosks (haven't been seen in X minutes)
- * GET /admin/kiosks/offline
- */
 export const getOfflineKiosks = async (
   req: Request,
   res: Response
@@ -418,10 +375,6 @@ export const getOfflineKiosks = async (
   }
 };
 
-/**
- * Delete kiosk (soft delete by setting status to DISABLED)
- * DELETE /admin/kiosks/:id
- */
 export const deleteKiosk = async (
   req: Request,
   res: Response

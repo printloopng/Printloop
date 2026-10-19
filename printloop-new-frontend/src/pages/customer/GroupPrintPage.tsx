@@ -191,7 +191,6 @@ export default function GroupPrintPage() {
     if (!form.groupName.trim()) return toast.error("Name the session first.");
     if (!form.deadline) return toast.error("Set a deadline.");
     try {
-      // Watermarking is permanently removed — no watermark fields sent.
       await createSession({
         groupName: form.groupName.trim(),
         deadline: new Date(form.deadline).toISOString(),

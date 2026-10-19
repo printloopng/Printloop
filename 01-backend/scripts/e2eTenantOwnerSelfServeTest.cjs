@@ -1,29 +1,3 @@
-/**
- * Tenant-owner self-serve end-to-end (V2-33).
- *
- * V2-32's polish e2e found that the freshly-signed-up tenant owner
- * couldn't manage their own kiosks — `signupTenant` was stamping
- * `adminPrivileges: []`, so the RBAC middleware blocked every
- * MANAGE_* call. The polish test worked around it with SUPER_ADMIN +
- * X-Tenant-Slug; this one DOES NOT — it only ever uses the tenant
- * owner's token. If any of these calls 403s, V2-33 regressed.
- *
- * Flow (every call as the owner, no platform admin):
- *   1. Sign up → 201
- *   2. Verify email (token scraped from log)
- *   3. Owner logs in
- *   4. Owner creates a kiosk → 201
- *   5. Owner edits the kiosk → 200
- *   6. Owner regenerates the kiosk API key → 200
- *   7. Owner stamps test-print-pass → 200
- *   8. Owner reads /api/saas/me → 200 (the saas/me path doesn't
- *      need the Permission grant — tenant membership is enough —
- *      but we sanity-check the tenant-membership path too)
- *
- * Platform admin is invoked ONCE, to reactivate the tenant from
- * TRIAL to ACTIVE — that's a SUPER_ADMIN action by design (tenants
- * don't self-activate from trial).
- */
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -60,7 +34,6 @@ async function jr(method, url, body, headers) {
   try {
     d = await r.json();
   } catch {
-    /* ignore */
   }
   return { status: r.status, data: d };
 }
@@ -72,7 +45,6 @@ async function waitFor(url, timeoutMs = 25_000) {
       const r = await fetch(url);
       if (r.ok) return true;
     } catch {
-      /* not up yet */
     }
     await new Promise((r) => setTimeout(r, 400));
   }
@@ -83,7 +55,6 @@ async function main() {
   try {
     fs.unlinkSync(DB_FILE);
   } catch {
-    /* ok */
   }
 
   const env = {
@@ -111,13 +82,11 @@ async function main() {
     try {
       server.kill('SIGKILL');
     } catch {
-      /* ignore */
     }
     setTimeout(() => {
       try {
         fs.unlinkSync(DB_FILE);
       } catch {
-        /* ignore */
       }
     }, 500);
   };
@@ -130,7 +99,6 @@ async function main() {
     }
     ok('server up on test port');
 
-    // 1) Sign up.
     const signup = await jr('POST', '/saas/signup', {
       businessName: 'Self Serve Shop',
       slug: 'self-serve-shop',
@@ -144,7 +112,6 @@ async function main() {
     assert(signup.status === 201, `signup → 201 (got ${signup.status})`);
     const tenantId = signup.data.data.tenantId;
 
-    // 2) Scrape + verify email.
     await new Promise((r) => setTimeout(r, 300));
     const m = serverLog.match(
       /\[email:disabled\] to=owner-selfserve@example\.test subject="?Verify your email — code (\d{6})"?/,
@@ -156,7 +123,6 @@ async function main() {
     });
     assert(verify.status === 200, `verify → 200 (got ${verify.status})`);
 
-    // 3) Owner login.
     const login = await jr('POST', '/admin/auth/login', {
       email: 'owner-selfserve@example.test',
       password: 'TenantOwner2026!',
@@ -167,9 +133,6 @@ async function main() {
       'X-Tenant-Slug': 'self-serve-shop',
     };
 
-    // Sanity: the JWT carries adminPrivileges so the RBAC layer can
-    // gate without a DB read on every request. Confirm role + a key
-    // privilege round-trip through the login response.
     const ownerUser = login.data.data.user;
     assert(ownerUser.role === 'admin', `owner role=admin (got ${ownerUser.role})`);
     assert(
@@ -178,8 +141,6 @@ async function main() {
       `owner has manage_kiosks privilege (V2-33 fix)`,
     );
 
-    // 4) Owner reactivates themselves? No — that's a SUPER_ADMIN
-    //    path by design. Use the platform admin ONCE to flip status.
     const platformLogin = await jr('POST', '/admin/auth/login', {
       email: 'admin@printloop.test',
       password: 'Admin1234!',
@@ -195,8 +156,6 @@ async function main() {
     );
     assert(react.status === 200, `platform reactivate → 200`);
 
-    // 5) Owner creates a kiosk. THE CRITICAL ASSERTION — was 403
-    //    before V2-33.
     const create = await jr(
       'POST',
       '/admin/kiosks',
@@ -212,7 +171,6 @@ async function main() {
     const apiKey = create.data?.data?.kiosk?.apiKey;
     assert(typeof kioskId === 'string', 'kiosk id returned');
 
-    // 6) Owner edits the kiosk.
     const patch = await jr(
       'PATCH',
       `/admin/kiosks/${kioskId}`,
@@ -221,8 +179,6 @@ async function main() {
     );
     assert(patch.status === 200, `owner EDITS kiosk → 200 (got ${patch.status})`);
 
-    // 7) Owner regenerates the API key. Capture the new value —
-    // the old `apiKey` we kept from step 5 is no longer valid.
     const regen = await jr(
       'POST',
       `/admin/kiosks/${kioskId}/regenerate-key`,
@@ -239,7 +195,6 @@ async function main() {
       'regen returns a NEW apiKey (different from create)',
     );
 
-    // 8) Owner marks test-print-pass.
     const mark = await jr(
       'POST',
       `/admin/kiosks/${kioskId}/test-print-pass`,
@@ -248,7 +203,6 @@ async function main() {
     );
     assert(mark.status === 200, `owner marks test-print-pass → 200 (got ${mark.status})`);
 
-    // 9) Owner reads /api/saas/me (tenant-membership path).
     const me = await jr('GET', '/saas/me', undefined, ownerAuth);
     assert(me.status === 200, `owner GET /saas/me → 200 (got ${me.status})`);
     assert(
@@ -256,11 +210,6 @@ async function main() {
       'me returns the right slug',
     );
 
-    // 10) Owner can flip isDiscoverable once the rest of the live
-    //     gate is met. We've got: lat/lng (signup geocoded),
-    //     status=ACTIVE (platform reactivate), testPrintPassedAt
-    //     (just stamped), online kiosk (need a heartbeat). The
-    //     kiosk hasn't heartbeated yet — apiKey we have, use it.
     const beat = await fetch(`http://localhost:${PORT}/api/printer/heartbeat`, {
       headers: { 'X-Kiosk-Key': rotatedKey },
     });

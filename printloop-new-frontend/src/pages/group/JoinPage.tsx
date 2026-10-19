@@ -20,8 +20,6 @@ type Cfg = {
 
 const API = CONFIG.apiBaseUrl;
 
-/** Module-level so it keeps a stable identity across renders — defining it
- * inside the component remounted every input on each keystroke. */
 function Shell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen bg-paper text-ink flex flex-col">
@@ -52,7 +50,6 @@ export default function JoinPage() {
 
   const [form, setForm] = useState({ name: "", email: "", phone: "" });
   const [token, setToken] = useState("");
-  // Watermarking is permanently removed from the group flow.
 
   const [file, setFile] = useState<File | null>(null);
   const [docPages, setDocPages] = useState(0);
@@ -65,9 +62,6 @@ export default function JoinPage() {
   });
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ code: string; cost: number } | null>(null);
-  // Live pricing matrix — anonymous endpoint, same source the admin
-  // edits. Without this, the preview drifts from what the server bills
-  // at upload time.
   const [pricingRows, setPricingRows] = useState<PricingRow[] | undefined>(undefined);
 
   const enforced = !!session?.defaultOptions?.enforce;
@@ -100,8 +94,6 @@ export default function JoinPage() {
     })();
   }, [shareId]);
 
-  // Public pricing fetch — no JWT needed; refetched when window focuses
-  // so a long-open join tab picks up admin price changes.
   useEffect(() => {
     const load = () => {
       fetch(`${API}/pricing`)
@@ -155,14 +147,10 @@ export default function JoinPage() {
     if (!file) return toast.error("Choose a document.");
     setBusy(true);
     try {
-      // The document itself goes up; the server counts its pages and prices it.
       const body = new FormData();
       body.append("file", file, file.name);
       body.append("fileName", file.name);
       body.append("mimeType", file.type || "application/pdf");
-      // Copies (and the rest) always travel — the server ignores
-      // output-style overrides on enforced sessions but copies stay
-      // participant-controlled either way.
       body.append(
         "printConfiguration",
         JSON.stringify({
@@ -238,7 +226,6 @@ export default function JoinPage() {
       </Shell>
     );
 
-  // join + configure share the session header
   return (
     <Shell>
       <div className="editorial-label text-persimmon mb-1">GROUP SESSION</div>
@@ -297,7 +284,6 @@ export default function JoinPage() {
               </div>
             )}
 
-            {/* Output-style controls — locked when host enforces. */}
             {!enforced && (
               <>
                 <div className="editorial-label mb-2">COLOUR</div>
@@ -367,9 +353,6 @@ export default function JoinPage() {
               </>
             )}
 
-            {/* Copies + page range — ALWAYS participant-controlled, even
-                under an enforced session (host dictates output style,
-                not personal copy count). */}
             <div className="editorial-label mb-2">COPIES</div>
             <div className="flex items-center gap-2 mb-3">
               <button

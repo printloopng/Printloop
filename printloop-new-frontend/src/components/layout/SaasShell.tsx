@@ -8,13 +8,6 @@ import {
   useSetTenantAvailabilityMutation,
 } from "@/store/services/saasApi";
 
-/**
- * Shop console shell (V2-57) — the "driver app" frame for
- * printshop operators: shop nav, an operator-controlled availability
- * toggle (open / busy / closed, reflected on the student map), and
- * sign out. Wraps /saas/* pages.
- */
-
 const NAV: { to: string; label: string; end?: boolean }[] = [
   { to: "/saas/dashboard", label: "Dashboard", end: true },
   { to: "/saas/queue", label: "Job Queue" },
@@ -39,8 +32,6 @@ export function SaasShell() {
   const tenant = me.data;
   const availability: "open" | "busy" | "closed" = tenant?.availability ?? "open";
 
-  // The shop console resolves its tenant from the signed-in user; a
-  // leftover shop selection from the student app must never leak in.
   useEffect(() => {
     sessionStorage.removeItem("activeTenantSlug");
     sessionStorage.removeItem("reviewedPricesForTenant");
@@ -97,7 +88,6 @@ export function SaasShell() {
           </nav>
 
           <div className="flex items-center gap-2">
-            {/* Operator availability toggle (V2-57) — open/busy/closed. */}
             <div className="flex border-2 border-ink">
               {(["open", "busy", "closed"] as const).map((a) => (
                 <button

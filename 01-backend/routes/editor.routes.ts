@@ -1,7 +1,3 @@
-/**
- * Editor Routes
- * V2-XX — API endpoints for collaborative document editing
- */
 
 import { Router, Request, Response } from 'express';
 import { AppDataSource } from '../config/database';
@@ -22,10 +18,6 @@ import * as crypto from 'crypto';
 
 const router = Router();
 
-/**
- * POST /api/saas/editor/session
- * Create a new editor session (shop only)
- */
 router.post(
   '/session',
   authenticate,
@@ -41,7 +33,6 @@ router.post(
         return;
       }
 
-      // Verify edit belongs to this shop
       const editRepo = AppDataSource.getRepository(DocumentEdit);
       const edit = await editRepo.findOne({
         where: { id: documentEditId, shopId: tenant.id },
@@ -58,7 +49,6 @@ router.post(
         return;
       }
 
-      // Create editor session
       const session = await documentEditorService.createSession(
         documentEditId,
         user.id,
@@ -66,12 +56,10 @@ router.post(
         mimeType
       );
 
-      // Update edit status
       edit.status = DocumentEditStatus.IN_PROGRESS;
       edit.editedBy = user.id;
       await editRepo.save(edit);
 
-      // Update print job status
       const jobRepo = AppDataSource.getRepository(PrintJob);
       const job = edit.printJob;
       if (job) {
@@ -79,7 +67,6 @@ router.post(
         await jobRepo.save(job);
       }
 
-      // Notify customer that edit has started
       await notificationQueue.add('edit-started', {
         userId: job?.userId,
         printJobId: job?.id,
@@ -95,10 +82,6 @@ router.post(
   }
 );
 
-/**
- * GET /api/saas/editor/session/:id
- * Get editor session with document data (shop or customer)
- */
 router.get(
   '/session/:id',
   authenticate,
@@ -107,7 +90,6 @@ router.get(
       const user = (req as any).user as any;
       const { id } = req.params;
 
-      // Determine role based on user
       const sessionRepo = AppDataSource.getRepository(EditorSession);
       const session = await sessionRepo.findOne({
         where: { id },
@@ -130,10 +112,8 @@ router.get(
       const role = isShop ? 'shop' : 'customer';
       const sessionData = await documentEditorService.getSession(id, user.id, role);
 
-      // Include bank details for customer if awaiting payment
       let bankDetails = null;
       if (role === 'customer' && session.documentEdit?.printJob?.status === PrintJobStatus.AWAITING_PAYMENT) {
-        // Bank details from edit pricing config
         const pricingRepo = AppDataSource.getRepository(
           (await import('../entities/editPricingConfig.entity')).EditPricingConfig
         );
@@ -171,10 +151,6 @@ router.get(
   }
 );
 
-/**
- * POST /api/saas/editor/session/:id/snapshot
- * Save document snapshot (auto-save)
- */
 router.post(
   '/session/:id/snapshot',
   authenticate,
@@ -207,10 +183,6 @@ router.post(
   }
 );
 
-/**
- * POST /api/saas/editor/session/:id/export
- * Export document to PDF or PWG (shop only)
- */
 router.post(
   '/session/:id/export',
   authenticate,
@@ -235,10 +207,6 @@ router.post(
   }
 );
 
-/**
- * POST /api/saas/editor/session/:id/approve
- * Customer approves edited document → initiate Paystack payment
- */
 router.post(
   '/session/:id/approve',
   authenticate,
@@ -267,7 +235,6 @@ router.post(
         return;
       }
 
-      // Verify customer ownership
       if (edit.printJob?.userId !== user.id) {
         res.status(403).json({ success: false, message: 'Not authorized' });
         return;
@@ -278,13 +245,11 @@ router.post(
         return;
       }
 
-      // Calculate edit fee based on pages edited
       const feeCalculation = await calculateEditFee(edit, session);
 
-      // Initialize Paystack transaction
       const reference = `edit_${edit.id}_${Date.now()}`;
       const payment = await paystackService.initializePayment({
-        amountNaira: feeCalculation.total / 100, // convert kobo to naira
+        amountNaira: feeCalculation.total / 100,
         email: user.email,
         reference,
         metadata: {
@@ -295,22 +260,18 @@ router.post(
         callbackUrl: `${config.frontendUrl}/saas/editor/${id}/payment-callback`,
       });
 
-      // Update edit status
       edit.status = DocumentEditStatus.AWAITING_PAYMENT;
       await editRepo.save(edit);
 
-      // Update print job
       const job = edit.printJob;
       if (job) {
         job.status = PrintJobStatus.AWAITING_PAYMENT;
         await jobRepo.save(job);
       }
 
-      // Update session
       session.status = EditorSessionStatus.COMPLETED;
       await sessionRepo.save(session);
 
-      // Notify shop
       await notificationQueue.add('edit-approved', {
         shopId: edit.shopId,
         printJobId: job?.id,
@@ -335,10 +296,6 @@ router.post(
   }
 );
 
-/**
- * POST /api/saas/editor/session/:id/reject
- * Customer rejects edited document
- */
 router.post(
   '/session/:id/reject',
   authenticate,
@@ -373,7 +330,6 @@ router.post(
         return;
       }
 
-      // Verify customer ownership
       if (edit.printJob?.userId !== user.id) {
         res.status(403).json({ success: false, message: 'Not authorized' });
         return;
@@ -384,23 +340,19 @@ router.post(
         return;
       }
 
-      // Update edit status
       edit.status = DocumentEditStatus.REJECTED;
       edit.customerRejectionReason = reason;
       await editRepo.save(edit);
 
-      // Update print job - back to shop for re-edit
       const job = edit.printJob;
       if (job) {
         job.status = PrintJobStatus.AWAITING_EDIT;
         await jobRepo.save(job);
       }
 
-      // Update session
       session.status = EditorSessionStatus.ABANDONED;
       await sessionRepo.save(session);
 
-      // Notify shop
       await notificationQueue.add('edit-rejected', {
         shopId: edit.shopId,
         printJobId: job?.id,
@@ -416,10 +368,6 @@ router.post(
   }
 );
 
-/**
- * GET /api/saas/editor/session/:id/conversion-status
- * Check document conversion progress
- */
 router.get(
   '/session/:id/conversion-status',
   authenticate,
@@ -458,10 +406,6 @@ router.get(
   }
 );
 
-/**
- * GET /api/saas/editor/active-sessions
- * Get count of active editing sessions (admin/monitoring)
- */
 router.get(
   '/active-sessions',
   authenticate,
@@ -476,9 +420,6 @@ router.get(
   }
 );
 
-/**
- * Helper: Calculate edit fee based on pages edited and shop pricing
- */
 async function calculateEditFee(
   edit: DocumentEdit,
   session: EditorSession
@@ -521,10 +462,6 @@ async function calculateEditFee(
   };
 }
 
-/**
- * GET /api/saas/editor/by-job/:jobId
- * Get editor session for a print job (customer view)
- */
 router.get(
   '/by-job/:jobId',
   authenticate,
@@ -544,13 +481,11 @@ router.get(
         return;
       }
 
-      // Verify customer ownership
       if (edit.printJob?.userId !== user.id) {
         res.status(403).json({ success: false, message: 'Not authorized' });
         return;
       }
 
-      // Get or create editor session
       const sessionRepo = AppDataSource.getRepository(EditorSession);
       let session = await sessionRepo.findOne({
         where: { documentEditId: edit.id },
@@ -558,7 +493,6 @@ router.get(
       });
 
       if (!session) {
-        // Create a new session for review
         const sessionId = uuidv4();
         const token = Buffer.from(JSON.stringify({
           sid: sessionId,
@@ -604,7 +538,7 @@ router.get(
           printJob: edit.printJob,
           totalEditFee: edit.totalEditFee,
           bankDetails: edit.printJob?.status === 'awaiting_payment' ? {
-            accountName: null, // Would come from pricing config
+            accountName: null,
             accountNumber: null,
             bankName: null,
             sortCode: null,

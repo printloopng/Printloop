@@ -10,7 +10,6 @@ import type {
 } from '../types';
 
 const EMPTY_SETTINGS: KioskSettings = {
-  apiUrl: '',
   apiKey: '',
   printerUri: '',
   pollInterval: 10000,
@@ -35,7 +34,7 @@ export function useKiosk() {
   const [loading, setLoading] = useState(false);
 
   const isConfigured = useMemo(
-    () => !!(settings.apiUrl && settings.apiKey && settings.printerUri),
+    () => !!(settings.apiKey && settings.printerUri),
     [settings],
   );
 
@@ -133,7 +132,6 @@ export function useKiosk() {
   };
 }
 
-// Electron prefixes errors thrown across IPC with "Error invoking remote method ...: Error: ".
 function cleanIpcError(err: unknown, fallback: string): string {
   const msg = err instanceof Error ? err.message : '';
   return msg.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') || fallback;

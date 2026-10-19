@@ -117,8 +117,6 @@ export default function PrintersTab({ canManage }: { canManage: boolean }) {
       return;
     }
     try {
-      // Empty strings are not "intent to unset" — strip them so the
-      // server doesn't store empty mapsUrl/etc.
       const payload: Record<string, any> = {
         name: form.name,
         isPublic: form.isPublic,

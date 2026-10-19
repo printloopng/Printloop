@@ -1,8 +1,10 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
-// The server address lives in kiosk settings (src/main/settings.ts); API_URL
-// in .env only pre-fills it during development.
+const PRODUCTION_API_URL = 'https://api.printloop.app';
+
+export const API_URL = (process.env.API_URL?.trim() || PRODUCTION_API_URL).replace(/\/+$/, '');
+
 export const config = {
   logging: {
     level: process.env.LOG_LEVEL || 'info',

@@ -251,7 +251,7 @@ export class CustomerPrintController {
           const edit = editRepo.create({
             printJobId: saved.id,
             shopId: req.tenant.id,
-            editedBy: '', // Will be set when shop starts editing
+            editedBy: '',
             editOperations: [],
             originalDocumentMeta: {
               pageCount,
@@ -422,8 +422,8 @@ export class CustomerPrintController {
           ? 'landscape'
           : 'portrait') as 'portrait' | 'landscape',
       };
-      const pages = perFile[i].pages; // authoritative (server-derived)
-      const bytes = perFile[i].bytes; // flattened in the validation pass
+      const pages = perFile[i].pages;
+      const bytes = perFile[i].bytes;
       const cost = await computeCost({ pageCount: pages, ...cfg });
       totalCost += cost;
       totalPages += pages;
@@ -533,7 +533,7 @@ export class CustomerPrintController {
   try {
     const user = (req as any).user;
     const repo = AppDataSource.getRepository(User);
-    const token = crypto.randomBytes(40).toString('hex'); // 80 chars hex
+    const token = crypto.randomBytes(40).toString('hex');
     await repo.update({ id: user.id }, { printToken: token });
     res.json({ success: true, data: { token } });
   } catch (err) {
@@ -634,7 +634,7 @@ export class CustomerPrintController {
             campus: k.campus || null,
             status,
             mapsUrl: k.mapsUrl || null,
-            queue: 0, // populated by a future per-kiosk queue endpoint
+            queue: 0,
             lastSeenAt: k.lastSeenAt,
           };
         }),

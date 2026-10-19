@@ -6,12 +6,6 @@ import { WebhookEvent } from '@/database/entities/tenantWebhook.entity';
 import { emitTenantEvent } from '@/modules/saas/services/tenantWebhook.service';
 import { acceptJob } from '@/modules/customer/services/acceptWindow.service';
 
-/*
- * Operator queue for the shop console (/saas/queue). Every query is scoped
- * to the caller's tenant, and every transition is a conditional update so
- * an operator and a kiosk can't both act on the same job.
- */
-
 const LIVE_STATUSES = [
   PrintJobStatus.PENDING,
   PrintJobStatus.RENDERING,
@@ -98,7 +92,6 @@ export class ShopJobsController {
     }
   };
 
-  /** AWAITING_ACCEPT → READY (credits rerouted jobs to this shop). */
   accept = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const job = await AppDataSource.getRepository(PrintJob).findOne({
@@ -116,12 +109,9 @@ export class ShopJobsController {
     }
   };
 
-  /** READY → RELEASING: the shop's kiosk picks it up on its next poll. */
   release = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const tenantId = req.tenant!.id;
-      // Bind to the shop's most recently seen active kiosk; with none known,
-      // leave unbound so whichever kiosk polls first takes it.
       const kiosk = await AppDataSource.getRepository(Kiosk).findOne({
         where: { tenantId, status: KioskStatus.ACTIVE },
         order: { lastSeenAt: 'DESC' },
@@ -138,7 +128,6 @@ export class ShopJobsController {
     }
   };
 
-  /** FAILED → READY so it can be released again (paid jobs only). */
   requeue = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const tenantId = req.tenant!.id;
@@ -162,7 +151,6 @@ export class ShopJobsController {
     }
   };
 
-  /** Operator confirms the customer collected it (e.g. printed by hand). */
   setStatus = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       if (req.body?.status !== PrintJobStatus.DONE) {

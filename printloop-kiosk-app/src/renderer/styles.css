@@ -473,7 +473,6 @@ body {
   color: #888;
 }
 
-/* Live connection + queue strip on the code-entry screen */
 .queue-strip {
   display: flex;
   justify-content: center;
@@ -497,7 +496,6 @@ body {
 .queue-strip .dot.warn { background: #c7944a; }
 .queue-strip .dot.down { background: #d14b2c; }
 
-/* Full code alphabet keypad: 8 columns, last row Clear / ⌫ / Continue */
 .keypad.alnum {
   grid-template-columns: repeat(8, 1fr);
   gap: 8px;

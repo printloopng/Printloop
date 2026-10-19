@@ -34,7 +34,6 @@ async function replayWebhookFromLogs() {
         webhookEntries.push(entry);
       }
     } catch {
-      // Not JSON, skip
     }
   }
   
@@ -62,7 +61,6 @@ async function replayWebhookFromLogs() {
   const selected = webhookEntries[idx];
   console.log(`\nReplaying entry ${idx + 1}...`);
   
-  // Reconstruct the raw body for signature
   const rawBody = JSON.stringify(selected.body);
   const webhookSecret = process.env.PAYSTACK_WEBHOOK_SECRET || process.env.PAYSTACK_SECRET_KEY;
   

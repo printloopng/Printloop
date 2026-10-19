@@ -14,7 +14,6 @@ import { PricingConfig, PaperSize, ColorType } from '../entities/pricingConfig.e
 import { applyRenderResult } from '../services/renderEnqueue.service';
 import { settleShortfall, shortfallFor } from '../services/costReconciliation.service';
 
-// V2-53: no wallet debits/refunds — deltas charge the saved card.
 const { mockCharge } = vi.hoisted(() => ({ mockCharge: vi.fn() }));
 
 vi.mock('../services/paystack.service', () => ({
@@ -70,9 +69,6 @@ describe('Cost Reconciliation — card-only (V2-53)', () => {
       paymentReference: opts.withPayment ? paymentRef : null,
       cost: opts.cost,
       totalPages: opts.estimatedPages,
-      // Jobs enter the pipeline PENDING and are flipped to RENDERING by
-      // enqueueRender; the tests skip enqueue and call the callback
-      // directly, so create them already in RENDERING.
       status: PrintJobStatus.RENDERING,
       printConfiguration: cfg,
       expiresAt: new Date(Date.now() + 3600 * 1000),
@@ -118,14 +114,11 @@ describe('Cost Reconciliation — card-only (V2-53)', () => {
       lat: 6.5244,
       lng: 3.3792,
       isDiscoverable: true,
-      commissionPct: 0.1, // 10% — fraction, not percentage
+      commissionPct: 0.1,
     });
     await tenantRepo.save(tenant);
     tenantId = tenant.id;
 
-    // Pricing matrix fixture — mirrors the production backfill's
-    // A4/COLOR row (₦300/page at 600dpi simplex), which the per-file
-    // fresh DB doesn't have (the dev seed only runs on the shared DB).
     await AppDataSource.getRepository(PricingConfig).save(
       AppDataSource.getRepository(PricingConfig).create({
         tenantId,
@@ -155,7 +148,6 @@ describe('Cost Reconciliation — card-only (V2-53)', () => {
     await userRepo.save(user);
     userId = user.id;
 
-    // Zero-balance ledger bucket — never debited or credited again.
     const walletRepo = AppDataSource.getRepository(Wallet);
     const wallet = walletRepo.create({ tenantId, userId, balance: 0 });
     await walletRepo.save(wallet);
@@ -190,8 +182,6 @@ describe('Cost Reconciliation — card-only (V2-53)', () => {
   }
 
   it('overpaid job → written off (no refund, wallet untouched, ledger only)', async () => {
-    // runPostInitMigrations seeds the A4/COLOR/600-simplex cell at
-    // ₦300/page → 5 pages estimated = ₦1500
     const { job } = await makeJob({ cost: 1500, estimatedPages: 5, withPayment: true });
 
     const walletBefore = await walletBalance();
@@ -202,7 +192,6 @@ describe('Cost Reconciliation — card-only (V2-53)', () => {
       renderedKey: `renders/${tenantId}/${job.id}.pwg`,
       renderedPdfUrl: `http://x/renders/${tenantId}/${job.id}.pdf`,
       previewImageUrls: [],
-      // Renderer counted 3 pages, not 5 → final cost ₦900 vs ₦1500 paid
       pageCount: 3,
       bytes: 2048,
     });
@@ -214,8 +203,6 @@ describe('Cost Reconciliation — card-only (V2-53)', () => {
     expect(Number(fresh!.finalCost)).toBe(900);
     expect(fresh!.costReconciledAt).toBeDefined();
 
-    // No refund anywhere: wallet untouched, no REFUND transactions,
-    // payment not marked.
     expect(await walletBalance()).toBe(0);
     expect((await transactions()).length).toBe(0);
     const payment = await AppDataSource.getRepository(Payment).findOne({
@@ -232,7 +219,6 @@ describe('Cost Reconciliation — card-only (V2-53)', () => {
       renderedKey: `renders/${tenantId}/${job.id}.pwg`,
       renderedPdfUrl: `http://x/renders/${tenantId}/${job.id}.pdf`,
       previewImageUrls: [],
-      // Renderer counted 7 pages → final cost ₦2100 vs ₦900 paid
       pageCount: 7,
       bytes: 4096,
     });
@@ -263,7 +249,6 @@ describe('Cost Reconciliation — card-only (V2-53)', () => {
     expect(settlement.settled).toBe(true);
     expect(settlement.shortfall).toBe(1200);
 
-    // Charge hit the card for exactly the delta, with the tenant split
     expect(mockCharge).toHaveBeenCalledWith(
       expect.objectContaining({
         amountNaira: 1200,
@@ -273,24 +258,20 @@ describe('Cost Reconciliation — card-only (V2-53)', () => {
     );
 
     const fresh = await AppDataSource.getRepository(PrintJob).findOne({ where: { id: job.id } });
-    // paid is now final → gate no longer fires
     expect(Number(fresh!.cost)).toBe(2100);
     expect(shortfallFor(fresh!)).toBe(0);
 
-    // PRINT transaction recorded on the ledger bucket with commission
     const tx = (await transactions()).find(
       (t) => t.type === TransactionType.PRINT && Number(t.amount) === 1200,
     );
     expect(tx).toBeDefined();
-    expect(Number(tx!.commissionAmount)).toBe(120); // 10% of ₦1200
+    expect(Number(tx!.commissionAmount)).toBe(120);
 
-    // Payment row bumped to the final collected amount
     const payment = await AppDataSource.getRepository(Payment).findOne({
       where: { reference: fresh!.paymentReference! },
     });
     expect(Number(payment!.amount)).toBe(2100);
 
-    // Re-settling is a no-op (and never re-charges the card)
     const again = await settleShortfall(job.id);
     expect(again.settled).toBe(false);
     expect(again.reason).toBe('no-shortfall');
@@ -319,7 +300,6 @@ describe('Cost Reconciliation — card-only (V2-53)', () => {
     expect(settlement.shortfall).toBe(1200);
     expect(mockCharge).not.toHaveBeenCalled();
 
-    // Job stays READY and unpaid — release is blocked until admin sorts it
     const fresh = await AppDataSource.getRepository(PrintJob).findOne({ where: { id: job.id } });
     expect(fresh!.status).toBe(PrintJobStatus.READY);
     expect(shortfallFor(fresh!)).toBe(1200);
@@ -345,7 +325,7 @@ describe('Cost Reconciliation — card-only (V2-53)', () => {
 
     const fresh = await AppDataSource.getRepository(PrintJob).findOne({ where: { id: job.id } });
     expect(fresh!.status).toBe(PrintJobStatus.READY);
-    expect(Number(fresh!.cost)).toBe(900); // not settled
+    expect(Number(fresh!.cost)).toBe(900);
   });
 
   it('jobs with no payment row (CUPS ingress) pass the gate uncharged', async () => {

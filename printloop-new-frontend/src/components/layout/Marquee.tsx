@@ -1,12 +1,5 @@
 import { useEffect, useRef } from "react";
 
-/**
- * News-ticker tape. Two modes:
- *  - default: pure-CSS loop (animate-marquee), used app-wide.
- *  - reactive: rAF-driven so the tape speeds up with scroll velocity —
- *    the press runs faster when the reader rushes. Landing page only.
- *    Under prefers-reduced-motion the tape simply holds still.
- */
 export function Marquee({
   items,
   reactive = false,
@@ -28,8 +21,6 @@ export function Marquee({
     let raf = 0;
     const tick = () => {
       const y = window.scrollY;
-      // Smoothed |scroll velocity| → extra tape speed, capped so a
-      // page-jump doesn't turn the ticker into a blur.
       vel += (Math.abs(y - lastY) - vel) * 0.12;
       lastY = y;
       x -= 0.55 + Math.min(vel * 0.18, 3.2);

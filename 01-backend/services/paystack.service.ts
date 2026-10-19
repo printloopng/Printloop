@@ -15,11 +15,6 @@ export class PaystackService {
     this.secretKey = process.env.PAYSTACK_SECRET_KEY || '';
   }
 
-  /**
-   * Initialize a direct print-job payment via Paystack.
-   * Scopes splits and tenant subaccount codes, flags
-   * metadata.type as 'print_job_payment' and carries the jobId.
-   */
   async initializeJobPayment(
     userId: string,
     jobId: string,
@@ -53,10 +48,6 @@ export class PaystackService {
     if (useSplit && split) {
       body.subaccount = tenant!.paystackSubaccountCode;
       body.transaction_charge = commissionInKobo(split);
-      // 'account' = bear-fee mode where the subaccount (tenant) bears
-      // the Paystack processor fee; commission is a separate slice that
-      // routes to our main account. Documented at
-      // https://paystack.com/docs/payments/multi-split-payments/
       body.bearer = 'account';
     }
 
@@ -74,13 +65,6 @@ export class PaystackService {
     return response.data.data;
   }
 
-  /**
-   * Charge a previously-authorized card (V2-53). Used by the kiosk
-   * release gate to collect the delta when the render worker's final
-   * cost exceeds what the customer paid at checkout. Same split /
-   * subaccount handling as initializeJobPayment so tenant earnings
-   * and commission land identically.
-   */
   async chargeAuthorization(opts: {
     authorizationCode: string;
     amountNaira: number;
@@ -130,9 +114,6 @@ export class PaystackService {
     return response.data.data;
   }
 
-  /**
-   * Verify a transaction on Paystack.
-   */
   async verifyTransaction(reference: string): Promise<any> {
     if (!this.secretKey) throw new Error('Paystack secret key is missing');
     const response = await axios.get(
@@ -146,17 +127,11 @@ export class PaystackService {
     return response.data?.data;
   }
 
-  /**
-   * Create a Paystack Subaccount for a tenant. Called once during
-   * onboarding (Dimension 5); the returned `subaccount_code` is
-   * stored on `tenant.paystackSubaccountCode` and re-used on every
-   * subsequent charge.
-   */
   async createSubaccount(opts: {
     businessName: string;
-    settlementBank: string; // bank code (e.g. '058' for GTB)
+    settlementBank: string;
     accountNumber: string;
-    percentageCharge?: number; // Paystack's own fee % (defaults to processor default)
+    percentageCharge?: number;
   }): Promise<{ subaccountCode: string; accountName: string }> {
     if (!this.secretKey) throw new Error('Paystack secret key is missing');
     const response = await axios.post(
@@ -181,11 +156,6 @@ export class PaystackService {
     };
   }
 
-  /**
-   * Create a Paystack Transfer Recipient for a tenant's bank account.
-   * Stored on `payoutSchedule.recipientCode`; reused on every payout
-   * so we don't recreate it.
-   */
   async createTransferRecipient(opts: {
     name: string;
     accountNumber: string;
@@ -211,12 +181,6 @@ export class PaystackService {
     return { recipientCode: response.data?.data?.recipient_code };
   }
 
-  /**
-   * Initiate a transfer to a previously-created recipient. Returns the
-   * `reference` to record on `payouts.paystackTransferReference`. The
-   * actual settlement status arrives via webhook (transfer.success /
-   * transfer.failed).
-   */
   async initiateTransfer(opts: {
     amountKobo: number;
     recipientCode: string;
@@ -246,38 +210,20 @@ export class PaystackService {
     };
   }
 
-  /**
-   * Paystack signs webhook bodies with HMAC-SHA512 using your secret key
-   * (or a dedicated PAYSTACK_WEBHOOK_SECRET if you set one). Always verify
-   * against the RAW request body — JSON re-serialisation would change bytes.
-   */
   verifyWebhookSignature(rawBody: Buffer | string, signature: string | undefined): boolean {
     if (!signature) return false;
     const secret = process.env.PAYSTACK_WEBHOOK_SECRET || this.secretKey;
     if (!secret) return false;
     const hash = crypto.createHmac('sha512', secret).update(rawBody).digest('hex');
-    // Constant-time compare to avoid timing side-channels.
     const a = Buffer.from(hash, 'utf8');
     const b = Buffer.from(String(signature), 'utf8');
     return a.length === b.length && crypto.timingSafeEqual(a, b);
   }
 
-  /**
-   * Process an incoming Paystack webhook. Handles:
-   *   - charge.success → mark the print-job paid (persisting the saved-
-   *     card authorization code for delta charges) — idempotent on
-   *     reference via completePrintJobPayment's status guard
-   *   - transfer.success / transfer.failed / transfer.reversed →
-   *     payouts to tenants (Dimension 15)
-   * All other events return { handled: false } so the caller can 200 them.
-   */
   async handleWebhook(event: any): Promise<{ handled: boolean; action?: string }> {
     const type = event?.event;
     const data = event?.data || {};
 
-    // Transfer family — payouts to tenants (Dimension 15). Demuxed
-    // here before the charge.* metadata gate so transfers don't get
-    // dropped as "not a print_job_payment".
     if (
       type === 'transfer.success' ||
       type === 'transfer.failed' ||
@@ -320,10 +266,6 @@ export class PaystackService {
     return { handled: false };
   }
 
-  /**
-   * Generic payment initialization for edit fees, topups, etc.
-   * Does not require tenant/subaccount splits unless specified.
-   */
   async initializePayment(opts: {
     amountNaira: number;
     email: string;
@@ -351,7 +293,6 @@ export class PaystackService {
       body.callback_url = opts.callbackUrl;
     }
 
-    // Optional: use tenant subaccount for split if provided
     if (opts.tenant?.paystackSubaccountCode) {
       const { computeCommissionSplit, commissionInKobo } = await import('./commission.service');
       const split = computeCommissionSplit(opts.tenant, opts.amountNaira);

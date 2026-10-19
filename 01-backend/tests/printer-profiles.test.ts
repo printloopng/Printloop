@@ -74,8 +74,6 @@ describe('Printer profiles (V2-56)', () => {
     }
   });
 
-  // ── Pure mapping logic ────────────────────────────────────────────────
-
   it('caps DPI at the profile max, never above', () => {
     const opts = resolveProfileRenderOpts(
       { capabilities: { maxDpi: 300, colorMode: 'color', paperSize: 'A4', duplex: true } },
@@ -114,8 +112,6 @@ describe('Printer profiles (V2-56)', () => {
     expect(opts.dpi).toBe(300);
     expect(opts.color).toBe(true);
   });
-
-  // ── DB resolution + enqueue payload ──────────────────────────────────
 
   it('resolves the tenant default profile and passes its opts in the render payload', async () => {
     const repo = AppDataSource.getRepository(PrinterProfile);
@@ -169,8 +165,8 @@ describe('Printer profiles (V2-56)', () => {
     expect(payload.printJobId).toBe(job.id);
     expect(payload.printerProfileId).toBe(resolved!.id);
     expect(payload.printerProfile).toEqual({
-      dpi: 300, // capped from 600
-      color: false, // mono-only printer, colour paid for
+      dpi: 300,
+      color: false,
       paperSize: 'A4',
     });
   });

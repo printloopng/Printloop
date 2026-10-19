@@ -20,12 +20,9 @@ export default function EditReviewPage() {
   const [rejectReason, setRejectReason] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Find the session for this jobId
-  // In real app, we'd fetch session by jobId from API
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [sessionInfo, setSessionInfo] = useState<any>(null);
 
-  // Fetch session info
   useEffect(() => {
     const fetchSession = async () => {
       try {
@@ -71,13 +68,11 @@ export default function EditReviewPage() {
     onError: (err) => toast.error(err.message),
   });
 
-  // Handle approve
   const handleApprove = async () => {
     if (!token) return;
     setIsSubmitting(true);
     try {
       const result = await approveEdit();
-      // Redirect to Paystack checkout
       if (result.paymentUrl) {
         window.open(result.paymentUrl, '_blank', 'noopener');
         toast.success('Redirecting to Paystack for payment...');
@@ -89,7 +84,6 @@ export default function EditReviewPage() {
     }
   };
 
-  // Handle reject
   const handleReject = async () => {
     if (!rejectReason.trim()) return;
     setIsSubmitting(true);
@@ -98,9 +92,7 @@ export default function EditReviewPage() {
       toast.success('Changes requested — shop notified to revise');
       setShowRejectDialog(false);
       setRejectReason('');
-      // Refresh to get updated status
       if (sessionId) {
-        // The session will be updated via WebSocket
       }
     } catch (err: any) {
       toast.error(err.message || 'Failed to request changes');
@@ -109,12 +101,10 @@ export default function EditReviewPage() {
     }
   };
 
-  // Handle back
   const handleBack = () => {
     navigate(ROUTES.APP.DASHBOARD);
   };
 
-  // Loading state
   if (isLoading || !sessionId) {
     return (
       <div className="flex items-center justify-center min-h-[500px]">
@@ -146,7 +136,6 @@ export default function EditReviewPage() {
 
   return (
     <div className="max-w-5xl mx-auto p-4 sm:p-6 space-y-6">
-      {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="sm" onClick={handleBack} className="flex items-center gap-1">
@@ -162,7 +151,6 @@ export default function EditReviewPage() {
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">
-          {/* Connection status */}
           <div className={`flex items-center gap-1.5 px-3 py-1.5 border-2 rounded-pl ${isConnected ? 'border-sage bg-sage/10' : 'border-persimmon bg-persimmon/10'}`}>
             <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-sage' : 'bg-persimmon'}`} />
             <span className="text-[10px] font-bold tracking-editorial">
@@ -170,7 +158,6 @@ export default function EditReviewPage() {
             </span>
           </div>
 
-          {/* Status badge */}
           <div className={`flex items-center gap-1.5 px-3 py-1.5 border-2 rounded-pl ${
             isPendingCustomer ? 'border-persimmon bg-persimmon/10' :
             isApproved ? 'border-ochre bg-ochre/10' :
@@ -187,7 +174,6 @@ export default function EditReviewPage() {
         </div>
       </div>
 
-      {/* Document info */}
       <div className="border-2 border-ink bg-paper-light rounded-pl p-4">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-4">
           <div>
@@ -208,7 +194,6 @@ export default function EditReviewPage() {
           </div>
         </div>
 
-        {/* View toggle */}
         <div className="flex items-center gap-3">
           <label className="flex items-center gap-2 cursor-pointer">
             <input
@@ -224,7 +209,6 @@ export default function EditReviewPage() {
 
           <div className="flex-1" />
 
-          {/* Shop notes */}
           {session?.shopNotes ? (
             <div className="border-2 border-ochre/60 bg-ochre/10 p-3 rounded-pl text-sm pl-serif">
               <span className="font-bold text-ochre">Shop Notes: </span>
@@ -234,9 +218,7 @@ export default function EditReviewPage() {
         </div>
       </div>
 
-      {/* Main content area */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
-        {/* Main editor/preview */}
         <div className="relative min-h-[600px]">
           {token && document ? (
             <UniverEditor
@@ -262,9 +244,7 @@ export default function EditReviewPage() {
           ) : null}
         </div>
 
-        {/* Sidebar */}
         <div className="space-y-4">
-          {/* Status card */}
           <div className={`border-2 rounded-pl p-5 ${
             isPendingCustomer ? 'border-persimmon bg-persimmon/5' :
             isApproved ? 'border-ochre bg-ochre/10' :
@@ -340,7 +320,6 @@ export default function EditReviewPage() {
             ) : null}
           </div>
 
-          {/* Edit instructions */}
           <div className="border-2 border-ink bg-paper-light rounded-pl p-4">
             <div className="editorial-label text-persimmon mb-2">YOUR INSTRUCTIONS</div>
             <p className="pl-serif italic text-ink/70 whitespace-pre-wrap text-sm">
@@ -348,7 +327,6 @@ export default function EditReviewPage() {
             </p>
           </div>
 
-          {/* Shop notes */}
           {session?.shopNotes ? (
             <div className="border-2 border-ochre/60 bg-ochre/10 rounded-pl p-4">
               <div className="editorial-label text-ochre mb-2">SHOP NOTES</div>
@@ -356,7 +334,6 @@ export default function EditReviewPage() {
             </div>
           ) : null}
 
-          {/* Bank details for payment */}
           {isApproved && sessionInfo?.bankDetails ? (
             <div className="border-2 border-ink bg-paper-light rounded-pl p-4">
               <div className="editorial-label text-persimmon mb-3">PAYMENT DETAILS</div>
@@ -386,7 +363,6 @@ export default function EditReviewPage() {
         </div>
       </div>
 
-      {/* Reject Dialog */}
       {showRejectDialog ? (
         <div className="fixed inset-0 bg-ink/75 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadein">
           <form onSubmit={(e) => { e.preventDefault(); handleReject(); }} className="bg-paper border-4 border-ink shadow-[8px_8px_0_#000] p-6 max-w-md w-full rounded animate-fadein">

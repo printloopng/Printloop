@@ -1,7 +1,5 @@
 import { apiSlice } from "@/store/services/apiSlice";
 
-// Real TypeORM-backed group sessions (/api/groups). Host actions accept a
-// client-held guest hostId so no separate login is required.
 export const groupApi = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
     listGroupSessions: builder.query<any, string | void>({

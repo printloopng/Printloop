@@ -1,11 +1,3 @@
-/**
- * Tiny markdown-ish renderer for blog posts (V2-54). No deps — the
- * backend stores a deliberately small dialect:
- *   ## / ### headings, **bold**, *italic*, - lists, blank-line
- *   paragraphs, > quotes. Everything else is escaped so raw HTML in
- *   a post can never inject markup. Returns an HTML string for
- *   dangerouslySetInnerHTML — content comes from trusted admins.
- */
 function esc(s: string): string {
   return s
     .replace(/&/g, "&amp;")

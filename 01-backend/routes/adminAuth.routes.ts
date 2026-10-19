@@ -16,10 +16,6 @@ function publicUser(user: User) {
   };
 }
 
-/**
- * POST /api/admin/auth/login
- * Admin-gated login. Rejects users without ADMIN / SUPER_ADMIN role.
- */
 router.post('/login', async (req: Request, res: Response): Promise<void> => {
   try {
     const { email, password } = req.body || {};
@@ -47,7 +43,6 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // 2FA gate (V2-22) — admin/platform accounts are highest-value.
     if (user.totpEnabled && user.totpSecret) {
       const { verifyTotp } = await import('../utils/totp');
       const code = String((req.body || {}).totpCode || '');
@@ -64,9 +59,6 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
     user.lastLoginAt = new Date();
     await userRepo.save(user);
 
-    // Admins authenticate per-platform but their tenant membership
-    // set determines which tenant data they can see. Memberships are
-    // baked into the JWT so RBAC checks don't need a DB round-trip.
     const memberships = await loadMembershipsForUser(user.id);
     const accessToken = signAccessToken({
       userId: user.id,
@@ -87,9 +79,6 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
   }
 });
 
-/**
- * GET /api/admin/auth/me — current authenticated admin profile.
- */
 router.get('/me', authenticate, async (req: Request, res: Response): Promise<void> => {
   const user = (req as any).user as User;
   if (user.role !== UserRole.ADMIN && user.role !== UserRole.SUPER_ADMIN) {

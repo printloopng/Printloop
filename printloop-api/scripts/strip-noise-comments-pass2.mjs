@@ -37,7 +37,6 @@ for (const file of walk(root)) {
         i++;
         continue;
       }
-      // consecutive // essay block
       let j = i;
       const block = [];
       while (

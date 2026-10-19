@@ -9,11 +9,6 @@ import {
   type DomainClaimResponse,
 } from "@/store/services/saasApi";
 
-/**
- * `/saas/settings/domains` — custom-domain wizard (Dimension 8).
- * Claim → publish the shown TXT + CNAME at your DNS provider →
- * Verify. Status pills reflect the backend DomainStatus.
- */
 export default function DomainsPage() {
   const { data: domains, isLoading } = useListDomainsQuery();
   const [claim, claimState] = useClaimDomainMutation();
@@ -30,7 +25,6 @@ export default function DomainsPage() {
       setClaimed(r);
       setNewDomain("");
     } catch {
-      /* surfaced below */
     }
   };
 
@@ -145,12 +139,6 @@ export default function DomainsPage() {
   );
 }
 
-/**
- * Campus LMS button (V2-44). One URL a Moodle/Canvas admin pastes
- * behind a course button — students land on this shop signed-in-ish
- * (email pre-filled, single-use link). The URL embeds a secret key,
- * so it's shown ONCE on generate; rotating kills the old link.
- */
 function LmsLinkCard() {
   const { data: lms } = useGetLmsStatusQuery();
   const [regen, regenState] = useRegenerateLmsKeyMutation();
@@ -168,7 +156,6 @@ function LmsLinkCard() {
       const r = await regen().unwrap();
       setRevealed({ url: r.url, urlWithEmail: r.urlWithEmail });
     } catch {
-      /* error surfaced below */
     }
   };
 

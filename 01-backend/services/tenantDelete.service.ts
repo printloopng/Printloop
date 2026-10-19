@@ -19,30 +19,6 @@ import { Payout } from '../entities/payout.entity';
 import { PayoutSchedule } from '../entities/payoutSchedule.entity';
 import { AuditLog } from '../entities/auditLog.entity';
 
-/**
- * Tenant deletion (Dimension 13 — V2-14).
- *
- * Two-phase delete:
- *
- *   Phase 1 — `closeTenant(tenantId)`
- *     Flips `tenant.status = CLOSED`. The middleware then 410s
- *     every authed request. Money still in the Paystack subaccount
- *     stays there until either auto-payout runs (cadence already
- *     pauses on suspend) or the tenant manually withdraws. We hold
- *     for a 30-day cooling-off window before hard-deleting.
- *
- *   Phase 2 — `hardDeleteTenant(tenantId, force)`
- *     Removes every row in dependency order. Refuses to run unless
- *     either `force=true` OR `closedAt` is older than 30 days.
- *     Returns counts per table.
- *
- * Outstanding balance check: hardDeleteTenant refuses to run if the
- * tenant still has a non-zero `availableBalance` — that money is
- * the tenant's and must be paid out (or returned to customers)
- * before we wipe the records. `force=true` bypasses this for ops
- * cleanup of test tenants.
- */
-
 export async function closeTenant(
   tenantId: string,
   reason: string,
@@ -86,7 +62,6 @@ export async function hardDeleteTenant(
     }
   }
 
-  // Balance check — refuses to drop a tenant with money outstanding.
   const balance = await ds
     .getRepository(import('../entities/tenantBalance.entity').then((m) => m.TenantBalance) as any)
     .findOne({ where: { tenantId } })
@@ -97,12 +72,8 @@ export async function hardDeleteTenant(
     );
   }
 
-  // Delete in FK-dependency order. group_participants → group_sessions,
-  // print_job_items → print_jobs, transactions → wallets → users, etc.
   const deleted: Record<string, number> = {};
 
-  // group_participants doesn't carry tenantId itself — delete by
-  // group-session id range.
   const sessions = await ds
     .getRepository(GroupSession)
     .find({ where: { tenantId } as any });
@@ -146,7 +117,6 @@ export async function hardDeleteTenant(
     deleted[Repo.name] = r.affected ?? 0;
   }
 
-  // Finally, drop the tenant row itself.
   await ds.getRepository(Tenant).delete({ id: tenantId });
   deleted.Tenant = 1;
 

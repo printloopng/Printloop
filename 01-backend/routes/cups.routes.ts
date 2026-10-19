@@ -22,11 +22,6 @@ import type { Tenant } from '../entities/tenant.entity';
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
-/**
- * Init the Paystack hosted checkout for a CUPS job (V2-55). Null when
- * Paystack isn't configured (local dev) or the init fails — the job
- * stays PENDING either way, so nothing prints unpaid.
- */
 async function initCheckout(
   user: User,
   jobId: string,
@@ -50,7 +45,6 @@ async function initCheckout(
   }
 }
 
-/** The plain-text line the CUPS backend puts on the job's state message. */
 function cupsStatusMessage(
   code: string | null,
   cost: number,
@@ -62,16 +56,8 @@ function cupsStatusMessage(
   return `PrintLoop release code: ${code} (₦${cost})`;
 }
 
-/** One-shot warning if anyone tries the legacy `?token=` path in prod. */
 let warnedQueryTokenInProd = false;
 
-/**
- * Pull the print token off the request. CUPS device URIs end up as
- *   `Authorization: Bearer <token>` once our CUPS backend script translates
- * the URI. `X-PrintLoop-Token` is the safe header fallback. `?token=` is
- * only honoured in non-production builds — production proxies log query
- * strings, leaking the credential.
- */
 function extractToken(req: Request): string | null {
   const auth = req.header('authorization') || '';
   const m = auth.match(/^Bearer\s+([A-Za-z0-9._-]+)$/);
@@ -94,12 +80,6 @@ function extractToken(req: Request): string | null {
   return null;
 }
 
-/**
- * Parse the CUPS `options` blob — a space-separated list like
- *   `media=A4 sides=two-sided-long-edge print-color-mode=color copies=2`.
- * We accept both IPP attribute names and PPD-ish synonyms; unknowns are
- * silently ignored so a chatty driver doesn't break the print.
- */
 export function parseCupsOptions(raw: string | undefined): {
   paper: 'A4' | 'A3' | 'Letter' | 'Legal';
   color: 'bw' | 'color';
@@ -110,8 +90,6 @@ export function parseCupsOptions(raw: string | undefined): {
 } {
   const out: Record<string, string> = {};
   const s = String(raw || '');
-  // CUPS quotes values with spaces using single quotes; we don't need full
-  // shell parsing here, just key=value tokens.
   const re = /([A-Za-z][\w-]*)=("[^"]*"|'[^']*'|\S+)/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(s))) {
@@ -143,9 +121,6 @@ export function parseCupsOptions(raw: string | undefined): {
   else if (qRaw === '5' || qRaw === 'high' || qRaw === 'best') qualityDpi = 600;
   else qualityDpi = 300;
 
-  // IPP orientation-requested: 3 = portrait, 4 = landscape, 5 = reverse
-  // landscape, 6 = reverse portrait. PPD synonyms vary; accept the common
-  // ones. Anything we can't classify defaults to portrait.
   const oRaw = (out['orientation-requested'] || out['orientation'] || '').toLowerCase();
   const orientation: 'portrait' | 'landscape' =
     oRaw === '4' || oRaw === '5' || /landscape/.test(oRaw) ? 'landscape' : 'portrait';
@@ -153,19 +128,6 @@ export function parseCupsOptions(raw: string | undefined): {
   return { paper, color, sided, copies, qualityDpi, orientation };
 }
 
-/**
- * POST /api/cups/print
- * Ingress for the CUPS-printloop backend script. Auth is the user's
- * printToken (Bearer / ?token / X-PrintLoop-Token). Body is multipart:
- *   - file:    the PDF/JPG/PNG bytes
- *   - title:   the print-job title from CUPS (optional)
- *   - copies:  number of copies (optional, also read from options)
- *   - options: the raw CUPS option string (parsed)
- *
- * Response (200): JSON with the release code + a plain-text message field
- * the backend script copies onto CUPS's job-state-message so users can see
- * the code in `lpq` / GNOME's print queue.
- */
 router.post('/print', upload.single('file'), async (req: Request, res: Response) => {
   try {
     const token = extractToken(req);
@@ -208,9 +170,6 @@ router.post('/print', upload.single('file'), async (req: Request, res: Response)
       });
       return;
     }
-    // Bake annotations (signatures) into the bytes before counting/storing so
-    // the printer RIP can't move or drop them. Byte-exact passthrough when
-    // there are none; original bytes on any failure — the job never breaks.
     const pdfBytes = await flattenAnnotations(file.buffer);
     let pageCount: number;
     try {
@@ -233,9 +192,6 @@ router.post('/print', upload.single('file'), async (req: Request, res: Response)
     }
 
     const cups = parseCupsOptions(req.body?.options);
-    // CUPS sometimes splits "copies" off the options blob into its own arg.
-    // `cups.copies` is already ≥1 from parseCupsOptions; take whichever
-    // is larger so the user doesn't get stuck on 1.
     const explicitCopies = parseInt(req.body?.copies || '1', 10) || 1;
     const copies = Math.max(cups.copies, explicitCopies);
     const printConfiguration: PrintConfiguration = {
@@ -260,10 +216,6 @@ router.post('/print', upload.single('file'), async (req: Request, res: Response)
     });
     const cost = promo.cost;
 
-    // Idempotency: if the same client retries the same print (CUPS resends
-    // on `exit 4`), we return the existing PrintJob instead of creating a
-    // duplicate. Key is bound to userId, so distinct users using the same
-    // header value can't collide.
     const idempotencyKey =
       req.header('idempotency-key') ||
       (typeof req.body?.idempotencyKey === 'string' ? req.body.idempotencyKey : '') ||
@@ -274,10 +226,6 @@ router.post('/print', upload.single('file'), async (req: Request, res: Response)
         where: { userId: user.id, idempotencyKey },
       });
       if (existing) {
-        // The same CUPS job was seen before (retry after `exit 4`).
-        // Return its code + cost, and a fresh checkout link if it still
-        // hasn't been paid (V2-55: CUPS jobs bill via Paystack like web
-        // jobs — no wallet anymore).
         let payUrl: string | null = null;
         if (existing.status === PrintJobStatus.PENDING) {
           payUrl = await initCheckout(user, existing.id, Number(existing.cost), req.tenant);
@@ -311,12 +259,6 @@ router.post('/print', upload.single('file'), async (req: Request, res: Response)
       }),
     );
 
-    // Billing note (V2-53/55): the wallet is gone. CUPS-ingress jobs are
-    // created with their release code and a cost estimate, but stay
-    // PENDING — the Paystack webhook pays them exactly like web jobs
-    // (completePrintJobPayment reuses the pre-minted code), and the
-    // release gate charges the saved card for any final-cost delta.
-    // Rendering starts after payment, not at creation.
     const job = jobRepo.create();
     Object.assign(job, {
       userId: user.id,
@@ -327,9 +269,6 @@ router.post('/print', upload.single('file'), async (req: Request, res: Response)
       cost,
       totalPages: pageCount,
       jobType: JobType.SINGLE,
-      // Created PENDING; the Paystack webhook (completePrintJobPayment)
-      // promotes it to RENDERING → READY after the customer pays, the
-      // same path web jobs take. No render at creation (V2-55).
       status: PrintJobStatus.PENDING,
       printConfiguration,
       idempotencyKey: idempotencyKey || null,
@@ -337,13 +276,8 @@ router.post('/print', upload.single('file'), async (req: Request, res: Response)
     });
     const saved = await jobRepo.save(job);
 
-    // V2-55: bill like a web job — init the Paystack hosted checkout and
-    // hand the link back with the code. Best-effort: no Paystack key
-    // (local dev) → payUrl null and the job waits for payment anyway.
     const payUrl = await initCheckout(user, saved.id, cost, req.tenant);
 
-    // text/plain message the CUPS backend pipes onto job-state-message so it
-    // surfaces in `lpq -l` and the system print queue UI.
     const message = cupsStatusMessage(saved.code, cost, payUrl);
     res.json({
       success: true,

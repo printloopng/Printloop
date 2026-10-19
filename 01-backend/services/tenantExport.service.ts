@@ -18,46 +18,6 @@ import { Payout } from '../entities/payout.entity';
 import { PayoutSchedule } from '../entities/payoutSchedule.entity';
 import { AuditLog } from '../entities/auditLog.entity';
 
-/**
- * Tenant data export (Dimension 13 — V2-14, GDPR/NDPR).
- *
- * One JSON document per tenant containing every row scoped to that
- * tenant. Sensitive fields (password hashes, salt, verification
- * tokens, payment-secret refs) are STRIPPED — the data subject is
- * the *tenant owner*, not us, and the export becomes their
- * compliance evidence too. Credentials in plaintext would be a
- * footgun.
- *
- * Format:
- *   {
- *     schemaVersion: 1,
- *     exportedAt: ISO timestamp,
- *     tenant: { ... },
- *     tenantMembers: [...],
- *     tenantBranding: {...} | null,
- *     tenantBalance: {...} | null,
- *     users: [...],            // customers + admins of this tenant
- *     wallets: [...],
- *     kiosks: [...],
- *     printJobs: [...],
- *     printJobItems: [...],
- *     payments: [...],
- *     transactions: [...],
- *     files: [...],            // metadata only — no blob bytes
- *     pricingConfigs: [...],
- *     promotions: [...],
- *     groupSessions: [...],
- *     payouts: [...],
- *     payoutSchedule: {...} | null,
- *     auditLogs: [...],
- *   }
- *
- * Memory: every row loads into memory at once. Acceptable for the
- * largest single-tenant we expect (~100k rows total ≈ 50 MB JSON);
- * the next refinement is streaming via `ReadableStream` so > 100k
- * tenants don't OOM the API process. Tracked as a V2-15 follow-up.
- */
-
 const SENSITIVE_USER_FIELDS = [
   'passwordHash',
   'salt',
@@ -138,9 +98,6 @@ export async function exportTenant(tenantId: string): Promise<TenantExport> {
     ds.getRepository(AuditLog).find({ where: { tenantId } as any }),
   ]);
 
-  // PrintJobItems hang off PrintJobs by printJobId, but they have
-  // their own tenantId column (V2-7). Pull them once with the
-  // tenant filter and let consumers cross-reference by printJobId.
   const printJobItems = await ds
     .getRepository(PrintJobItem)
     .find({ where: { tenantId } as any });

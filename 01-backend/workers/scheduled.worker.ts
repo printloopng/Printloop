@@ -16,10 +16,6 @@ const redisConnection = {
   password: process.env.REDIS_PASSWORD,
 };
 
-/**
- * Scheduled Jobs Worker
- * Handles cron-like recurring tasks
- */
 export const scheduledWorker = new Worker(
   'scheduled',
   async (job: Job) => {
@@ -42,9 +38,6 @@ export const scheduledWorker = new Worker(
       case 'reconcile-stuck-renders':
         return await reconcileStuckRendersJob();
 
-      // V2-58: Bolt-style accept window — a marketplace job nobody
-      // accepted within the window reroutes to the next nearest open
-      // shop (or auto-accepts).
       case 'accept-window':
         return await enforceAcceptWindowJob(job.data?.printJobId);
 
@@ -56,9 +49,6 @@ export const scheduledWorker = new Worker(
   { connection: redisConnection }
 );
 
-/**
- * Auto-close group sessions where deadline has passed
- */
 async function autoCloseGroupSessions(): Promise<{ closed: number }> {
   console.log('[Scheduled] Auto-closing expired group sessions...');
   const service = new GroupSessionService();
@@ -67,9 +57,6 @@ async function autoCloseGroupSessions(): Promise<{ closed: number }> {
   return { closed };
 }
 
-/**
- * Mark kiosks as OFFLINE if they haven't sent heartbeat recently
- */
 async function markOfflineKiosks(): Promise<{ markedOffline: number }> {
   console.log('[Scheduled] Checking for offline kiosks...');
 
@@ -86,7 +73,6 @@ async function markOfflineKiosks(): Promise<{ markedOffline: number }> {
 
   const demoCampuses = ['Demo', 'Akoka', 'Yaba', 'UNILAG', 'Bariga'];
 
-  // Keep demo kiosks ACTIVE/online
   await kioskRepo
     .createQueryBuilder()
     .update(Kiosk)
@@ -98,7 +84,6 @@ async function markOfflineKiosks(): Promise<{ markedOffline: number }> {
     })
     .execute();
 
-  // Capture IDs that are ACTIVE and about to flip OFFLINE so we can alert their owners.
   const aboutToGoOffline = await kioskRepo.find({
     where: [{ status: KioskStatus.ACTIVE }],
     select: ['id', 'tenantId', 'lastSeenAt'],
@@ -107,7 +92,6 @@ async function markOfflineKiosks(): Promise<{ markedOffline: number }> {
     .filter(
       (k) =>
         !k.lastSeenAt || k.lastSeenAt < cutoff &&
-        // skip demo kiosks
         !demoCampuses.includes((k as any).campus ?? '') &&
         !((k as any).name ?? '').toLowerCase().includes('demo'),
     )
@@ -125,7 +109,6 @@ async function markOfflineKiosks(): Promise<{ markedOffline: number }> {
     })
     .execute();
 
-  // Fire-and-forget offline notifications; never block or throw.
   if (transitioningIds.length > 0) {
     notifyOfflineKiosks(transitioningIds).catch((err) =>
       console.error('[Scheduled] kioskAlert notification failed:', err),
@@ -136,10 +119,6 @@ async function markOfflineKiosks(): Promise<{ markedOffline: number }> {
   return { markedOffline: result.affected || 0 };
 }
 
-/**
- * Accept-window enforcement (V2-58): reroute or auto-accept a job
- * nobody accepted in time.
- */
 async function enforceAcceptWindowJob(printJobId: string | undefined): Promise<any> {
   if (!printJobId) return { skipped: true };
   const result = await enforceAcceptWindow(printJobId);
@@ -151,10 +130,6 @@ async function enforceAcceptWindowJob(printJobId: string | undefined): Promise<a
   return result;
 }
 
-/**
- * Reconcile any PrintJobs stuck in RENDERING > 15 minutes.
- * Tries to re-enqueue; falls through to FAILED if no render-worker.
- */
 async function reconcileStuckRendersJob(): Promise<any> {
   console.log('[Scheduled] Reconciling stuck-RENDERING jobs...');
   const result = await reconcileStuckRenders();
@@ -164,11 +139,6 @@ async function reconcileStuckRendersJob(): Promise<any> {
   return result;
 }
 
-/**
- * Process scheduled payouts to tenants (Dimension 15). Fires daily;
- * the per-tenant cadence filter inside `processDuePayouts` decides
- * which schedules are eligible today.
- */
 async function processPayoutsJob(): Promise<any> {
   console.log('[Scheduled] Processing due payouts...');
   const result = await processDuePayouts();
@@ -178,17 +148,8 @@ async function processPayoutsJob(): Promise<any> {
   return result;
 }
 
-/**
- * Daily cleanup tasks
- */
 async function dailyCleanup(): Promise<any> {
   console.log('[Scheduled] Running daily cleanup...');
-
-  // Add cleanup tasks here:
-  // - Delete expired upload tokens
-  // - Archive old audit logs
-  // - Generate daily reports
-  // - etc.
 
   return { ranAt: new Date().toISOString() };
 }

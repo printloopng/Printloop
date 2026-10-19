@@ -8,15 +8,6 @@ import {
   useRequeueJobMutation,
 } from "@/store/services/adminApi";
 
-/**
- * /saas/queue — the shop operator's Bolt-style job queue (V2-57/58).
- * Live-polling job cards: document preview, specs, payment status,
- * ACCEPT (the V2-58 accept window — a job nobody accepts reroutes to
- * the next nearest open shop), one-tap PRINT (releases to the kiosk
- * agent → silent IPP print) and COLLECT (verify code / mark handed
- * over). A code search box acts as the auth-code scanner.
- */
-
 const STATUS: Record<string, { label: string; cls: string }> = {
   pending: { label: "Awaiting payment", cls: "bg-ink/10 text-ink" },
   rendering: { label: "Rendering", cls: "bg-ink/10 text-ink animate-pulse" },
@@ -29,7 +20,6 @@ const STATUS: Record<string, { label: string; cls: string }> = {
   expired: { label: "Expired", cls: "bg-ink/10 text-ink/50" },
 };
 
-/** V2-58: seconds left in the 2-minute accept window (client estimate). */
 function acceptWindowLeft(job: any): number {
   const from = job.updatedAt ? new Date(job.updatedAt).getTime() : Date.now();
   return Math.max(0, Math.round((from + 120_000 - Date.now()) / 1000));
@@ -237,7 +227,6 @@ export default function SaasQueuePage() {
           </p>
         </div>
 
-        {/* Auth-code scanner (V2-57): look up a job by its release code. */}
         <div className="flex gap-2">
           <input
             value={codeQuery}

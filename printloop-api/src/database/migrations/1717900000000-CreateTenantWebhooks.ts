@@ -1,12 +1,5 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-/**
- * Tenant webhooks table (Dimension 14 — V2-14).
- *
- * Per-tenant outbound webhook endpoints. The platform POSTs each
- * subscribed event with an HMAC-SHA256 signature so the tenant
- * can verify authenticity.
- */
 export class CreateTenantWebhooks1717900000000 implements MigrationInterface {
   name = 'CreateTenantWebhooks1717900000000';
 

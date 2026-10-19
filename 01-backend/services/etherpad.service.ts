@@ -26,47 +26,29 @@ export class EtherpadService {
     });
   }
 
-  /**
-   * Create a new pad with initial content
-   */
   async createPad(padID: string, text: string): Promise<void> {
     await this.client.post('createPad', { padID, text });
   }
 
-  /**
-   * Set the text content of a pad
-   */
   async setText(padID: string, text: string): Promise<void> {
     await this.client.post('setText', { padID, text });
   }
 
-  /**
-   * Get the text content of a pad
-   */
   async getText(padID: string): Promise<string> {
     const response = await this.client.post('getText', { padID });
     return response.data.data.text;
   }
 
-  /**
-   * Get the HTML content of a pad
-   */
   async getHTML(padID: string): Promise<string> {
     const response = await this.client.post('getHTML', { padID });
     return response.data.data.html;
   }
 
-  /**
-   * Create an author (for attribution)
-   */
   async createAuthor(name: string): Promise<string> {
     const response = await this.client.post('createAuthor', { name });
     return response.data.data.authorID;
   }
 
-  /**
-   * Create a session for an author on a pad
-   */
   async createSession(
     groupID: string,
     authorID: string,
@@ -80,32 +62,20 @@ export class EtherpadService {
     return response.data.data.sessionID;
   }
 
-  /**
-   * Delete a pad
-   */
   async deletePad(padID: string): Promise<void> {
     await this.client.post('deletePad', { padID });
   }
 
-  /**
-   * List all pads
-   */
   async listAllPads(): Promise<string[]> {
     const response = await this.client.post('listAllPads');
     return response.data.data.padIDs;
   }
 
-  /**
-   * Get pad revision count
-   */
   async getRevisionsCount(padID: string): Promise<number> {
     const response = await this.client.post('getRevisionsCount', { padID });
     return response.data.data.revisions;
   }
 
-  /**
-   * Export pad as PDF (requires abiword/soffice installed in Etherpad container)
-   */
   async exportAsPDF(padID: string): Promise<Buffer> {
     const baseURL = process.env.ETHERPAD_URL || 'http://localhost:9001';
     const apiKey = process.env.ETHERPAD_API_KEY || '';
@@ -117,9 +87,6 @@ export class EtherpadService {
     return Buffer.from(response.data);
   }
 
-  /**
-   * Check if Etherpad is healthy
-   */
   async healthCheck(): Promise<boolean> {
     try {
       const baseURL = process.env.ETHERPAD_URL || 'http://localhost:9001';

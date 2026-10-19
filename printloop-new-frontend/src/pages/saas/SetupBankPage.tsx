@@ -2,13 +2,6 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSetupBankAccountMutation } from "@/store/services/saasApi";
 
-/**
- * `/saas/setup/bank-account` — bank account form.
- *
- * Bank code is the Paystack-recognised code (e.g. '058' for GTB).
- * In a future iteration we'd populate this from `GET /bank` so the
- * tenant picks from a list; for v1 the owner types the code.
- */
 export default function SetupBankPage() {
   const navigate = useNavigate();
   const [setupBank, state] = useSetupBankAccountMutation();
@@ -34,7 +27,6 @@ export default function SetupBankPage() {
         navigate("/saas/dashboard");
       }
     } catch {
-      // Error surfaced below.
     }
   };
 

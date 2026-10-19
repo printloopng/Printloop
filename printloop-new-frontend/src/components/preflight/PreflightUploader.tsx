@@ -64,7 +64,6 @@ export function PreflightUploader({ onAnalysisComplete, initialConfig }: Preflig
   };
 
   const handleFile = async (file: File) => {
-    // Check if file is PDF, image, or office document
     const isPdf = file.type === 'application/pdf';
     const isImage = file.type.startsWith('image/');
     const isOffice = [
@@ -100,8 +99,6 @@ export function PreflightUploader({ onAnalysisComplete, initialConfig }: Preflig
       if (onAnalysisComplete) {
         onAnalysisComplete(result.data);
       }
-      // Navigate to results page or show modal
-      // For now, we'll show results inline
     } catch (err) {
       console.error('Analysis failed:', err);
     }
@@ -113,7 +110,6 @@ export function PreflightUploader({ onAnalysisComplete, initialConfig }: Preflig
 
   return (
     <div className="space-y-6">
-      {/* Config Panel */}
       <Reveal variant="rise">
         <section className="border-2 border-ink rounded-pl p-4 sm:p-6 bg-paper-light">
           <h3 className="pl-serif font-bold text-xl mb-4">Print Settings</h3>
@@ -186,7 +182,6 @@ export function PreflightUploader({ onAnalysisComplete, initialConfig }: Preflig
         </section>
       </Reveal>
 
-      {/* Upload Zone */}
       <Reveal variant="rise" delay={100}>
         <div
           ref={fileInputRef}
@@ -227,7 +222,6 @@ export function PreflightUploader({ onAnalysisComplete, initialConfig }: Preflig
         </div>
       </Reveal>
 
-{/* Loading State */}
       {isLoading && (
         <Reveal variant="fade">
           <div className="border-2 border-ink rounded-pl p-8 bg-paper-light text-center">
@@ -240,7 +234,6 @@ export function PreflightUploader({ onAnalysisComplete, initialConfig }: Preflig
         </Reveal>
       )}
 
-      {/* Error State */}
       {isError && (
         <div className="border-2 border-persimmon bg-persimmon/5 rounded-pl p-4">
           <p className="text-persimmon font-semibold">Analysis failed: {extractError(error)}</p>
@@ -250,7 +243,6 @@ export function PreflightUploader({ onAnalysisComplete, initialConfig }: Preflig
         </div>
       )}
 
-      {/* Capabilities Reference */}
       {capabilities && (
         <Reveal variant="fade" delay={200}>
           <details className="border-2 border-ink rounded-pl bg-paper-light">

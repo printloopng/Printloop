@@ -56,8 +56,6 @@ const STATUS_LABEL: Partial<Record<Job["status"], string>> = {
 
 const isInProgress = (job: Job) => job.status === "releasing" || job.status === "printing";
 
-// How often to refresh the ledger: fast while the kiosk is working on a job,
-// slower while a job waits for pickup (to catch the moment it's released).
 function pollingIntervalFor(jobs: Job[]) {
   if (jobs.some(isInProgress)) return 4_000;
   if (jobs.some((j) => j.status === "ready")) return 15_000;
@@ -215,7 +213,6 @@ export default function PrintJobsPage() {
         </div>
       )}
 
-      {/* Filter tabs — horizontal scroll on phone so they all fit. */}
       <div className="mb-4 -mx-1 px-1 overflow-x-auto">
         <div className="flex border-2 border-ink w-fit">
           {tabs.map((tab, index) => (
@@ -232,7 +229,6 @@ export default function PrintJobsPage() {
         </div>
       </div>
 
-      {/* ── Desktop table ─────────────────────────────────────────── */}
       <div className="hidden md:block border-2 border-ink">
         <div className="bg-ink text-paper grid grid-cols-[30px_1fr_110px_85px_70px_80px_150px] gap-3 px-3 py-2 text-[10px] tracking-editorial font-bold">
           <div>#</div>
@@ -369,7 +365,6 @@ export default function PrintJobsPage() {
         )}
       </div>
 
-      {/* ── Mobile cards ──────────────────────────────────────────── */}
       <ul className="md:hidden flex flex-col gap-3">
         {filtered.map((job) => {
           const qrValue = job.qrPayload || `printloop://release/${job.code}`;
@@ -383,7 +378,6 @@ export default function PrintJobsPage() {
               }`}
             >
               <div className="p-4">
-                {/* Title + status */}
                 <div className="flex items-start justify-between gap-3 mb-3">
                   <div className="flex-1 min-w-0">
                     <div className="font-bold text-base truncate">{job.title || job.fileName}</div>
@@ -405,7 +399,6 @@ export default function PrintJobsPage() {
                   </span>
                 </div>
 
-                {/* Code — large, tappable to copy */}
                 <button
                   onClick={() => copyCode(job.code)}
                   className={`w-full pl-mono text-xl font-bold inline-flex items-center justify-between gap-2 border-2 px-3 py-2.5 rounded transition-all mb-3 ${
@@ -418,7 +411,6 @@ export default function PrintJobsPage() {
                   <Copy size={16} />
                 </button>
 
-                {/* Date + cost */}
                 <div className="flex items-center justify-between text-xs mb-3">
                   <span className={isReady ? "" : "text-fog"}>
                     <span className="font-bold">When:</span> {formatDate(job.createdAt)}
@@ -426,7 +418,6 @@ export default function PrintJobsPage() {
                   <span className="pl-mono font-bold text-sm">₦{job.cost.toLocaleString()}</span>
                 </div>
 
-                {/* QR toggle */}
                 {isReady && (
                   <button
                     onClick={() => setOpenQr(qrIsOpen ? null : job.id)}
@@ -437,7 +428,6 @@ export default function PrintJobsPage() {
                   </button>
                 )}
 
-                {/* Dispute button */}
                 {(job.status === "done" || job.status === "failed") && (
                   <button
                     onClick={() => handleDispute(job.id)}
@@ -449,7 +439,6 @@ export default function PrintJobsPage() {
                   </button>
                 )}
 
-                {/* Review button */}
                 {job.status === "done" && job.tenantSlug && (
                   <button
                     onClick={() => handleOpenReview(job)}
@@ -489,14 +478,12 @@ export default function PrintJobsPage() {
         )}
       </ul>
 
-      {/* Review Modal */}
       {reviewingJob && (
         <div className="fixed inset-0 bg-ink/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <form
             onSubmit={handleReviewSubmit}
             className="bg-paper border-4 border-ink shadow-[8px_8px_0_#000] p-6 max-w-md w-full rounded flex flex-col gap-4 animate-fadein relative"
           >
-            {/* Close button */}
             <button
               type="button"
               onClick={handleCloseReview}
@@ -516,7 +503,6 @@ export default function PrintJobsPage() {
               </p>
             </div>
 
-            {/* Stars */}
             <div className="flex flex-col gap-1">
               <label className="text-[10px] tracking-editorial font-extrabold text-ink/75 uppercase text-center">
                 Rating
@@ -537,7 +523,6 @@ export default function PrintJobsPage() {
               </div>
             </div>
 
-            {/* Comment */}
             <div className="flex flex-col gap-1">
               <label className="text-[10px] tracking-editorial font-extrabold text-ink/75 uppercase">
                 Comment (optional)
@@ -551,7 +536,6 @@ export default function PrintJobsPage() {
               />
             </div>
 
-            {/* Photo upload */}
             <div className="flex flex-col gap-1">
               <label className="text-[10px] tracking-editorial font-extrabold text-ink/75 uppercase">
                 Attach Photo (optional)
@@ -587,7 +571,6 @@ export default function PrintJobsPage() {
               </div>
             </div>
 
-            {/* Actions */}
             <div className="flex gap-3 justify-end mt-2">
               <button
                 type="button"

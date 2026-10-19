@@ -31,7 +31,6 @@ export class GroupParticipant {
   @JoinColumn({ name: 'groupSessionId' })
   groupSession: GroupSession;
 
-  // Optional - participant may not have an account
   @Column({ type: 'uuid', nullable: true })
   userId: string;
 
@@ -44,15 +43,9 @@ export class GroupParticipant {
   @Column({ type: 'varchar', length: 50, nullable: true })
   phoneNumber: string;
 
-  /**
-   * Legacy column. Watermarking has been permanently removed from the
-   * group printing flow — the service no longer populates this. Kept
-   * nullable so existing rows survive a schema sync.
-   */
   @Column({ type: 'varchar', length: 50, nullable: true })
   watermarkId: string | null;
 
-  // Token used by this participant to access their upload session
   @Column({ type: 'varchar', length: 255, unique: true })
   uploadToken: string;
 
@@ -63,7 +56,6 @@ export class GroupParticipant {
   })
   status: ParticipantStatus;
 
-  // Linked print job (created when participant uploads)
   @Column({ type: 'uuid', nullable: true })
   printJobId: string;
 

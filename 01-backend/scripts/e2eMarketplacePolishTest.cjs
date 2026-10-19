@@ -1,28 +1,7 @@
-/**
- * Marketplace polish end-to-end (V2-32).
- *
- * Self-contained — spawns its own backend with GEOCODER=fixture +
- * SEED_DEMO=1 + JWT_SECRET set, then exercises three things end-to-end:
- *
- *   A. Live gate on PATCH /me/location { isDiscoverable: true } —
- *      refuses while pre-conditions are unmet, with a specific
- *      `reason` code per gate; flips on once all gates pass.
- *
- *   B. Handoff token mint + verify — verifies success, format error,
- *      slug-not-discoverable, and a synthetic expired token.
- *
- *   C. Pre-pay offline warning is best-tested by checking the helper's
- *      response shape — we drive it via creating a print job after
- *      flipping the kiosk to OFFLINE. The discovery e2e already
- *      exercises the happy path with kiosks online; here we just
- *      confirm the OFFLINE branch returns 409 SHOP_OFFLINE.
- */
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 
-// Random high port per run (Windows shell:true / leftover-server
-// rationale documented in e2eDiscoveryTest.cjs).
 const PORT = 5000 + Math.floor(Math.random() * 4000);
 const B = `http://localhost:${PORT}/api`;
 const DB_FILE = path.resolve(
@@ -55,7 +34,6 @@ async function jr(method, url, body, headers) {
   try {
     d = await r.json();
   } catch {
-    /* ignore */
   }
   return { status: r.status, data: d };
 }
@@ -67,7 +45,6 @@ async function waitFor(url, timeoutMs = 25_000) {
       const r = await fetch(url);
       if (r.ok) return true;
     } catch {
-      /* not up yet */
     }
     await new Promise((r) => setTimeout(r, 400));
   }
@@ -78,7 +55,6 @@ async function main() {
   try {
     fs.unlinkSync(DB_FILE);
   } catch {
-    /* ok */
   }
 
   const env = {
@@ -89,7 +65,6 @@ async function main() {
     DISABLE_RATE_LIMIT: '1',
     GEOCODER: 'fixture',
     SMTP_HOST: '',
-    // The handoff token needs a real signing secret. >=16 chars.
     JWT_SECRET: 'polish-e2e-signing-secret-32chars!',
   };
 
@@ -107,13 +82,11 @@ async function main() {
     try {
       server.kill('SIGKILL');
     } catch {
-      /* ignore */
     }
     setTimeout(() => {
       try {
         fs.unlinkSync(DB_FILE);
       } catch {
-        /* ignore */
       }
     }, 500);
   };
@@ -126,7 +99,6 @@ async function main() {
     }
     ok('server up on test port');
 
-    // Sign up a tenant with an address (geocoder fixture).
     const signup = await jr('POST', '/saas/signup', {
       businessName: 'Polish Shop',
       slug: 'polish-shop',
@@ -140,7 +112,6 @@ async function main() {
     assert(signup.status === 201, `signup → 201 (got ${signup.status})`);
     const tenantId = signup.data.data.tenantId;
 
-    // Scrape verify token, verify email, log in.
     await new Promise((r) => setTimeout(r, 300));
     const m = serverLog.match(/\[email:disabled\] to=polish-owner@example\.test subject="?Verify your email — code (\d{6})"?/);
     assert(m && m[1], 'verify token logged');
@@ -160,9 +131,6 @@ async function main() {
       'X-Tenant-Slug': 'polish-shop',
     };
 
-    // ── A. Live gate ───────────────────────────────────────────────────
-
-    // A1: tenant still in TRIAL → refuse with TENANT_NOT_ACTIVE.
     const gateTrial = await jr(
       'PATCH',
       '/saas/me/location',
@@ -176,7 +144,6 @@ async function main() {
       `gate refuses TRIAL with reason TENANT_NOT_ACTIVE (got ${gateTrial.status}/${gateTrial.data?.reason})`,
     );
 
-    // Activate the tenant via platform admin.
     const adminLogin = await jr('POST', '/admin/auth/login', {
       email: 'admin@printloop.test',
       password: 'Admin1234!',
@@ -193,7 +160,6 @@ async function main() {
     );
     assert(reactivate.status === 200, 'reactivate → 200');
 
-    // A2: now ACTIVE but no kiosks → TEST_PRINT_MISSING.
     const gateNoKiosk = await jr(
       'PATCH',
       '/saas/me/location',
@@ -206,11 +172,6 @@ async function main() {
       `gate refuses no-kiosks with TEST_PRINT_MISSING (got ${gateNoKiosk.data?.reason})`,
     );
 
-    // Create a kiosk for the tenant. Tenant-owner accounts from
-    // signupTenant ship with role=ADMIN + empty adminPrivileges (a
-    // separate gap — production needs to grant kiosk privileges to
-    // the first owner). The SUPER_ADMIN sidesteps the RBAC check;
-    // we scope the action to the polish tenant via X-Tenant-Slug.
     const adminAsTenant = {
       ...platformAuth,
       'X-Tenant-Slug': 'polish-shop',
@@ -226,7 +187,6 @@ async function main() {
       adminAsTenant,
     );
     assert(newKiosk.status === 201 || newKiosk.status === 200, `kiosk created (got ${newKiosk.status})`);
-    // Controllers wrap the entity in different shapes; probe both common ones.
     const kioskId =
       newKiosk.data?.data?.id ||
       newKiosk.data?.id ||
@@ -237,8 +197,6 @@ async function main() {
     }
     assert(typeof kioskId === 'string', 'kiosk has an id');
 
-    // A3: still TEST_PRINT_MISSING because the kiosk has no
-    //     testPrintPassedAt yet.
     const gateBefore = await jr(
       'PATCH',
       '/saas/me/location',
@@ -251,8 +209,6 @@ async function main() {
       `gate still TEST_PRINT_MISSING pre-mark (got ${gateBefore.data?.reason})`,
     );
 
-    // Mark the test print passed (super-admin path for the RBAC
-    // reason above).
     const mark = await jr(
       'POST',
       `/admin/kiosks/${kioskId}/test-print-pass`,
@@ -261,8 +217,6 @@ async function main() {
     );
     assert(mark.status === 200, `test-print-pass → 200 (got ${mark.status})`);
 
-    // A4: now kiosk has testPrintPassedAt but no recent lastSeenAt →
-    //     NO_KIOSK_ONLINE.
     const gateOffline = await jr(
       'PATCH',
       '/saas/me/location',
@@ -275,46 +229,20 @@ async function main() {
       `gate refuses without recent heartbeat (got ${gateOffline.data?.reason})`,
     );
 
-    // Heartbeat the kiosk by hitting the printer status endpoint
-    // (uses X-Kiosk-Key — let's just bump lastSeenAt via a direct
-    // PATCH status, then we also need it to be within 5min — fresh,
-    // so we hit PATCH /admin/kiosks/:id with the same status which
-    // updates updatedAt; lastSeenAt is set by the kiosk agent's
-    // heartbeat though, not admin. Easiest: directly PATCH status
-    // ACTIVE which sets lastSeenAt internally? Not always. Need to
-    // poke lastSeenAt directly via the test backdoor: use the
-    // printer.routes.ts X-Kiosk-Key endpoints).
-    //
-    // Simplest reliable path for the test: the admin can PATCH
-    // /api/admin/kiosks/:id/status with status=ACTIVE — the
-    // controller updates lastSeenAt as a side-effect? Let me just
-    // call a kiosk-self endpoint with the API key.
     const kioskDetail = await jr(
       'GET',
       `/admin/kiosks/${kioskId}`,
       undefined,
       adminAsTenant,
     );
-    // The CREATE response carries apiKey (one-time disclosure); GET
-    // intentionally omits it for security. Pull from create.
     const apiKey = newKiosk.data?.data?.kiosk?.apiKey;
     assert(typeof apiKey === 'string' && apiKey.length > 0, 'kiosk has an apiKey');
 
-    // The kiosk-self heartbeat lives at /api/printer/heartbeat or
-    // similar; let's discover it from the OpenAPI/routes. Easiest:
-    // we update lastSeenAt directly via a SQL UPDATE through a
-    // non-existent endpoint. As a fallback, use any /api/printer
-    // call that triggers a heartbeat. The simplest existing route
-    // is /api/printer/pending-jobs (GET, kiosk-auth).
-    // /api/printer/heartbeat is the documented kiosk-self heartbeat.
-    // kioskAuth middleware stamps lastSeenAt as a side-effect on
-    // every authenticated kiosk call.
     const beat = await fetch(`http://localhost:${PORT}/api/printer/heartbeat`, {
       headers: { 'X-Kiosk-Key': apiKey },
     });
     assert(beat.status === 200, `kiosk heartbeat → 200 (got ${beat.status})`);
 
-    // A5: now all gates met → 200.
     const gateOk = await jr(
       'PATCH',
       '/saas/me/location',
@@ -326,7 +254,6 @@ async function main() {
       `gate passes (got ${gateOk.status}/${gateOk.data?.data?.isDiscoverable})`,
     );
 
-    // ── B. Handoff token ──────────────────────────────────────────────
     const hMint = await jr('POST', '/discovery/handoff', {
       slug: 'polish-shop',
       email: 'customer@example.test',
@@ -346,7 +273,6 @@ async function main() {
       `handoff verify → 200 with slug+email round-tripped`,
     );
 
-    // Tampered token → invalid (cut the signature).
     const tampered = hMint.data.data.token.replace(/.$/, 'X');
     const hBad = await jr(
       'GET',
@@ -357,7 +283,6 @@ async function main() {
       `tampered token → 400 TOKEN_INVALID (got ${hBad.status}/${hBad.data?.code})`,
     );
 
-    // Slug not discoverable → 404.
     const hNoSlug = await jr('POST', '/discovery/handoff', {
       slug: 'nope-not-real',
     });
@@ -366,23 +291,6 @@ async function main() {
       `handoff mint for missing slug → 404 SHOP_NOT_AVAILABLE`,
     );
 
-    // ── C. Pre-pay offline (sanity — the discovery e2e already
-    //      covered the happy/online path). We flip the kiosk OFFLINE
-    //      and attempt a print-job create on the legacy tenant first
-    //      to prove SKIP for legacy still works.
-    //
-    // We don't have file upload set up in this CJS test (multer needs
-    // multipart). The skip-for-legacy branch returns null silently
-    // without exercising multer, and the marketplace-tenant 409
-    // would also short-circuit BEFORE multer parses. So a JSON POST
-    // to /api/customer/print-jobs is enough to reach the guard.
-    //
-    // Need to log in as a customer (any user works; the seed has
-    // student@printloop.test on the LEGACY tenant). We then call
-    // through X-Tenant-Slug=polish-shop and assert 409.
-    //
-    // But polish-shop's kiosk is currently ONLINE from the ping.
-    // PATCH status=OFFLINE flips it.
     const offlinePatch = await jr(
       'PATCH',
       `/admin/kiosks/${kioskId}/status`,
@@ -404,16 +312,6 @@ async function main() {
       'X-Tenant-Slug': 'polish-shop',
     };
 
-    // We can't easily POST multipart from this CJS test, but the
-    // guard fires BEFORE multer touches the request because it
-    // doesn't use the file — only req.tenant. Confirmed in the
-    // route code: the guard runs after `if (!file)` but with a
-    // multipart-shaped request the multer middleware would parse
-    // first. Easier path: hit a different endpoint that we KNOW
-    // gates on the same helper. For now, the helper is unit-shaped
-    // and the route wiring is asserted by typecheck — we DO
-    // exercise the OFFLINE branch indirectly via discovery: the
-    // shop should NOT show agentOnline.
     const detail = await jr('GET', '/discovery/shops/polish-shop');
     assert(detail.status === 200, 'shop detail → 200');
     assert(

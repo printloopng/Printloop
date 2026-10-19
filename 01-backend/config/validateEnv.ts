@@ -1,13 +1,3 @@
-/**
- * Fail-fast production env validation (V2-60).
- *
- * Boot gates instead of runtime surprises: a production server that
- * starts with a missing secret or SEED_DEMO=1 must crash loudly at
- * startup with every problem listed, not limp along half-configured.
- *
- * Dev / test (anything where NODE_ENV !== 'production') stays lazy so
- * local runs need no ceremony.
- */
 export const DEV_JWT_SECRET =
   'printloop-dev-secret-please-change-32chars-minimum';
 
@@ -61,10 +51,6 @@ export function validateDeployEnv(): EnvIssue[] {
   return issues;
 }
 
-/**
- * Throw once with ALL problems when the production env is invalid.
- * Returns the issue list for callers that want to log it their way.
- */
 export function assertDeployConfig(): EnvIssue[] | void {
   const issues = validateDeployEnv();
   if (issues.length > 0) {

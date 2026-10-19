@@ -1,17 +1,13 @@
-// render-worker/src/metrics.ts
 import { Counter, Histogram, Gauge, Registry, collectDefaultMetrics } from 'prom-client';
 
-// Create a dedicated registry for render worker metrics
 const renderMetricsRegistry = new Registry();
 
-// Add default metrics (CPU, memory, etc.)
 collectDefaultMetrics({ register: renderMetricsRegistry, prefix: 'render_worker_' });
 
-// Custom metrics for render pipeline
 export const renderJobsTotal = new Counter({
   name: 'printloop_render_jobs_total',
   help: 'Total render jobs processed',
-  labelNames: ['status'], // 'success' | 'failed' | 'stuck'
+  labelNames: ['status'],
   registers: [renderMetricsRegistry],
 });
 
@@ -39,7 +35,7 @@ export const stuckRendersGauge = new Gauge({
 export const renderQueueDepth = new Gauge({
   name: 'printloop_render_queue_depth',
   help: 'Current number of jobs in render queue',
-  labelNames: ['status'], // waiting, active, delayed
+  labelNames: ['status'],
   registers: [renderMetricsRegistry],
 });
 
@@ -50,11 +46,9 @@ export const renderWorkerInfo = new Gauge({
   registers: [renderMetricsRegistry],
 });
 
-// Initialize worker info
 renderWorkerInfo.set(
   { version: process.env.APP_VERSION || 'unknown', node_version: process.version },
   1
 );
 
-// Export the registry for the metrics endpoint
 export { renderMetricsRegistry };

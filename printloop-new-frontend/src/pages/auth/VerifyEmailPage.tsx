@@ -99,7 +99,6 @@ export default function VerifyEmailPage() {
           />
         )}
 
-        {/* 6-digit code. Tight gap + smaller cells on phones so it fits ~320px. */}
         <div className="flex gap-1.5 sm:gap-2.5 justify-center mb-6 sm:mb-7">
           {digits.map((d, i) => (
             <input

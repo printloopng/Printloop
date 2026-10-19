@@ -81,38 +81,23 @@ const ENTITIES = [
   AuditLog,
   Payment,
   Promotion,
-  // SaaS foundation (Phase A) — added 2026-05-31.
   Tenant,
   TenantMember,
   Payout,
   PayoutSchedule,
-  // Denormalised rollup (V2-8) for O(1) dashboard reads.
   TenantBalance,
-  // White-label branding (V2-13) — Dimension 7.
   TenantBranding,
-  // Tenant webhooks (V2-14) — Dimension 14.
   TenantWebhook,
-  // Custom domains (V2-16) — Dimension 8.
   TenantDomain,
   Dispute,
   ShopReview,
-  // Marketing blog (V2-54) — tenant-owned posts, public when published.
   BlogPost,
-  // Printer profiles (V2-56) — per-printer render capabilities.
   PrinterProfile,
-  // Document editing (V2-XX) — Edit & Print feature.
   DocumentEdit,
-  // Edit pricing config (V2-XX) — per-shop editing service pricing.
   EditPricingConfig,
-  // Editor sessions (V2-XX) — collaborative document editing.
   EditorSession,
 ];
 
-/**
- * The SQLite incremental chain. Each file is SQLite-dialect
- * (`datetime('now')`, PRAGMA, table-rewrite NOT-NULL). These are the
- * authoritative history for SQLite deployments.
- */
 const SQLITE_MIGRATIONS = [
   InitSchema1700000000000,
   CreateSaasFoundation1717100000000,
@@ -132,63 +117,36 @@ const SQLITE_MIGRATIONS = [
   CreateDisputesAndReviews1718600000000,
   AddPrintJobRenderFields1718700000000,
   AddKioskLastOfflineAlertAt1718800000000,
-  // V2-44 — job-truth + kiosk hardware caps + LMS handoff key.
   AddJobTruthKioskCapsLmsKey1719000000000,
-  // V2-52 — final-cost reconciliation (render callback writes the
-  // authoritative price; release gate settles the shortfall).
   AddPrintJobFinalCost1720000000000,
-  // V2-53 — saved-card authorizations on payments.
   AddPaymentAuthorizationCode1720100000000,
-  // V2-54 — marketing blog.
   CreateBlogPosts1720200000000,
-  // V2-56 — printer profiles (render capabilities) + job pinning.
   CreatePrinterProfiles1720300000000,
-  // V2-57 — operator availability toggle.
   AddTenantAvailability1720400000000,
-  // V2-58 — accept-window job fields.
   AddAcceptWindowFields1720500000000,
-  // V2-59 — office conversion flag on pricing configs.
   AddOfficeConversionToPricing1720600000000,
-  // V2-XX — Document editing fields on print jobs.
   AddEditingFieldsToPrintJob1720700000000,
-  // V2-XX — Document edits table for tracking edit workflow.
   CreateDocumentEditsTable1720900000000,
-  // V2-XX — Edit pricing configs table.
   CreateEditPricingConfigsTable1721000000000,
-  // V2-XX — Editor sessions table for collaborative editing.
   CreateEditorSessionsTable1721100000000,
-  // V2-XX — Add tenantId to DocumentEdit and EditorSession tables.
   AddTenantIdToDocumentEditAndEditorSession1721200000000,
 ];
 
-/**
- * Postgres deployments run a SINGLE consolidated baseline that builds
- * the full final schema in pg-native DDL. The SQLite incremental
- * files are NOT Postgres-safe (their PRAGMA + table-rewrite syntax
- * would error), so they're excluded from the Postgres migration set.
- */
 const POSTGRES_MIGRATIONS = [
   PostgresBaseline1718100000000,
   AddPrintJobRenderFields1718700000000,
   AddKioskLastOfflineAlertAt1718800000000,
-  // Dual-driver guarded (IF NOT EXISTS) — safe in both chains.
   AddJobTruthKioskCapsLmsKey1719000000000,
-  // Dual-driver guarded (column-existence checks) — safe in both chains.
   AddPrintJobFinalCost1720000000000,
   AddPaymentAuthorizationCode1720100000000,
   CreateBlogPosts1720200000000,
   CreatePrinterProfiles1720300000000,
   AddTenantAvailability1720400000000,
   AddAcceptWindowFields1720500000000,
-  // V2-XX — Document editing fields on print jobs (guarded for Postgres).
   AddEditingFieldsToPrintJob1720700000000,
-  // V2-XX — Document edits table (guarded for Postgres).
   CreateDocumentEditsTable1720900000000,
-  // V2-XX — Edit pricing configs table (guarded for Postgres).
   CreateEditPricingConfigsTable1721000000000,
-  // V2-XX — Editor sessions table (guarded for Postgres).
   CreateEditorSessionsTable1721100000000,
-  // V2-XX — Add tenantId to DocumentEdit and EditorSession tables.
   AddTenantIdToDocumentEditAndEditorSession1721200000000,
 ];
 
@@ -198,24 +156,6 @@ const MIGRATIONS = (() => {
   return isPg ? POSTGRES_MIGRATIONS : SQLITE_MIGRATIONS;
 })();
 
-/**
- * Database driver selection (Critical bucket #4 — V2-13).
- *
- * When `DATABASE_URL` is set and starts with `postgres://` or
- * `postgresql://`, we boot against Postgres — required for
- * horizontal scaling (SQLite is single-writer; you can't safely run
- * 2+ API instances against the same SQLite file).
- *
- * Otherwise we boot against the legacy SQLite file. Existing
- * single-tenant deployments keep working unchanged.
- *
- * **Migration parity (resolved V2-16):** the SQLite incremental
- * chain is SQLite-dialect and not Postgres-safe. The `MIGRATIONS`
- * const selects by driver — Postgres boots run a single consolidated
- * `PostgresBaseline` that builds the full final schema in pg-native
- * DDL; SQLite boots run the incremental history. See the two
- * migration arrays below.
- */
 const driverFromUrl = (config.database.url || '').toLowerCase();
 const usePostgres =
   driverFromUrl.startsWith('postgres://') ||
@@ -225,13 +165,9 @@ const dataSourceOptions: DataSourceOptions = usePostgres
   ? {
       type: 'postgres',
       url: config.database.url,
-      // Connection pool — defaults sized for a small Railway/Fly box.
       extra: {
         max: config.database.poolMax,
       },
-      // Postgres SSL: most managed providers (Neon, Supabase, Railway)
-      // require TLS; set DB_SSL=true to opt in. Self-hosted localhost
-      // dev with `DB_SSL=false` (or unset) keeps the connection clear.
       ssl:
         config.database.ssl
           ? { rejectUnauthorized: false }
@@ -245,13 +181,6 @@ const dataSourceOptions: DataSourceOptions = usePostgres
   : {
       type: 'sqlite',
       database: dbFile,
-      // Schema is managed by explicit, reviewed migrations — NOT synchronize.
-      // synchronize auto-derives a schema diff from the entities on every boot
-      // and will silently drop/recreate columns (and their data) when an entity
-      // changes. `migrationsRun` applies the migrations array on boot instead,
-      // which preserves the zero-touch deploy flow while making every schema
-      // change an auditable file. The InitSchema baseline is idempotent
-      // (CREATE … IF NOT EXISTS), so it self-baselines the existing prod DB.
       synchronize: false,
       migrationsRun: true,
       logging: config.database.logging,
@@ -266,20 +195,12 @@ console.log(
     (usePostgres ? ` (DATABASE_URL set)` : ` file=${dbFile}`),
 );
 
-/**
- * One-shot data normalizations run after `AppDataSource.initialize()`.
- * Idempotent; safe to invoke on every boot. Mirrors the "ensure" pattern
- * used by `config/settings.ts` — schema-level changes are synchronize's
- * job, *data* changes are this function's job.
- */
 export async function runPostInitMigrations(): Promise<void> {
-  // Add photoUrl column to shop_reviews table if it doesn't exist
   try {
     const isPg = !!process.env.DATABASE_URL;
     if (isPg) {
       await AppDataSource.query(`ALTER TABLE "shop_reviews" ADD COLUMN IF NOT EXISTS "photoUrl" TEXT`);
     } else {
-      // SQLite has no ADD COLUMN IF NOT EXISTS, so try-catch is our safety harness
       await AppDataSource.query(`ALTER TABLE "shop_reviews" ADD COLUMN "photoUrl" TEXT`);
     }
   } catch (err: any) {
@@ -290,10 +211,6 @@ export async function runPostInitMigrations(): Promise<void> {
   }
 
   try {
-    // Promotion codes: uppercase any rows that pre-date the
-    // normalize-on-write change in admin.routes.ts. Cheap UPDATE; the
-    // `WHERE code != UPPER(code)` clause makes it a no-op on already-
-    // clean tables.
     await AppDataSource.query(
       `UPDATE promotions SET code = UPPER(code) WHERE code != UPPER(code)`,
     );
@@ -301,15 +218,10 @@ export async function runPostInitMigrations(): Promise<void> {
     console.warn('[migrations] promotion code normalization skipped:', err);
   }
 
-  // Pricing: backfill the per-cell columns added with the explicit price
-  // matrix. Only touches rows where the cells are still NULL — admins
-  // who customised their prices keep them. Maps to the user's published
-  // pricing table (A4/A3 × BW/COLOR × 100/300/600 × simplex/duplex).
   const PRICING_BACKFILL: Array<{
     paper: 'A4' | 'A3';
     color: 'BLACK_WHITE' | 'COLOR';
     cells: [number, number, number, number, number, number];
-    // [p100Sx, p300Sx, p600Sx, p100Dx, p300Dx, p600Dx]
   }> = [
     { paper: 'A4', color: 'BLACK_WHITE', cells: [50, 70, 100, 65, 90, 120] },
     { paper: 'A4', color: 'COLOR',       cells: [100, 200, 300, 150, 250, 350] },

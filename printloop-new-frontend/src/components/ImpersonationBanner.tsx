@@ -4,12 +4,6 @@ import type { RootState } from "@/store";
 import { setCredentials, logOut } from "@/store/features/auth/authSlice";
 import { decodeToken } from "@/lib/jwt";
 
-/**
- * Fixed top banner shown while a platform admin is impersonating a
- * tenant. Reads the `impersonating` claim from the current JWT
- * (display-only decode). "Exit" restores the backed-up platform
- * session and returns to the console.
- */
 export default function ImpersonationBanner() {
   const dispatch = useDispatch();
   const navigate = useNavigate();

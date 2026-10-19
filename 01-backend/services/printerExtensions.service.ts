@@ -8,11 +8,6 @@ import { emitTenantEvent } from './tenantWebhook.service';
 import { WebhookEvent } from '../entities/tenantWebhook.entity';
 import { checkPickupLimit } from './abuseLimits.service';
 
-/**
- * Kiosk-facing helpers: validate a release code, fetch the job/files to
- * print, track partial-print progress, and finalise a completed job.
- * Works for both single jobs (by `code`) and group batches (by batch code).
- */
 export class PrinterServiceExtensions {
   private printJobRepo: Repository<PrintJob>;
   private fileRepo: Repository<File>;
@@ -24,12 +19,6 @@ export class PrinterServiceExtensions {
     this.groupService = new GroupSessionService();
   }
 
-  /**
-   * **Tenant-scoped as of V2-12.** Pass the authenticating kiosk's
-   * `tenantId` so we never validate a code that belongs to a
-   * different tenant — even if the global `code` collision space
-   * ever lets two tenants share a code.
-   */
   async validateCode(code: string, tenantId?: string | null): Promise<{
     success: boolean;
     type?: 'single' | 'group_batch';
@@ -50,7 +39,6 @@ export class PrinterServiceExtensions {
       if (job.status !== PrintJobStatus.READY) {
         return { success: false, message: `Job is ${job.status} and cannot be printed` };
       }
-      // Per-customer pickup attempt limit (abuse prevention, V2-13)
       if (tenantId && job.userId) {
         const pickupLimit = await checkPickupLimit(tenantId, job.userId);
         if (!pickupLimit.allowed) {
@@ -110,7 +98,7 @@ export class PrinterServiceExtensions {
         data: {
           jobId: job.id,
           code: job.code,
-          fileURL: null, // HIDE DOWNLOAD URL (V2-12)
+          fileURL: null,
           fileName: file?.fileName || job.fileName || null,
           totalPages: job.totalPages,
           printConfig: job.printConfiguration,
@@ -133,7 +121,7 @@ export class PrinterServiceExtensions {
           defaultOptions: batchData.session.defaultOptions,
           files: batchData.files.map((f) => ({
             fileId: f.fileId,
-            fileURL: null, // HIDE DOWNLOAD URL (V2-12)
+            fileURL: null,
             participantName: f.participantName,
             printConfig: f.printConfig,
           })),
@@ -192,8 +180,6 @@ export class PrinterServiceExtensions {
       { delay: 24 * 60 * 60 * 1000 }
     );
 
-    // Emit job.completed webhook (Dimension 14 — V2-14). Fire-and-
-    // forget; subscriber-side failures don't block the response.
     if (job.tenantId) {
       emitTenantEvent(job.tenantId, WebhookEvent.JOB_COMPLETED, {
         printJobId: job.id,

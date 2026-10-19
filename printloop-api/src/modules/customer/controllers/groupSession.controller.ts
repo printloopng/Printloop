@@ -39,7 +39,7 @@ export const createGroupSession = async (req: Request, res: Response): Promise<v
         session: result.session,
         shareUrl: result.shareUrl,
         shareId: result.shareId,
-        hostId, // client stores this to manage the session later
+        hostId,
       },
     });
   } catch (error: any) {

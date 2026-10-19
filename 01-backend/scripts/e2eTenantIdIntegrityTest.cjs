@@ -1,20 +1,3 @@
-/* tenantId integrity guard (V2-20).
- *
- * Directly asserts the invariant that the V2-19 customer-signup bug
- * and the V2-20 seed bug both violated: every row in a tenant-scoped
- * table carries a non-null tenantId. A single missed insert-path
- * retrofit shows up here as a non-zero NULL count.
- *
- * Reads the SQLite DB file directly (no server needed). Point it at a
- * specific DB with DATABASE_FILE; defaults to data/printloop.sqlite.
- *
- *   node scripts/e2eTenantIdIntegrityTest.cjs
- *   DATABASE_FILE=./data/freshtest.sqlite node scripts/e2eTenantIdIntegrityTest.cjs
- *
- * NOTE: audit_logs is intentionally EXCLUDED — its tenantId is
- * nullable by design (boot/migration log lines run before any tenant
- * context). Every other tenant-scoped table must be 100% populated.
- */
 const path = require('node:path');
 
 const DB_PATH =
@@ -30,7 +13,6 @@ try {
   process.exit(1);
 }
 
-// Tables whose tenantId is NOT NULL (post V2-8 + later additions).
 const TABLES = [
   'users',
   'wallets',
@@ -82,7 +64,6 @@ function rowCount(db, table) {
         console.log(`ok   ${t}: ${total} rows, 0 NULL tenantId`);
       }
     } catch (e) {
-      // Table may not exist on an older DB — treat as skip, not fail.
       console.log(`skip ${t}: ${e.message}`);
     }
   }

@@ -4,7 +4,6 @@ import { ROUTES } from "@/constants/routes";
 import { useListJobsQuery } from "@/store/services/jobsApi";
 import { ResponsiveTable, type ResponsiveColumn } from "@/components/layout/ResponsiveTable";
 
-// Leaflet dependencies
 import {
   MapContainer,
   TileLayer,
@@ -18,7 +17,6 @@ import "leaflet.markercluster/dist/leaflet.markercluster.js";
 import "leaflet.markercluster/dist/MarkerCluster.css";
 import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 
-// Discovery API
 import {
   useListNearbyShopsQuery,
   useListAllShopsQuery,
@@ -64,10 +62,8 @@ function minutesUntil(date?: string) {
 export default function DashboardPage() {
   const navigate = useNavigate();
 
-  // Queries
   const { data: jobsData, isLoading: jobsLoading, isError: jobsError } = useListJobsQuery();
 
-  // Geolocation & filters state
   const [geo, setGeo] = useState<GeoState>({ kind: "idle" });
   const [manualLat, setManualLat] = useState("");
   const [manualLng, setManualLng] = useState("");
@@ -76,7 +72,6 @@ export default function DashboardPage() {
   const [filterA3, setFilterA3] = useState(false);
   const [filterOnline, setFilterOnline] = useState(false);
 
-  // Shop selection state
   const [selectedShopSlug, setSelectedShopSlug] = useState<string | null>(null);
   const [detailTab, setDetailTab] = useState<"prices" | "reviews" | "photos">("prices");
 
@@ -91,7 +86,6 @@ export default function DashboardPage() {
   );
   const fallback = useListAllShopsQuery(undefined, { skip: !!origin });
 
-  // Geolocation engine
   useEffect(() => {
     if (geo.kind !== "idle") return;
     if (typeof navigator === "undefined" || !navigator.geolocation) {
@@ -112,7 +106,6 @@ export default function DashboardPage() {
     );
   }, [geo.kind]);
 
-  // Set up container click listener for map popup "Select Shop" buttons
   useEffect(() => {
     const handlePopupClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
@@ -120,7 +113,6 @@ export default function DashboardPage() {
         const slug = target.getAttribute("data-slug");
         if (slug) {
           setSelectedShopSlug(slug);
-          // Set tab default
           setDetailTab("prices");
         }
       }
@@ -128,8 +120,6 @@ export default function DashboardPage() {
     document.addEventListener("click", handlePopupClick);
     return () => document.removeEventListener("click", handlePopupClick);
   }, []);
-  // Dev only: seed demo shops near the user so the map isn't empty. The API
-  // refuses this outside demo mode, so it can never add fake shops in prod.
   useEffect(() => {
     if (origin && import.meta.env.DEV) {
       fetch("/api/discovery/shops/seed-demo-nearby", {
@@ -164,7 +154,6 @@ export default function DashboardPage() {
   const shopsLoading = origin ? nearby.isLoading : fallback.isLoading;
   const shopsError = origin ? nearby.isError : fallback.isError;
 
-  // Apply search + filters to shop markers & lists
   const shops = useMemo(() => {
     const q = query.trim().toLowerCase();
     return rawShops.filter((s) => {
@@ -183,13 +172,11 @@ export default function DashboardPage() {
       ? [shops[0].lat as number, shops[0].lng as number]
       : FALLBACK_CENTER;
 
-  // Fetch details for the selected shop
   const { data: selectedShopData, isLoading: selectedShopLoading } = useGetShopDetailQuery(
     { slug: selectedShopSlug || "", lat: origin?.lat, lng: origin?.lng },
     { skip: !selectedShopSlug }
   );
 
-  // Track if user reviewed prices for the selected shop
   useEffect(() => {
     if (selectedShopData?.shop) {
       sessionStorage.setItem("reviewedPricesForTenant", selectedShopData.shop.slug);
@@ -199,7 +186,6 @@ export default function DashboardPage() {
   const jobs = useMemo(() => getJobs(jobsData), [jobsData]);
   const activeJob = jobs.find((job) => job.status === "ready");
   
-  // Find nearest active shop
   const nearestShop = useMemo(() => {
     return rawShops.find((s) => s.agentOnline && s.status === "active") || rawShops[0];
   }, [rawShops]);
@@ -238,7 +224,6 @@ export default function DashboardPage() {
     },
   ];
 
-  // Render selected shop details
   let selectedShopPanel = null;
   if (selectedShopSlug) {
     if (selectedShopLoading) {
@@ -253,7 +238,6 @@ export default function DashboardPage() {
       
       selectedShopPanel = (
         <div className="border-4 border-ink bg-paper shadow-[6px_6px_0_#000] p-4 flex flex-col gap-3 relative animate-fadein rounded">
-          {/* Close button */}
           <button
             type="button"
             onClick={() => setSelectedShopSlug(null)}
@@ -263,10 +247,8 @@ export default function DashboardPage() {
             ✕
           </button>
 
-          {/* Brand header bar */}
           <div className="h-2 w-full rounded" style={{ backgroundColor: brandColor }} />
 
-          {/* Title & info */}
           <div>
             <h3 className="text-xl sm:text-2xl font-bold pl-serif leading-none">
               {shop.brand.wordmark || shop.name}
@@ -276,7 +258,6 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {/* Shop distance / status badges */}
           <div className="flex flex-wrap gap-2 text-xs">
             {shop.distanceKm != null && (
               <span className="bg-paper-light border border-ink/20 px-2 py-0.5 rounded font-bold">
@@ -297,7 +278,6 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {/* Rating */}
           {shop.ratingCount > 0 ? (
             <div className="flex items-center gap-1 text-xs text-ochre font-bold">
               <span>★ {shop.ratingAverage.toFixed(1)} / 5.0</span>
@@ -307,7 +287,6 @@ export default function DashboardPage() {
             <p className="text-xs text-ink/60 italic">No reviews yet</p>
           )}
 
-          {/* CTA Print Actions Grid */}
           <div className="mt-1 flex flex-col gap-1.5 bg-paper-light border-2 border-ink p-3 rounded">
             <div className="text-[10px] tracking-editorial font-extrabold text-ink/75 uppercase">Select Print Option</div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -341,7 +320,6 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Tabs bar */}
           <div className="flex border-b border-ink/20 text-xs font-bold mt-2">
             {(["prices", "reviews", "photos"] as const).map((tab) => (
               <button
@@ -359,7 +337,6 @@ export default function DashboardPage() {
             ))}
           </div>
 
-          {/* Tabs content box */}
           <div className="bg-paper-light p-3 border border-ink/10 rounded">
             {detailTab === "prices" && (
               <div>
@@ -452,10 +429,8 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* ── Split Screen Layout (Map-First dashboard) ─────────────────────────────────── */}
       <div className="flex flex-col lg:grid lg:grid-cols-[1.4fr_1fr] gap-6 mb-6">
         
-        {/* Left column: Leaflet map discovery */}
         <div className="flex flex-col gap-4">
           <div className="border-4 border-ink bg-paper p-4 shadow-[6px_6px_0_#000] rounded">
             <header className="mb-3">
@@ -465,7 +440,6 @@ export default function DashboardPage() {
               </p>
             </header>
 
-            {/* Filter and location selection */}
             <div className="flex flex-col gap-2 mb-3">
               <LocationChip
                 geo={geo}
@@ -509,7 +483,6 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Map Container */}
             <div className="rounded border-4 border-ink overflow-hidden h-[40vh] sm:h-[45vh] relative z-10">
               <MapContainer
                 center={mapCenter}
@@ -541,7 +514,6 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Shop detail drawer or list cards */}
           {selectedShopPanel ? (
             selectedShopPanel
           ) : (
@@ -631,10 +603,8 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* Right column: dashboard active items & stats */}
         <div className="flex flex-col gap-4">
           
-          {/* Active print code card */}
           <div className="bg-ink text-paper p-4 sm:p-5 border-4 border-ink rounded transition-all md:hover:-translate-x-1 md:hover:-translate-y-1 md:hover:[box-shadow:6px_6px_0_#D14B2C] cursor-pointer relative">
             <div className="flex justify-between items-center mb-2 gap-2">
               <span className="editorial-label">ACTIVE PRINT CODE</span>
@@ -664,7 +634,6 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Stats Row */}
           <div className="grid grid-cols-2 border-4 border-ink rounded overflow-hidden">
             {[
               { label: "PAGES", num: totalPages, sub: `${jobs.length} jobs` },
@@ -692,7 +661,6 @@ export default function DashboardPage() {
             ))}
           </div>
 
-          {/* Quick Actions Buttons */}
           <div className="grid grid-cols-2 gap-2 mt-1">
             <Link to={ROUTES.APP.NEW_PRINT} className="pl-btn-primary py-2.5 text-center justify-center font-bold text-xs uppercase">
               NEW PRINT →
@@ -704,7 +672,6 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ── Bottom Section: Recent Jobs Table ─────────────────────────────────────── */}
       <div className="border-4 border-ink p-4 sm:p-5 shadow-[6px_6px_0_#000] bg-paper rounded mt-6">
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-baseline gap-2 mb-3">
           <h2 className="pl-serif text-xl sm:text-2xl font-bold tracking-tight">
@@ -742,7 +709,6 @@ export default function DashboardPage() {
   );
 }
 
-// Helper components
 function FilterChip({
   active,
   onClick,

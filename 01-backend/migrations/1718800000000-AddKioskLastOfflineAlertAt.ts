@@ -23,7 +23,6 @@ export class AddKioskLastOfflineAlertAt1718800000000 implements MigrationInterfa
 
   public async down(queryRunner: QueryRunner): Promise<void> {
     if (queryRunner.connection.options.type === 'sqlite') {
-      // SQLite doesn't support DROP COLUMN — acceptable; this is a dev-only rollback.
     } else {
       await queryRunner.query(
         `ALTER TABLE "kiosks" DROP COLUMN IF EXISTS "lastOfflineAlertAt"`,

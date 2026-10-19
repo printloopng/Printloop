@@ -3,11 +3,6 @@ import { PrinterServiceExtensions } from '../services/printerExtensions.service'
 
 const printerExt = new PrinterServiceExtensions();
 
-/**
- * GET /printer/heartbeat
- * Kiosk pings this endpoint every 30 seconds
- * The kioskAuth middleware automatically updates kiosk.lastSeenAt
- */
 export const heartbeat = async (req: Request, res: Response): Promise<void> => {
   const kiosk = (req as any).kiosk;
   res.json({
@@ -21,10 +16,6 @@ export const heartbeat = async (req: Request, res: Response): Promise<void> => {
   });
 };
 
-/**
- * PATCH /printer/progress
- * Kiosk reports incremental page progress for partial-print resume
- */
 export const updateProgress = async (req: Request, res: Response): Promise<void> => {
   try {
     const code = req.body.code || req.body.jobNumber;
@@ -52,10 +43,6 @@ export const updateProgress = async (req: Request, res: Response): Promise<void>
   }
 };
 
-/**
- * POST /printer/validate-code
- * Validates code (single or group batch)
- */
 export const validateCode = async (req: Request, res: Response): Promise<void> => {
   try {
     const { code } = req.body;
@@ -76,10 +63,6 @@ export const validateCode = async (req: Request, res: Response): Promise<void> =
   }
 };
 
-/**
- * POST /printer/get-job
- * Returns full job details (single or batch with files[])
- */
 export const getJob = async (req: Request, res: Response): Promise<void> => {
   try {
     const { code } = req.body;

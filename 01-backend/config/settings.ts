@@ -12,21 +12,13 @@ export interface DefaultSetting {
   isReadOnly?: boolean;
 }
 
-/**
- * Canonical catalog of admin-configurable system settings. Add a new entry
- * here and it shows up in the admin Options tab on the next server boot —
- * `ensureSystemSettings()` inserts missing keys without touching values an
- * admin has already changed.
- */
 export const DEFAULT_SETTINGS: DefaultSetting[] = [
-  // ── Storage ────────────────────────────────────────────────────────────
   { key: 'documentRetentionHours', value: '24', valueType: 'number', category: 'Storage', description: 'How long uploaded files are kept after a job expires or completes.' },
   { key: 'maxFileSizeMb', value: '50', valueType: 'number', category: 'Storage', description: 'Maximum single file upload size in megabytes.' },
   { key: 'allowedFileTypes', value: 'PDF, JPG, PNG', valueType: 'string', category: 'Storage', description: 'Accepted upload formats. PrintLoop prints PDF and images only (read-only).', isReadOnly: true },
   { key: 'maxPagesPerFile', value: '300', valueType: 'number', category: 'Storage', description: 'Reject uploads with more than this many pages.' },
   { key: 'autoDeleteAfterPrint', value: 'true', valueType: 'boolean', category: 'Storage', description: 'Delete the source file immediately after a successful print.' },
 
-  // ── Jobs ───────────────────────────────────────────────────────────────
   { key: 'jobExpiryHours', value: '24', valueType: 'number', category: 'Jobs', description: 'Time before an uncollected job is expired and auto-refunded.' },
   { key: 'maxCopiesPerJob', value: '50', valueType: 'number', category: 'Jobs', description: 'Hard cap on the number of copies in a single job.' },
   { key: 'jobCodeLength', value: '6', valueType: 'number', category: 'Jobs', description: 'Length of the alphanumeric release code printed on receipts.', isReadOnly: true },
@@ -35,20 +27,16 @@ export const DEFAULT_SETTINGS: DefaultSetting[] = [
   { key: 'allowGroupPrinting', value: 'true', valueType: 'boolean', category: 'Jobs', description: 'Enable group/batch print sessions for users.' },
   { key: 'maxGroupParticipants', value: '40', valueType: 'number', category: 'Jobs', description: 'Maximum participants allowed in one group session.' },
 
-  // ── Payments ───────────────────────────────────────────────────────────
   { key: 'paystackEnabled', value: 'true', valueType: 'boolean', category: 'Payments', description: 'Allow card / transfer / USSD payments via Paystack.' },
   { key: 'currency', value: 'NGN', valueType: 'string', category: 'Payments', description: 'Platform settlement currency.', isReadOnly: true },
 
-  // ── Notifications ──────────────────────────────────────────────────────
   { key: 'emailNotificationsEnabled', value: 'true', valueType: 'boolean', category: 'Notifications', description: 'Send transactional emails (receipts, job-ready).' },
   { key: 'smsNotificationsEnabled', value: 'false', valueType: 'boolean', category: 'Notifications', description: 'Send SMS notifications for job-ready codes.' },
 
-  // ── Branding ───────────────────────────────────────────────────────────
   { key: 'companyName', value: 'PrintLoop', valueType: 'string', category: 'Branding', description: 'Display name used across emails and the UI.' },
   { key: 'supportEmail', value: 'support@printloop.ng', valueType: 'string', category: 'Branding', description: 'Support contact email shown to users.' },
   { key: 'supportPhone', value: '+234 800 000 0000', valueType: 'string', category: 'Branding', description: 'Support contact phone number.' },
 
-  // ── Printing (print-script policy + IPPS transport) ────────────────────
   { key: 'policyEnabled', value: 'false', valueType: 'boolean', category: 'Printing', description: 'Master switch for server-side print-script policies (evaluated on every kiosk release).' },
   { key: 'policyMaxPagesPerJob', value: '0', valueType: 'number', category: 'Printing', description: 'Block any release over this many pages. 0 = no limit.' },
   { key: 'policyMaxCopiesPerJob', value: '0', valueType: 'number', category: 'Printing', description: 'Silently clamp copies to this maximum. 0 = no limit.' },
@@ -65,25 +53,16 @@ export const DEFAULT_SETTINGS: DefaultSetting[] = [
   { key: 'ippRawPort', value: '9100', valueType: 'number', category: 'Printing', description: 'TCP port used by the raw9100 transport.' },
   { key: 'printDispatchMode', value: 'cloud-push', valueType: 'string', category: 'Printing', description: 'How printer dispatch works: "cloud-push" (backend opens TCP to printer — needs LAN reachability or Tailscale) or "kiosk-pull" (a local agent on the kiosk box fetches each job + prints; no network bridge from cloud needed). Recommended: kiosk-pull for cloud deployments.' },
 
-  // ── System ─────────────────────────────────────────────────────────────
   { key: 'maintenanceMode', value: 'false', valueType: 'boolean', category: 'System', description: 'When enabled, the user-facing app shows a maintenance banner.' },
   { key: 'maintenanceMessage', value: 'We are performing scheduled maintenance. Please check back soon.', valueType: 'string', category: 'System', description: 'Message shown when maintenance mode is on.' },
   { key: 'appVersion', value: '1.0.0', valueType: 'string', category: 'System', description: 'Deployed application version.', isReadOnly: true },
 ];
 
-/**
- * Idempotent: inserts any catalog setting that doesn't yet exist (matched by
- * key). Never overwrites a value an admin already customised. Safe to call on
- * every boot, including on an already-seeded database.
- */
 export async function ensureSystemSettings(): Promise<void> {
   const repo = AppDataSource.getRepository(SystemSetting);
   const existing = await repo.find();
   const existingKeys = new Set(existing.map((s) => s.key));
 
-  // Forced policy reconcile: PrintLoop now prints PDF + images ONLY. This is a
-  // product constraint (not a tunable), so correct any stale stored value
-  // even on an already-seeded DB.
   const aft = existing.find((s) => s.key === 'allowedFileTypes');
   if (aft && (aft.value !== 'PDF, JPG, PNG' || !aft.isReadOnly)) {
     aft.value = 'PDF, JPG, PNG';

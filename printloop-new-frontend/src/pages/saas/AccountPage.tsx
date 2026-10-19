@@ -8,11 +8,6 @@ import {
   useCloseTenantMutation,
 } from "@/store/services/saasApi";
 
-/**
- * `/saas/settings/account` — data export (Dimension 13) + danger-zone
- * close. Export is a raw authenticated fetch because it streams a
- * file attachment, not JSON the RTK cache should hold.
- */
 export default function AccountPage() {
   const navigate = useNavigate();
   const { data: me } = useGetTenantMeQuery();
@@ -51,8 +46,6 @@ export default function AccountPage() {
     }
   };
 
-  // Month-end statement download (V2-24). Defaults to last month —
-  // the typical "close the books" target.
   const [stmtMonth, setStmtMonth] = useState(() => {
     const d = new Date();
     d.setUTCMonth(d.getUTCMonth() - 1);
@@ -90,10 +83,8 @@ export default function AccountPage() {
     e.preventDefault();
     try {
       await closeTenant({ confirmSlug, reason: reason || undefined }).unwrap();
-      // Tenant is now CLOSED — bounce to a goodbye state.
       navigate("/saas/closed");
     } catch {
-      /* surfaced below */
     }
   };
 

@@ -4,14 +4,12 @@ import { spawn, ChildProcess } from 'node:child_process';
 import path from 'node:path';
 import ipp from 'ipp';
 
-// Dynamically register CUPS operations in the local ipp library instance for serialization support
 (ipp.operations as any)['CUPS-Get-Default'] = 0x4001;
 (ipp.operations as any)['CUPS-Get-Printers'] = 0x4002;
 (ipp.operations as any)['CUPS-Get-Classes'] = 0x4005;
 (ipp.operations as any)['CUPS-Move-Job'] = 0x400D;
 (ipp.operations as any)['CUPS-Authenticate-Job'] = 0x4016;
 
-// Patch ipp.serialize in-memory in the test runner process
 const getPatchedSerializer = () => {
   const fs = require('node:fs');
   const serializerPath = require.resolve('ipp/lib/serializer.js');
@@ -73,7 +71,6 @@ describe('Virtual IPP Printer Operations Tests', () => {
     vprinter.stdout?.on('data', (d) => console.log('[vprinter-out]', d.toString().trim()));
     vprinter.stderr?.on('data', (d) => console.error('[vprinter-err]', d.toString().trim()));
 
-    // Wait a brief moment for the server to start
     await new Promise((resolve) => setTimeout(resolve, 500));
   });
 
@@ -242,7 +239,6 @@ describe('Virtual IPP Printer Operations Tests', () => {
   });
 
   it('supports printer and job Subscriptions', async () => {
-    // 1. Create printer subscription
     const subRes = await sendIpp('Create-Printer-Subscriptions', {
       'subscription-attributes-tag': {
         'notify-events': ['printer-state-changed'],
@@ -253,7 +249,6 @@ describe('Virtual IPP Printer Operations Tests', () => {
     const subId = subRes['subscription-attributes-tag']['notify-subscription-id'];
     expect(subId).toBeDefined();
 
-    // 2. Create job subscription
     const jobRes = await sendIpp('Create-Job-Subscription', {
       'job-id': 1,
       'subscription-attributes-tag': {
@@ -263,31 +258,26 @@ describe('Virtual IPP Printer Operations Tests', () => {
     });
     expect(jobRes.statusCode).toBe('successful-ok');
 
-    // 3. Get Subscription Attributes
     const getSubAttrRes = await sendIpp('Get-Subscription-Attributes', {
       'notify-subscription-id': subId
     });
     expect(getSubAttrRes.statusCode).toBe('successful-ok');
     expect(getSubAttrRes['subscription-attributes-tag']['notify-recipient-uri']).toBe('mailto:admin@example.com');
 
-    // 4. Get Subscriptions
     const listRes = await sendIpp('Get-Subscriptions');
     expect(listRes.statusCode).toBe('successful-ok');
     const subList = listRes['subscription-attributes-tag'];
     const subListArr = Array.isArray(subList) ? subList : [subList];
     expect(subListArr.length).toBeGreaterThan(0);
 
-    // 5. Renew Subscription
     const renewRes = await sendIpp('Renew-Subscription', {
       'notify-subscription-id': subId
     });
     expect(renewRes.statusCode).toBe('successful-ok');
 
-    // 6. Get Notifications
     const notifyRes = await sendIpp('Get-Notifications');
     expect(notifyRes.statusCode).toBe('successful-ok');
 
-    // 7. Cancel Subscription
     const cancelSubRes = await sendIpp('Cancel-Subscription', {
       'notify-subscription-id': subId
     });
@@ -295,26 +285,22 @@ describe('Virtual IPP Printer Operations Tests', () => {
   });
 
   it('supports Document operations and Set-Job-Attributes', async () => {
-    // 1. Get Document Attributes
     const getDocAttrRes = await sendIpp('Get-Document-Attributes', {
       'job-id': 1
     });
     expect(getDocAttrRes.statusCode).toBe('successful-ok');
     expect(getDocAttrRes['document-attributes-tag']['document-format']).toBe('application/pdf');
 
-    // 2. Set Document Attributes
     const setDocAttrRes = await sendIpp('Set-Document-Attributes', {
       'job-id': 1
     });
     expect(setDocAttrRes.statusCode).toBe('successful-ok');
 
-    // 3. Cancel Document
     const cancelDocRes = await sendIpp('Cancel-Document', {
       'job-id': 1
     });
     expect(cancelDocRes.statusCode).toBe('successful-ok');
 
-    // 4. Set Job Attributes
     const setJobAttrRes = await sendIpp('Set-Job-Attributes', {
       'job-id': 1
     });
@@ -322,29 +308,24 @@ describe('Virtual IPP Printer Operations Tests', () => {
   });
 
   it('supports CUPS administration operations', async () => {
-    // 1. CUPS-Get-Default
     const defRes = await sendIpp('CUPS-Get-Default');
     expect(defRes.statusCode).toBe('successful-ok');
     expect(defRes['printer-attributes-tag']['printer-name']).toBe('Virtual IPP Printer');
 
-    // 2. CUPS-Get-Printers
     const printersRes = await sendIpp('CUPS-Get-Printers');
     expect(printersRes.statusCode).toBe('successful-ok');
     const printers = printersRes['printer-attributes-tag'];
     const printersArr = Array.isArray(printers) ? printers : [printers];
     expect(printersArr[0]['printer-name']).toBe('Virtual IPP Printer');
 
-    // 3. CUPS-Get-Classes
     const classesRes = await sendIpp('CUPS-Get-Classes');
     expect(classesRes.statusCode).toBe('successful-ok');
 
-    // 4. CUPS-Move-Job
     const moveRes = await sendIpp('CUPS-Move-Job', {
       'job-id': 1
     });
     expect(moveRes.statusCode).toBe('successful-ok');
 
-    // 5. CUPS-Authenticate-Job
     const authRes = await sendIpp('CUPS-Authenticate-Job', {
       'job-id': 1
     });
@@ -355,7 +336,6 @@ describe('Virtual IPP Printer Operations Tests', () => {
     const purgeRes = await sendIpp('Purge-Jobs');
     expect(purgeRes.statusCode).toBe('successful-ok');
 
-    // Verify get jobs is empty
     const res = await sendIpp('Get-Jobs', {
       'which-jobs': 'all'
     });

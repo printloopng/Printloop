@@ -2,20 +2,9 @@ import { AppDataSource } from '../config/database';
 import { Transaction } from '../entities/transaction.entity';
 import { Payout } from '../entities/payout.entity';
 
-/**
- * Month-end statement (V2-23, v3 polish / Dimension 14 reports).
- *
- * Produces a CSV a tenant can hand to their accountant: every
- * commission-bearing transaction for the month (gross, our
- * commission, their net) plus every payout, with summary totals.
- *
- * `month` is `YYYY-MM`. The window is [first of month, first of next
- * month) in UTC — matches how the rest of the app stamps timestamps.
- */
-
 export interface StatementMonth {
   year: number;
-  month: number; // 1-12
+  month: number;
 }
 
 export function parseMonth(input: string | undefined): StatementMonth {
@@ -38,7 +27,6 @@ function monthRange({ year, month }: StatementMonth): [Date, Date] {
 
 function csvCell(v: unknown): string {
   const s = v == null ? '' : String(v);
-  // Quote if it contains comma, quote, or newline; double internal quotes.
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
@@ -46,10 +34,6 @@ function csvRow(cells: unknown[]): string {
   return cells.map(csvCell).join(',');
 }
 
-/**
- * Build the CSV string for a tenant + month. Returns the text plus a
- * suggested filename.
- */
 export async function buildMonthlyStatementCsv(
   tenantId: string,
   tenantSlug: string,
@@ -76,7 +60,6 @@ export async function buildMonthlyStatementCsv(
   lines.push(`PrintLoop statement,${tenantSlug},${m.year}-${mm}`);
   lines.push('');
 
-  // ── Transactions section ──
   lines.push('TRANSACTIONS');
   lines.push(
     csvRow(['date', 'type', 'description', 'gross', 'commission', 'net', 'reference']),
@@ -116,7 +99,6 @@ export async function buildMonthlyStatementCsv(
   );
   lines.push('');
 
-  // ── Payouts section ──
   lines.push('PAYOUTS');
   lines.push(csvRow(['date', 'status', 'trigger', 'amount', 'fee', 'reference']));
   let payoutSum = 0;

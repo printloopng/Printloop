@@ -37,7 +37,6 @@ const MEDIA: Record<string, string> = {
   LEGAL: 'na_legal_8.5x14in',
 };
 
-// The `ipp` package is callback-only and has no request timeout.
 function execute(printerUri: string, operation: string, msg: any, timeoutMs = IPP_TIMEOUT_MS): Promise<any> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(
@@ -69,11 +68,6 @@ async function getPrinterAttributes(printerUri: string): Promise<Record<string, 
   return res?.['printer-attributes-tag'] ?? {};
 }
 
-/**
- * The `ipp` package can't discover printers, so this only reports the
- * configured printer (if reachable). Operators type the printer's IPP URI
- * in settings, e.g. ipp://192.168.1.50/ipp/print.
- */
 export async function listPrinters(): Promise<PrinterInfo[]> {
   const uri = getSettings().printerUri;
   if (!uri) return [];
@@ -128,7 +122,6 @@ export async function printDocument(
 
   const res = await execute(printerUri, 'Print-Job', msg, PRINT_TIMEOUT_MS);
   const job = res?.['job-attributes-tag'] ?? {};
-  // job-state 7+ = canceled / aborted.
   if (job['job-state'] >= 7) {
     throw new Error(`Printer aborted the job: ${job['job-state-reasons'] || 'unknown reason'}`);
   }

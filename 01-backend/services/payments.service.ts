@@ -9,11 +9,6 @@ import { enqueueRenderOrReady } from './renderEnqueue.service';
 import { applyTransactionDelta } from './tenantBalance.service';
 import { computeCommissionSplit } from './commission.service';
 
-/**
- * Transition a print job from PENDING to READY (or RENDERING) upon payment completion.
- * Reconciles Paystack split commissions, records ledger events, and dispatches the
- * job for cloud rendering.
- */
 export async function completePrintJobPayment(
   jobId: string,
   reference: string,
@@ -30,21 +25,12 @@ export async function completePrintJobPayment(
     }
 
     if (job.status !== PrintJobStatus.PENDING) {
-      // Already paid or processed
       return { success: true, code: job.code || undefined };
     }
 
-    // 1. Release code. CUPS-ingress jobs mint theirs at creation so the
-    //    code is already visible in `lpq` before payment — reuse it so the
-    //    user's printed instructions never change. Web jobs have none yet,
-    //    so mint one here as before.
     const code = job.code || makeCode(6);
     job.code = code;
 
-    // V2-58: marketplace shops (discoverable, not the legacy tenant) get
-    // the Bolt-style accept window — the job waits in awaiting_accept
-    // for the operator's OK before it becomes READY, and auto-reroutes
-    // if nobody accepts in time.
     let requiresAccept = false;
     if (job.tenantId) {
       const tenant = await em.findOne(Tenant, { where: { id: job.tenantId } });
@@ -52,10 +38,9 @@ export async function completePrintJobPayment(
     }
     job.requiresAccept = requiresAccept;
     job.paymentReference = reference;
-    job.status = PrintJobStatus.PENDING; // Keep in PENDING inside the transaction so enqueueRender can promote it
+    job.status = PrintJobStatus.PENDING;
     await em.save(PrintJob, job);
 
-    // 2. Resolve tenant to compute commission splits
     let commissionAmount = 0;
     if (job.tenantId) {
       const tenant = await em.findOne(Tenant, { where: { id: job.tenantId } });
@@ -65,21 +50,18 @@ export async function completePrintJobPayment(
       }
     }
 
-    // 3. Create Payment record (with the saved-card authorization code
-    //    so the release gate can charge deltas — V2-53)
     const payment = em.create(Payment, {
       tenantId: job.tenantId,
       userId: job.userId,
       amount: job.cost,
       status: 'SUCCESS',
-      method: 'card', // or card/transfer/ussd default
+      method: 'card',
       reference,
       description: job.fileName || 'Direct Print Payment',
       authorizationCode: opts?.authorizationCode ?? null,
     } as any);
     await em.save(Payment, payment);
 
-    // 4. Create Transaction record for the tenant's earnings
     if (job.userId) {
       const wallet = await em.findOne(Wallet, { where: { userId: job.userId } });
       if (wallet) {
@@ -87,17 +69,16 @@ export async function completePrintJobPayment(
           walletId: wallet.id,
           tenantId: job.tenantId,
           type: TransactionType.PRINT,
-          amount: job.cost, // positive for tenant earnings
+          amount: job.cost,
           commissionAmount,
           description: `Direct Print: ${job.fileName}`,
-          balanceAfter: Number(wallet.balance), // wallet balance wasn't changed
+          balanceAfter: Number(wallet.balance),
           reference,
         });
         await em.save(Transaction, transaction);
       }
     }
 
-    // 5. Update tenant balance
     if (job.tenantId) {
       try {
         await applyTransactionDelta(job.tenantId, Number(job.cost), commissionAmount);
@@ -106,11 +87,9 @@ export async function completePrintJobPayment(
       }
     }
 
-    // 6. Trigger notifications (Termii SMS or email with the code)
     if (job.user) {
       const message = `Your PrintLoop code is: ${code}. Release your print at the kiosk.`;
 
-      // Try sending SMS best-effort
       if (job.user.phoneNumber) {
         try {
           const { SMSService } = await import('./sms.service');
@@ -126,7 +105,6 @@ export async function completePrintJobPayment(
         }
       }
 
-      // Try sending email best-effort
       if (job.user.email) {
         try {
           const { EmailService } = await import('./email.service');
@@ -147,13 +125,11 @@ export async function completePrintJobPayment(
   });
 
   if (result.success) {
-    // 7. Enqueue render pipeline outside the transaction to avoid lock holding
     try {
       await enqueueRenderOrReady(jobId);
     } catch (e) {
       console.error('Failed to enqueue render for paid job:', e);
     }
-    // 8. Arm the accept window (V2-58) for marketplace-shop jobs.
     try {
       const job = await AppDataSource.getRepository(PrintJob).findOne({
         where: { id: jobId },

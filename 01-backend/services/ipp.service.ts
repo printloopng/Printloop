@@ -6,31 +6,18 @@ import { fileURLToPath } from 'node:url';
 
 export interface PrintOptions {
   copies?: number;
-  /** 'single' | 'double' (long-edge duplex) */
   sided?: 'single' | 'double';
   color?: 'bw' | 'color';
-  paper?: string; // A4 | A3 | Letter | Legal
-  /** Portrait (default) or landscape. Maps to IPP orientation-requested
-   *  (3 = portrait, 4 = landscape). */
+  paper?: string;
   orientation?: 'portrait' | 'landscape';
-  /** Print-quality tier in dpi (100 = draft, 300 = normal, 600 = high).
-   *  Maps to IPP print-quality (3/4/5) + PJL RESOLUTION/ECONOMODE. */
   qualityDpi?: 100 | 300 | 600;
   collate?: boolean;
-  /** 1-based pages to print, e.g. [2,3,10,11,12] */
   pages?: number[] | null;
   requestingUser?: string;
-  /** IPPS (IPP over TLS) */
   secure?: boolean;
   port?: number;
-  /** verify the printer's TLS cert (false for self-signed appliances) */
   tlsRejectUnauthorized?: boolean;
-  /** IPP request path. IPP Everywhere/AirPrint = /ipp/print;
-   *  CUPS queues = /printers/<queue-name>; Sharp MX-series = /ipp/lp. */
   path?: string;
-  /** IPP protocol version sent in requests. Default '2.0' (IPP-Everywhere).
-   *  Older / vendor-quirky firmwares need '1.1' — Sharp MX-series for one
-   *  rejects 2.0 with `server-error-version-not-supported`. */
   version?: '1.0' | '1.1' | '2.0';
 }
 
@@ -46,7 +33,6 @@ function loadCa(): Buffer | undefined {
   return cachedCa ?? undefined;
 }
 
-/** Build an ipp.Printer for either IPP (http) or IPPS (https + TLS opts). */
 function buildPrinter(printerIp: string, opts: PrintOptions): any {
   const path = opts.path || '/ipp/print';
   const version = opts.version || '2.0';
@@ -81,7 +67,6 @@ const MEDIA: Record<string, string> = {
   LEGAL: 'na_legal_8.5x14in',
 };
 
-/** Collapse a sorted page list into IPP rangeOfInteger pairs. */
 function toPageRanges(pages?: number[] | null): Array<[number, number]> | undefined {
   if (!pages || !pages.length) return undefined;
   const sorted = [...new Set(pages)].sort((a, b) => a - b);
@@ -101,8 +86,6 @@ function toPageRanges(pages?: number[] | null): Array<[number, number]> | undefi
 }
 
 export class IppService {
-  /** Resolve a print source to raw bytes. Returns null for schemes we can't
-   *  fetch (local://, dev://) so callers can degrade gracefully in dev. */
   private async resolveBytes(src: PrintSource): Promise<Buffer | null> {
     if ('buffer' in src) return src.buffer;
     if ('base64' in src) {
@@ -110,8 +93,6 @@ export class IppService {
       return Buffer.from(b64, 'base64');
     }
     const url = src.url || '';
-    // Local delivery: file:// URL or an absolute on-disk path (kiosk-attached
-    // printers, or our own /api/files store mounted on the same box).
     if (url.startsWith('file://')) {
       try {
         return fs.readFileSync(fileURLToPath(url));
@@ -140,10 +121,6 @@ export class IppService {
       copies,
       sides: opts.sided === 'double' ? 'two-sided-long-edge' : 'one-sided',
       'print-color-mode': opts.color === 'color' ? 'color' : 'monochrome',
-      // IPP orientation-requested enum: 3 = portrait, 4 = landscape.
-      // Portrait is the default; we only emit the attribute when the
-      // user explicitly chose landscape so older / simpler printers
-      // don't reject the job over an unrecognised value.
       ...(opts.orientation === 'landscape'
         ? { 'orientation-requested': 4 }
         : {}),
@@ -162,17 +139,11 @@ export class IppService {
     if (ranges) {
       attrs['page-ranges'] = ranges.map(([lower, upper]) => ({ lower, upper }));
     }
-    // Print quality enum: 3 = draft, 4 = normal, 5 = high.
     const q = Number(opts.qualityDpi) || 300;
     attrs['print-quality'] = q <= 100 ? 3 : q >= 600 ? 5 : 4;
     return attrs;
   }
 
-  /**
-   * Dispatch a document to an IPP printer with full job options.
-   * Resolves with the IPP response (or a mock id in dev when the file
-   * URL isn't fetchable) so the release flow never hard-fails.
-   */
   async printJob(
     printerIp: string,
     source: PrintSource,
@@ -185,8 +156,6 @@ export class IppService {
     const bytes = await this.resolveBytes(source);
 
     if (!bytes) {
-      // Dev/mock: we can't actually fetch the file, but we still log the
-      // exact attributes (and transport) that WOULD be sent.
       const attrs = this.buildJobAttributes(opts);
       console.log(`[IPP] (dev) Would print "${jobName}" → ${printerUrl}`, attrs);
       return { mock: true, 'job-attributes-tag': { 'job-id': `mock-${Date.now()}` }, attrs };
@@ -216,20 +185,6 @@ export class IppService {
     });
   }
 
-  /**
-   * Dispatch to a raw-socket (port 9100 / "JetDirect") printer.
-   *
-   * Used when the printer's IPP layer silently drops jobs — Sharp MX-
-   * series is the canonical example: `/ipp/lp` returns
-   * `successful-ok` to anonymous Print-Job operations but the auth
-   * filter then discards the payload. Raw socket bypasses the IPP
-   * stack entirely, so anonymous jobs print.
-   *
-   * Options (copies / duplex / colour / paper / orientation) are sent
-   * as a PJL prologue ahead of the PDF bytes. Every print engine made
-   * in the last 20 years parses PJL; unrecognised commands are silently
-   * ignored, so this is safe across vendors.
-   */
   async rawPrint(
     printerIp: string,
     source: PrintSource,
@@ -243,13 +198,6 @@ export class IppService {
       return { mock: true };
     }
 
-    // ── PJL prologue ─────────────────────────────────────────────────
-    // UEL (Universal Exit Language) brackets the job:
-    //   ESC%-12345X  starts a PJL session
-    //   @PJL …       commands
-    //   @PJL ENTER LANGUAGE=PDF
-    //   <PDF bytes>
-    //   ESC%-12345X  end of job
     const UEL = '\x1B%-12345X';
     const safe = (s: string) =>
       String(s || '').replace(/[^A-Za-z0-9 _.\-]/g, '_').slice(0, 80) || 'PrintLoop';
@@ -273,28 +221,16 @@ export class IppService {
       `@PJL SET ORIENTATION=${landscape ? 'LANDSCAPE' : 'PORTRAIT'}`,
       `@PJL SET RESOLUTION=${resolution}`,
       `@PJL SET ECONOMODE=${economy ? 'ON' : 'OFF'}`,
-      // Sharp + most vendors auto-detect the document language, but
-      // ENTER LANGUAGE=PDF makes intent explicit.
       `@PJL ENTER LANGUAGE=PDF`,
-      '', // blank line then PDF body
+      '',
     ];
     const prologue = Buffer.from(pjl.join('\r\n'));
     const epilogue = Buffer.from('\r\n' + UEL);
 
     const total = prologue.length + bytes.length + epilogue.length;
-    // ── SOCKS5 routing (for Tailscale userspace mode on Railway) ──────
-    // tailscaled in userspace mode doesn't intercept raw net.Socket
-    // calls — the kernel routes 192.168.x.x directly to the public
-    // internet and the printer is unreachable. When TS_SOCKS5_PROXY is
-    // set (start.sh in the Railway deploy), we open the socket via
-    // Tailscale's local SOCKS5 proxy instead so the connection
-    // actually flows through the tailnet to the user's home LAN.
     const sock = await this.openSocket(printerIp, port);
     return new Promise((resolve, reject) => {
       sock.setTimeout(120_000);
-      // `openSocket` returns an already-connected socket (direct or
-      // via SOCKS5), so write immediately rather than waiting on
-      // a 'connect' event that has already fired.
       sock.write(prologue);
       sock.write(bytes);
       sock.write(epilogue, () => sock.end());
@@ -317,22 +253,6 @@ export class IppService {
     });
   }
 
-  /**
-   * Dispatch a document to an LPR/LPD printer on port 515 (RFC 1179).
-   *
-   * LPR/LPD is a binary TCP protocol. It works by:
-   * 1. Connecting to port 515.
-   * 2. Sending a command to request job reception: \x02 + queue + \n
-   * 3. Waiting for ACK (0x00).
-   * 4. Sending subcommand to transmit the control file: \x02 + size + " " + cfName + \n
-   * 5. Waiting for ACK (0x00).
-   * 6. Writing control file content + \x00.
-   * 7. Waiting for ACK (0x00).
-   * 8. Sending subcommand to transmit the data file: \x03 + size + " " + dfName + \n
-   * 9. Waiting for ACK (0x00).
-   * 10. Writing data file bytes + \x00.
-   * 11. Waiting for ACK (0x00).
-   */
   async lprPrint(
     printerIp: string,
     source: PrintSource,
@@ -349,7 +269,6 @@ export class IppService {
     const host = 'localhost';
     const user = opts.requestingUser || 'PrintLoop';
     const jobId = String(Math.floor(Math.random() * 900) + 100).padStart(3, '0');
-    // Clean leading slash from path to use as the LPR queue name, e.g. "/raw" -> "raw"
     const queue = (opts.path && opts.path.replace(/^\//, '')) || 'raw';
 
     const controlContent = [
@@ -389,26 +308,21 @@ export class IppService {
 
       (async () => {
         try {
-          // 1. Receive job command
           sock.write(Buffer.from(`\x02${queue}\n`));
           await waitAck();
 
-          // 2. Send control file header command
           const controlFileCmd = `\x02${controlBytes.length} cfA${jobId}${host}\n`;
           sock.write(Buffer.from(controlFileCmd));
           await waitAck();
 
-          // Send control file contents + zero byte
           sock.write(controlBytes);
           sock.write(Buffer.from('\x00'));
           await waitAck();
 
-          // 3. Send data file header command
           const dataFileCmd = `\x03${bytes.length} dfA${jobId}${host}\n`;
           sock.write(Buffer.from(dataFileCmd));
           await waitAck();
 
-          // Send data file contents + zero byte
           sock.write(bytes);
           sock.write(Buffer.from('\x00'));
           await waitAck();
@@ -425,12 +339,6 @@ export class IppService {
     });
   }
 
-  /**
-   * Dispatch a document via Email-to-Print / ePrint (e.g. HP ePrint).
-   *
-   * Sends an email to the printer's email address with the PDF buffer
-   * attached as application/pdf. Bypasses firewalls/NATs completely.
-   */
   async emailPrint(
     printerEmail: string,
     source: PrintSource,
@@ -465,21 +373,9 @@ export class IppService {
     return { email: true, transport: 'email', success };
   }
 
-  /**
-   * Open a raw TCP socket to (host, port). When `TS_SOCKS5_PROXY` is
-   * set (Railway + Tailscale userspace deploy), the socket is opened
-   * through Tailscale's local SOCKS5 proxy so the connection routes
-   * through the tailnet instead of the public internet — this is how
-   * the cloud backend reaches the user's home LAN printer.
-   *
-   * Without the env var, this is a plain `net.createConnection` —
-   * same behaviour the local dev backend has always had.
-   */
   private async openSocket(host: string, port: number): Promise<net.Socket> {
     const proxy = process.env.TS_SOCKS5_PROXY;
     if (!proxy) {
-      // Direct connect — wait for 'connect' so callers can write
-      // immediately on return.
       return await new Promise<net.Socket>((resolve, reject) => {
         const s = net.createConnection(port, host);
         s.once('connect', () => resolve(s));
@@ -487,8 +383,6 @@ export class IppService {
       });
     }
 
-    // SOCKS5 connect via Tailscale's local proxy. The `socks` package
-    // does the handshake; the returned socket is a regular net.Socket.
     const [proxyHost, proxyPortStr] = proxy.split(':');
     const proxyPort = Number(proxyPortStr) || 1055;
     const { SocksClient } = await import('socks');
@@ -501,7 +395,6 @@ export class IppService {
     return socket as net.Socket;
   }
 
-  /** Query printer attributes / state (online, idle, stopped…). */
   async checkPrinterStatus(
     printerIp: string,
     opts: PrintOptions = {}

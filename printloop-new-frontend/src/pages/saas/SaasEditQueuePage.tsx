@@ -322,7 +322,6 @@ export default function SaasEditQueuePage() {
         </div>
       )}
 
-      {/* Upload Modal */}
       {uploadModal && (
         <div className="fixed inset-0 bg-ink/75 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadein">
           <form onSubmit={(e) => { e.preventDefault(); handleUpload(uploadModal.jobId); }} className="bg-paper border-4 border-ink shadow-[8px_8px_0_#000] p-6 max-w-md w-full rounded flex flex-col gap-4 animate-fadein relative">

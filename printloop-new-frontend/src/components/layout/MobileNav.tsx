@@ -10,34 +10,22 @@ interface MobileNavProps {
   open: boolean;
   onClose: () => void;
   items: MobileNavItem[];
-  /** Optional name shown above the nav block (e.g. user's first name). */
   userLabel?: string;
-  /** Optional secondary action rendered at the bottom of the drawer. */
   footerAction?: {
     label: string;
     onClick: () => void;
   };
 }
 
-/**
- * Mobile-only navigation drawer. Slides in from the right, full
- * height, with a backdrop. Uses the brutalist aesthetic — 2px ink
- * borders, hard offset shadow on the drawer, all-caps labels.
- *
- * Auto-closes when the route changes or the user taps the backdrop.
- * Locks body scroll while open and traps focus inside the drawer.
- */
 export function MobileNav({ open, onClose, items, userLabel, footerAction }: MobileNavProps) {
   const location = useLocation();
   const closeRef = useRef<HTMLButtonElement>(null);
 
-  // Close on route change.
   useEffect(() => {
     if (open) onClose();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname]);
 
-  // Lock body scroll while drawer is open.
   useEffect(() => {
     if (!open) return;
     const prev = document.body.style.overflow;
@@ -48,7 +36,6 @@ export function MobileNav({ open, onClose, items, userLabel, footerAction }: Mob
     };
   }, [open]);
 
-  // Close on Esc.
   useEffect(() => {
     if (!open) return;
     function onKey(e: KeyboardEvent) {
@@ -60,7 +47,6 @@ export function MobileNav({ open, onClose, items, userLabel, footerAction }: Mob
 
   return (
     <>
-      {/* Backdrop */}
       <div
         aria-hidden={!open}
         onClick={onClose}
@@ -69,7 +55,6 @@ export function MobileNav({ open, onClose, items, userLabel, footerAction }: Mob
         }`}
       />
 
-      {/* Drawer */}
       <aside
         aria-hidden={!open}
         aria-label="Site navigation"
@@ -78,7 +63,6 @@ export function MobileNav({ open, onClose, items, userLabel, footerAction }: Mob
         }`}
       >
         <div className="flex flex-col h-full">
-          {/* Header strip */}
           <div className="flex items-center justify-between px-5 py-4 border-b-2 border-ink">
             <span className="editorial-label">Menu</span>
             <button
@@ -91,7 +75,6 @@ export function MobileNav({ open, onClose, items, userLabel, footerAction }: Mob
             </button>
           </div>
 
-          {/* User strip */}
           {userLabel && (
             <div className="px-5 py-3 border-b-2 border-ink bg-paper-warm">
               <div className="editorial-label text-fog">Signed in as</div>
@@ -99,7 +82,6 @@ export function MobileNav({ open, onClose, items, userLabel, footerAction }: Mob
             </div>
           )}
 
-          {/* Nav items */}
           <nav className="flex-1 overflow-y-auto p-3 flex flex-col gap-1.5">
             {items.map((item, i) => {
               const active = location.pathname === item.to;
@@ -122,7 +104,6 @@ export function MobileNav({ open, onClose, items, userLabel, footerAction }: Mob
             })}
           </nav>
 
-          {/* Footer action */}
           {footerAction && (
             <div className="p-3 border-t-2 border-ink">
               <button

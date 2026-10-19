@@ -1,14 +1,5 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-/**
- * Live gate (V2-32) — Kiosk.testPrintPassedAt. Set when the tenant
- * admin confirms a successful test print through this kiosk. Used by
- * the live gate on isDiscoverable to refuse marketplace opt-in until
- * the shop has proved at least one printer actually works.
- *
- * SQLite incremental; PostgresBaseline updated inline so fresh PG
- * deployments boot with the column present.
- */
 export class AddKioskTestPrintPassedAt1718400000000
   implements MigrationInterface
 {

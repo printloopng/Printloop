@@ -1,59 +1,12 @@
-/**
- * Virtual IPP printer for end-to-end testing without hardware.
- * Decodes requests with the SAME `ipp` library PrintLoop's IppService uses
- * (guaranteed wire-compatible), writes each received document to
- * data/printed/, and returns a proper IPP success so the client is happy.
- *
- * Supports the following operations:
- * - GET_PRINTER_ATTRIBUTES
- * - PURGE_JOBS
- * - PAUSE_PRINTER
- * - RESUME_PRINTER
- * - PRINT_JOB (simple write to disk)
- * - PRINT_URI
- * - VALIDATE_JOB
- * - CREATE_JOB
- * - SEND_DOCUMENT
- * - SEND_URI
- * - CANCEL_JOB
- * - GET_JOB_ATTRIBUTES
- * - GET_JOBS
- * - HOLD_JOB
- * - RELEASE_JOB
- * - RESTART_JOB
- * - IDENTIFY_PRINTER (new)
- * - SET_PRINTER_ATTRIBUTES (new)
- * - CREATE_PRINTER_SUBSCRIPTIONS (new)
- * - CREATE_JOB_SUBSCRIPTION (new)
- * - GET_SUBSCRIPTION_ATTRIBUTES (new)
- * - GET_SUBSCRIPTIONS (new)
- * - RENEW_SUBSCRIPTION (new)
- * - CANCEL_SUBSCRIPTION (new)
- * - GET_NOTIFICATIONS (new)
- * - GET_DOCUMENT_ATTRIBUTES (new)
- * - SET_DOCUMENT_ATTRIBUTES (new)
- * - CANCEL_DOCUMENT (new)
- * - SET_JOB_ATTRIBUTES (new)
- * - CUPS_GET_DEFAULT (new)
- * - CUPS_GET_PRINTERS (new)
- * - CUPS_GET_CLASSES (new)
- * - CUPS_MOVE_JOB (new)
- * - CUPS_AUTHENTICATE_JOB (new)
- *
- *   node scripts/virtualPrinter.cjs                 # port 6310
- *   IPP_VPRINTER_PORT=9100 node scripts/virtualPrinter.cjs
- */
 const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const ipp = require('ipp');
 
-// Patch ipp.serialize in-memory to support subscription-attributes-tag and event-notification-attributes-tag
 function getPatchedSerializer() {
   const serializerPath = require.resolve('ipp/lib/serializer.js');
   let code = fs.readFileSync(serializerPath, 'utf8');
 
-  // Replace group serialization to include subscription-attributes-tag and event-notification-attributes-tag
   code = code.replace(
     "writeGroup('document-attributes-tag');",
     "writeGroup('document-attributes-tag');\n\twriteGroup('subscription-attributes-tag');\n\twriteGroup('event-notification-attributes-tag');"
@@ -78,8 +31,6 @@ function getPatchedSerializer() {
 
 ipp.serialize = getPatchedSerializer();
 
-// Copy all attributes from Subscription Description, Subscription Template, and Event Notifications
-// to Operation, Printer Description, and Subscription Description to bypass node-ipp's hardcoded group checks
 const attributes = ipp.attributes;
 if (attributes) {
   const sourceGroups = ['Subscription Description', 'Subscription Template', 'Event Notifications'];
@@ -104,26 +55,19 @@ const OUT = path.resolve(__dirname, '..', 'data', 'printed');
 fs.mkdirSync(OUT, { recursive: true });
 
 const startTime = new Date();
-let printerState = 'idle'; // 'idle' | 'processing' | 'stopped'
+let printerState = 'idle';
 let jobSeq = 0;
 const jobs = [];
 
 let subSeq = 0;
 const subscriptions = [];
 
-/**
- * Byte-exact document extraction. Walk the IPP attribute groups from offset 8
- * (after version/op/request-id) to the end-of-attributes delimiter (0x03);
- * everything after that single byte is the document, untouched.
- * Delimiter tags: 0x00–0x05. Value tags (>=0x10) carry name+value.
- */
 function extractIppDocument(buf) {
   let i = 8;
   while (i < buf.length) {
     const tag = buf[i];
-    if (tag === 0x03) return buf.subarray(i + 1); // end-of-attributes → doc
-    if (tag <= 0x05) { i += 1; continue; }        // group delimiter
-    // value tag: [tag(1)][nameLen(2)][name][valueLen(2)][value]
+    if (tag === 0x03) return buf.subarray(i + 1);
+    if (tag <= 0x05) { i += 1; continue; }
     const nameLen = buf.readUInt16BE(i + 1);
     const valueLen = buf.readUInt16BE(i + 1 + 2 + nameLen);
     i += 1 + 2 + nameLen + 2 + valueLen;
@@ -175,10 +119,6 @@ function getJobAttributes(job) {
   return attrs;
 }
 
-/**
- * Reusable multi-group buffer splicing helper to bypass node-ipp's 
- * single group restriction and missing subscription tag support.
- */
 function serializeMultiGroups(version, statusCode, reqId, groupTag, items) {
   const serializeTag = groupTag === 'subscription-attributes-tag' ? 'printer-attributes-tag' : groupTag;
 
@@ -192,7 +132,7 @@ function serializeMultiGroups(version, statusCode, reqId, groupTag, items) {
     }
   });
 
-  const slicedBase = base.slice(0, base.length - 1); // remove 0x03
+  const slicedBase = base.slice(0, base.length - 1);
   const chunks = [slicedBase];
 
   for (const item of items) {
@@ -202,18 +142,16 @@ function serializeMultiGroups(version, statusCode, reqId, groupTag, items) {
       id: 1,
       [serializeTag]: item
     });
-    // Slice: headers (8 bytes) + end tag (1 byte)
     const slicedItem = itemBuf.slice(8, itemBuf.length - 1);
 
-    // Byte-patch the group delimiter byte at index 0 of the slicedItem (which is index 8 of the full itemBuf)
     if (groupTag === 'subscription-attributes-tag') {
-      slicedItem[0] = 0x06; // subscription-attributes-tag delimiter
+      slicedItem[0] = 0x06;
     }
 
     chunks.push(slicedItem);
   }
 
-  chunks.push(Buffer.from([0x03])); // add 0x03
+  chunks.push(Buffer.from([0x03]));
   return Buffer.concat(chunks);
 }
 
@@ -228,7 +166,7 @@ const server = http.createServer((req, res) => {
     const raw = Buffer.concat(chunks);
     let msg;
     try {
-      msg = ipp.parse(raw); // metadata only
+      msg = ipp.parse(raw);
     } catch (e) {
       console.error('[vprinter] could not parse IPP request:', e.message);
       res.writeHead(400).end();
@@ -238,7 +176,6 @@ const server = http.createServer((req, res) => {
     const opAttrs = msg['operation-attributes-tag'] || {};
     let op = msg.operation;
 
-    // Route CUPS operations which are not mapped to strings in node-ipp by default
     if (!op && raw.length >= 4) {
       const opCode = raw.readUInt16BE(2);
       if (opCode === 0x4001) op = 'CUPS-Get-Default';
@@ -1162,7 +1099,6 @@ const server = http.createServer((req, res) => {
       return;
     }
 
-    // Default handler for unsupported operations
     console.log(`[vprinter] op=${op} (ack-default)`);
     const body = ipp.serialize({
       version: msg.version || '2.0',

@@ -1,20 +1,5 @@
 import { Router, type Request, type Response } from 'express';
 
-/**
- * OpenAPI 3.1 spec + docs page (V2-26).
- *
- * Hand-authored (not generated) and deliberately scoped to the
- * **integration surface** an external party would consume: tenant
- * sign-up + auth, the tenant-admin `/saas/*` API, the platform admin
- * API, plus the two inbound webhooks (Paystack, render-worker
- * callback). Internal kiosk/agent/CUPS endpoints are intentionally
- * omitted — they're appliance-to-server, not public API.
- *
- * Served at:
- *   GET /api/openapi.json  — the raw spec
- *   GET /api/docs          — Swagger UI (loads the spec above)
- */
-
 const ok = (description: string) => ({
   description,
   content: {
@@ -287,8 +272,6 @@ router.get('/openapi.json', (_req: Request, res: Response) => {
 });
 
 router.get('/docs', (_req: Request, res: Response) => {
-  // Swagger UI from CDN, pointed at our spec. Docs page only — no
-  // app data, so the CDN dependency is acceptable here.
   res.type('html').send(`<!doctype html>
 <html>
   <head>

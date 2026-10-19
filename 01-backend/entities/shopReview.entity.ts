@@ -33,7 +33,7 @@ export class ShopReview {
   user: User;
 
   @Column({ type: 'int' })
-  rating: number; // 1 to 5 stars
+  rating: number;
 
   @Column({ type: 'text', nullable: true })
   comment: string | null;

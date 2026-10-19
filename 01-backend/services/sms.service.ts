@@ -11,9 +11,6 @@ export class SMSService {
     this.baseUrl = 'https://api.ng.termii.com/api';
   }
 
-  /**
-   * Send a single SMS via Termii
-   */
   async send(phoneNumber: string, message: string): Promise<boolean> {
     if (!this.apiKey) {
       console.warn('SMS service: TERMII_API_KEY not configured');
@@ -21,7 +18,6 @@ export class SMSService {
     }
 
     try {
-      // Normalize phone number to international format
       const normalizedPhone = this.normalizePhone(phoneNumber);
 
       const response = await axios.post(`${this.baseUrl}/sms/send`, {
@@ -40,9 +36,6 @@ export class SMSService {
     }
   }
 
-  /**
-   * Send print job code via SMS
-   */
   async sendPrintJobCode(data: {
     phoneNumber: string;
     jobCode: string;
@@ -53,17 +46,11 @@ export class SMSService {
     return this.send(data.phoneNumber, message);
   }
 
-  /**
-   * Send OTP for verification
-   */
   async sendOTP(phoneNumber: string, otp: string): Promise<boolean> {
     const message = `Your PrintLoop verification code is: ${otp}. Valid for 10 minutes.`;
     return this.send(phoneNumber, message);
   }
 
-  /**
-   * Send group session deadline reminder
-   */
   async sendGroupDeadlineReminder(data: {
     phoneNumber: string;
     groupName: string;
@@ -73,20 +60,13 @@ export class SMSService {
     return this.send(data.phoneNumber, message);
   }
 
-  /**
-   * Normalize phone number to international format
-   * E.g., "08012345678" → "2348012345678"
-   */
   private normalizePhone(phone: string): string {
-    // Remove non-digits
     let cleaned = phone.replace(/\D/g, '');
 
-    // Convert Nigerian local format to international
     if (cleaned.startsWith('0') && cleaned.length === 11) {
       cleaned = '234' + cleaned.substring(1);
     }
 
-    // Remove leading + if present
     if (cleaned.startsWith('+')) {
       cleaned = cleaned.substring(1);
     }

@@ -1,4 +1,3 @@
-/* End-to-end: real PDF → participant upload → kiosk release → virtual printer. */
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
@@ -21,7 +20,6 @@ async function j(method, url, body, headers) {
 }
 
 (async () => {
-  // 1. Make a real 1-page PDF
   const pdf = await PDFDocument.create();
   const page = pdf.addPage([595, 842]);
   const font = await pdf.embedFont(StandardFonts.HelveticaBold);
@@ -33,24 +31,20 @@ async function j(method, url, body, headers) {
   const srcHash = sha(pdfBytes);
   console.log(`1. Generated test PDF (${pdfBytes.length} bytes, sha256 ${srcHash.slice(0, 12)}…)`);
 
-  // 2. Guest group session
   const deadline = new Date(Date.now() + 2 * 864e5).toISOString();
   const host = 'e2e-host-' + Date.now();
   const c = await j('POST', '/groups', { groupName: 'E2E Print', deadline, hostId: host, defaultOptions: { paper: 'A4', color: 'bw', sided: 'single', qualityDpi: 300, enforce: false } });
   const shareId = c.data?.data?.shareId;
   console.log(`2. Group created — shareId=${shareId}`);
 
-  // 3. Join
   const jn = await j('POST', `/groups/${shareId}/join`, { name: 'E2E Tester', email: `e2e${Date.now()}@test.ng` });
   const uploadToken = jn.data?.data?.uploadToken;
   console.log(`3. Joined — uploadToken=${uploadToken ? uploadToken.slice(0, 12) + '…' : 'NONE'}`);
 
-  // 4. Participant upload WITH REAL BYTES
   const up = await j('POST', '/participant-upload/upload', { fileBase64: b64, fileName: 'e2e-test.pdf', pageCount: 1 }, { 'X-Upload-Token': uploadToken });
   const code = up.data?.data?.printJob?.code;
   console.log(`4. Uploaded real PDF — printJob code=${code}  (${up.status})`);
 
-  // 5. Admin: point a kiosk at the virtual printer + set IPP port
   const login = await j('POST', '/admin/auth/login', { email: 'admin@printloop.test', password: 'Admin1234!' });
   const tok = login.data?.data?.tokens?.accessToken;
   const AH = { Authorization: `Bearer ${tok}` };
@@ -63,12 +57,10 @@ async function j(method, url, body, headers) {
   await j('PATCH', '/admin/settings/ippSecure', { value: 'false' }, AH);
   console.log(`5. Kiosk "${kiosk.name}" → 127.0.0.1, key=${kioskKey ? kioskKey.slice(0, 10) + '…' : 'NONE'}, ippPort=6310`);
 
-  // 6. Release to the (virtual) printer
   const before = new Set(fs.existsSync(PRINTED) ? fs.readdirSync(PRINTED) : []);
   const rel = await j('POST', '/printer/complete', { code }, { 'X-Kiosk-Key': kioskKey });
   console.log(`6. /printer/complete → ${rel.status}  transport=${rel.data?.data?.transport}  mock=${rel.data?.data?.mock}  msg="${rel.data?.message}"`);
 
-  // 7. Did a document physically land in data/printed?
   await new Promise((r) => setTimeout(r, 1500));
   const after = fs.existsSync(PRINTED) ? fs.readdirSync(PRINTED) : [];
   const fresh = after.filter((f) => !before.has(f));

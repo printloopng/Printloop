@@ -30,7 +30,6 @@ export function CommentThread({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Focus textarea when expanded
   useEffect(() => {
     if (isExpanded && textareaRef.current) {
       textareaRef.current.focus();
@@ -67,7 +66,6 @@ export function CommentThread({
     return new Date(date).toLocaleDateString([], { month: 'short', day: 'numeric' });
   };
 
-  // Determine if user can delete (shop only)
   const canDelete = role === 'shop';
 
   return (
@@ -81,7 +79,6 @@ export function CommentThread({
         top: thread.pageId ? `${parseInt(thread.pageId) * 800}px` : '0',
       }}
     >
-      {/* Thread marker in document */}
       <button
         onClick={() => { onClick(); setIsExpanded(!isExpanded); }}
         className={`relative flex items-center gap-1.5 px-2 py-1 rounded-full border-2 transition-all duration-200 ${
@@ -101,10 +98,8 @@ export function CommentThread({
         )}
       </button>
 
-      {/* Expanded comment panel */}
       {isExpanded && (
         <div className="absolute left-full top-0 ml-2 w-full max-w-[90vw] min-h-[120px] bg-paper border-2 border-ink rounded-pl shadow-[8px_8px_0_#1A1410] pointer-events-auto z-30 animate-fadein">
-          {/* Header */}
           <div className="flex items-start justify-between gap-2 p-3 border-b-2 border-ink bg-ink/5">
             <div className="flex items-center gap-2">
               <span className={`w-2 h-2 rounded-full ${thread.status === 'resolved' ? 'bg-sage' : 'bg-persimmon'}`} />
@@ -148,7 +143,6 @@ export function CommentThread({
             </div>
           </div>
 
-          {/* Comments list */}
           <div className="p-3 space-y-3 max-h-[300px] overflow-y-auto">
             {thread.comments.map((comment, index) => (
               <div 
@@ -183,7 +177,6 @@ export function CommentThread({
             ))}
           </div>
 
-          {/* Add comment form */}
           <form onSubmit={handleSubmit} className="p-3 border-t-2 border-ink bg-ink/5">
             <textarea
               ref={textareaRef}

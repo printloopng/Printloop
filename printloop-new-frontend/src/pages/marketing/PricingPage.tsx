@@ -3,12 +3,6 @@ import { PublicHeader } from "@/components/layout/PublicHeader";
 import { EditorialFooter } from "@/components/layout/EditorialFooter";
 import { Reveal } from "@/components/ui/scrollFx";
 
-/**
- * Marketing Pricing page (V2-54). Example matrix only — every
- * PrintLoop shop sets its own public pricing; the real numbers live
- * on each shop's page (/find/:slug) and in the checkout.
- */
-
 const TIERS = [
   {
     name: "Students & everyone",

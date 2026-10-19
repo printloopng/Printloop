@@ -21,12 +21,6 @@ export class EmailService {
   private enabled: boolean;
 
   constructor() {
-    // SMTP_HOST is the canonical signal — without a server to talk to,
-    // there's no transport to build. Dev runs unconfigured by default
-    // (V2-29), so the service no-ops + logs the email body to stdout
-    // instead of failing. Production sets SMTP_HOST and gets real
-    // delivery. The E2E password-reset test scrapes the logged token
-    // from the dev log line.
     this.enabled = Boolean(process.env.SMTP_HOST);
     this.transporter = this.enabled
       ? nodemailer.createTransport({
@@ -101,15 +95,8 @@ export class EmailService {
     `.trim();
   }
 
-  /**
-   * Send email. Returns false if SMTP is unconfigured (dev mode) — the
-   * caller treats this as best-effort; we never reject a downstream
-   * request because email failed.
-   */
   async send(options: EmailOptions): Promise<boolean> {
     if (!this.enabled || !this.transporter) {
-      // Dev / unconfigured path. Log a compact representation that
-      // tests can scrape for the verification or reset token.
       console.log(
         `[email:disabled] to=${options.to} subject=${JSON.stringify(
           options.subject,
@@ -133,9 +120,6 @@ export class EmailService {
     }
   }
 
-  /**
-   * Send print job receipt with QR code
-   */
   async sendPrintJobReceipt(data: {
     to: string;
     customerName: string;
@@ -198,9 +182,6 @@ export class EmailService {
     });
   }
 
-  /**
-   * Send group session invitation
-   */
   async sendGroupInvitation(data: {
     to: string;
     hostName: string;
@@ -229,11 +210,6 @@ export class EmailService {
     });
   }
 
-  /**
-   * Send a tenant-owner email verification message. The token is a
-   * 6-digit code that ALSO doubles as a URL parameter for one-click
-   * verification — the link is `${baseUrl}/verify-email?token=XXXXXX`.
-   */
   async sendTenantOwnerVerification(data: {
     to: string;
     firstName: string;
@@ -263,11 +239,6 @@ export class EmailService {
     });
   }
 
-  /**
-   * Send password-reset link (V2-29). The token encodes its own
-   * expiry server-side (see routes/passwordReset.routes.ts); the
-   * link the user clicks is opaque from their perspective.
-   */
   async sendPasswordReset(data: {
     to: string;
     firstName: string;

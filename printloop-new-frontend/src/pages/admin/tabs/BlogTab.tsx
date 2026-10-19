@@ -7,11 +7,6 @@ import {
   useDeleteBlogPostMutation,
 } from "@/store/services/adminApi";
 
-/**
- * Admin blog manager (V2-54). Full CRUD over the shop's posts:
- * write in the same markdown-ish dialect the public reader renders.
- */
-
 const EMPTY = {
   title: "",
   excerpt: "",

@@ -1,13 +1,9 @@
-/**
- * Generate thin BaseRepository subclasses into module repositories/.
- */
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "src");
 
-/** entity file base (without .entity) → { module, className, exportName } */
 const MAP = {
   user: { module: "customer", className: "User" },
   wallet: { module: "customer", className: "Wallet" },

@@ -1,27 +1,13 @@
 import { AppDataSource } from '../config/database';
 import { KioskService } from '../services/kiosk.service';
 
-/**
- * Seed script to create initial kiosks for development/testing
- * 
- * Usage:
- * npm run seed:kiosks
- * 
- * Or add to package.json:
- * "scripts": {
- *   "seed:kiosks": "ts-node src/scripts/seedKiosks.ts"
- * }
- */
-
 async function seedKiosks() {
   try {
-    // Initialize database connection
     await AppDataSource.initialize();
     console.log('✓ Database connection established');
 
     const kioskService = new KioskService();
 
-    // Create demo kiosks
     const kiosks = [
       {
         name: 'Main Library Kiosk',
@@ -81,7 +67,6 @@ async function seedKiosks() {
     console.log('\n⚠️  IMPORTANT: Save the API keys above securely!');
     console.log('These keys are needed for kiosk authentication.\n');
 
-    // Close database connection
     await AppDataSource.destroy();
     process.exit(0);
   } catch (error) {

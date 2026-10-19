@@ -1,19 +1,5 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-/**
- * Marketplace discovery — tenant location + isDiscoverable flag
- * (V2-30). Customers browse `/find` for nearby shops; this is the
- * data those queries read.
- *
- *   address          — human-readable, used for display + re-geocode
- *   lat, lng         — floats; Haversine sort in /api/discovery/nearby
- *   isDiscoverable   — opt-in; defaults FALSE so a tenant in mid-setup
- *                      never leaks into the public list
- *
- * SQLite has no ADD COLUMN IF NOT EXISTS; PRAGMA-guard each one.
- * On Postgres the columns ship in PostgresBaseline alongside this
- * migration; SQLite-only chain no-ops there.
- */
 export class AddTenantLocation1718300000000 implements MigrationInterface {
   name = 'AddTenantLocation1718300000000';
 
@@ -46,8 +32,6 @@ export class AddTenantLocation1718300000000 implements MigrationInterface {
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    // SQLite cannot drop columns without a full table rewrite; the
-    // app tolerates leftover columns. No-op.
     void queryRunner;
   }
 

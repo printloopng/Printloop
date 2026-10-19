@@ -3,16 +3,6 @@ import { AppDataSource } from '../config/database';
 import { Tenant, TenantStatus } from '../entities/tenant.entity';
 import { UserRole } from '../entities/user.entity';
 
-/**
- * Slug of the legacy tenant that owns every pre-multi-tenancy row.
- * Seeded by config/seed.ts on first boot. The tenant-resolution
- * middleware falls back to this slug when no other source resolves —
- * this keeps the existing single-tenant deployment working while we
- * cut over to true multi-tenancy.
- *
- * Once Phase A is complete and every route is tenant-aware, the
- * fallback gets ripped out and unresolved tenants return 404.
- */
 export const LEGACY_TENANT_SLUG = 'legacy';
 
 declare global {
@@ -24,25 +14,6 @@ declare global {
   }
 }
 
-/**
- * Resolve `req.tenant` exactly once per request, in this priority order:
- *   1. Custom domain            - `tenant.customDomain` lookup.
- *   2. Owned-apex subdomain     - `{slug}.printloop.app`.
- *   3. `X-Tenant-Slug` header   - for API clients + the kiosk agent.
- *   4. Authenticated user       - `user.tenantId` or JWT memberships.
- *   5. Fallback                 - the LEGACY_TENANT_SLUG row, so
- *                                  pre-multi-tenancy code paths keep
- *                                  working during the cutover.
- *
- * When the request is already authenticated, the resolved tenant must
- * match `user.tenantId` or one JWT membership. SUPER_ADMIN is the only
- * bypass. This prevents a tenant admin from spoofing another tenant via
- * Host / X-Tenant-Slug while still allowing unauthenticated appliance
- * routes to resolve by header.
- *
- * A resolved-but-suspended tenant 403s rather than 404s so the tenant
- * admin can still hit the billing screen and reactivate.
- */
 export const resolveTenant = async (
   req: Request,
   res: Response,
@@ -73,14 +44,6 @@ export const resolveTenant = async (
     if (!tenant && authenticatedTenantId) {
       tenant = await repo.findOne({ where: { id: authenticatedTenantId } });
     }
-    // V2-57: a stale X-Tenant-Slug (left over from the student app's
-    // shop pick, for example) can resolve to a tenant the authenticated
-    // user isn't a member of — which would 403 the shop console even
-    // though they're logging into their OWN shop. When the explicit
-    // slug resolves to an inaccessible tenant, fall back to the
-    // authenticated user's own tenant. The access check below still
-    // guards the final choice, so spoofing is never granted — the user
-    // simply always acts on their own tenant.
     if (
       tenant &&
       authenticatedTenantId &&
@@ -90,9 +53,6 @@ export const resolveTenant = async (
       if (ownTenant) tenant = ownTenant;
     }
     if (!tenant) {
-      // Final fallback: the legacy tenant. Returning 404 here would
-      // break every route that hasn't been retrofitted with explicit
-      // tenant awareness yet, so we soften it during the cutover.
       tenant = await repo.findOne({ where: { slug: LEGACY_TENANT_SLUG } });
     }
 
@@ -138,11 +98,6 @@ export const resolveTenant = async (
   }
 };
 
-/**
- * Like resolveTenant but never blocks. Useful for marketing / sign-up
- * routes that may run with no resolvable tenant. Sets req.tenant when
- * possible; sets nothing otherwise.
- */
 export const optionalTenant = async (
   req: Request,
   _res: Response,
@@ -203,8 +158,6 @@ function pickAuthenticatedTenantId(req: Request): string | null {
 }
 
 function pickTenantSlug(req: Request): string | null {
-  // Subdomain only applies to apexes we own. A custom domain like
-  // print.example.edu must not be parsed as slug "print".
   const host = (req.header('host') || '').toLowerCase().split(':')[0];
   const apex = ownedApexForHost(host);
   if (host && apex && host !== apex) {
@@ -215,7 +168,6 @@ function pickTenantSlug(req: Request): string | null {
     }
   }
 
-  // X-Tenant-Slug header - API clients + kiosk agent.
   const header = (req.header('x-tenant-slug') || '').toLowerCase().trim();
   if (header) return header;
 
@@ -225,9 +177,6 @@ function pickTenantSlug(req: Request): string | null {
 function pickCustomDomain(req: Request): string | null {
   const host = (req.header('host') || '').toLowerCase().split(':')[0];
   if (!host || isApexOrLocal(host)) return null;
-  // Anything that doesn't end with our apex domain is treated as a
-  // potential custom domain. Apex list is intentionally explicit so
-  // a typo doesn't open a wildcard.
   const ourApexes = configuredApexes();
   if (ourApexes.some((apex) => host === apex || host.endsWith('.' + apex))) {
     return null;

@@ -80,11 +80,6 @@ export class PayoutError extends Error {
 
 const localPayoutLocks = new Map<string, Promise<void>>();
 
-/**
- * One payout decision per tenant at a time: in-process queue plus a Postgres
- * advisory lock (held until the reservation is committed) across replicas.
- * Without it two simultaneous requests both see the full balance.
- */
 async function withTenantPayoutLock<T>(tenantId: string, fn: () => Promise<T>): Promise<T> {
   const prev = localPayoutLocks.get(tenantId) ?? Promise.resolve();
   let release!: () => void;
@@ -106,11 +101,6 @@ async function withTenantPayoutLock<T>(tenantId: string, fn: () => Promise<T>): 
   }
 }
 
-/**
- * Pays out a tenant's whole available balance (minus `feeAmount`) to its
- * bank account. Balance check and PENDING reservation happen under the
- * tenant lock; the Paystack transfer runs after.
- */
 export async function requestPayout(opts: {
   tenantId: string;
   trigger: PayoutTrigger;
@@ -120,8 +110,6 @@ export async function requestPayout(opts: {
   const fee = opts.feeAmount ?? 0;
   const { payout, recipientCode } = await withTenantPayoutLock(opts.tenantId, async () => {
     const tenant = await repos.tenant().findOne({ where: { id: opts.tenantId } });
-    // Split-settled shops already receive their share directly from Paystack
-    // on every charge; paying the ledger balance again would double-pay them.
     if (tenant?.paystackSubaccountCode) {
       throw new PayoutError(
         'SPLIT_SETTLED',

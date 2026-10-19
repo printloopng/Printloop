@@ -23,7 +23,7 @@ export interface AutoFix {
   description: string;
   confidence: number;
   affectedPages: number[];
-  estimatedSizeIncrease: number; // bytes
+  estimatedSizeIncrease: number;
 }
 
 export interface PreflightResult {
@@ -81,7 +81,7 @@ export interface ShopMatch {
   shopId: string;
   shopName: string;
   distanceKm: number;
-  capabilityMatch: number; // 0-1
+  capabilityMatch: number;
   estimatedTurnaroundHrs: number;
   price: number;
   rating: number;
@@ -90,7 +90,7 @@ export interface ShopMatch {
 const MIN_DPI = 150;
 const RECOMMENDED_DPI = 300;
 const BLEED_MM = 3;
-const BLEED_PT = BLEED_MM * 2.83465; // 1mm = 2.83465pt
+const BLEED_PT = BLEED_MM * 2.83465;
 
 export async function analyzePreflight(
   fileBuffer: Buffer,
@@ -177,7 +177,7 @@ async function extractMetadata(
   
   return {
     pageCount: pages.length,
-    fileSize: 0, // set by caller
+    fileSize: 0,
     dimensions,
     colorspaces: Array.from(colorspaces),
     fonts: deduplicateFonts(fonts),
@@ -238,7 +238,7 @@ async function analyzeIssues(
 function checkBleed(page: PDFPage, pageWidth: number, pageHeight: number, bleedPt: number, pageNum: number): PreflightIssue[] {
   const issues: PreflightIssue[] = [];
   
-  const hasBleed = false; // Placeholder - needs content stream parsing
+  const hasBleed = false;
   
   if (!hasBleed) {
     issues.push({
@@ -279,7 +279,7 @@ async function checkImages(pageNum: number): Promise<PreflightIssue[]> {
 
 function checkTrimMargins(page: PDFPage, pageWidth: number, pageHeight: number, pageNum: number): PreflightIssue[] {
   const issues: PreflightIssue[] = [];
-  const safeMargin = 5 * 2.83465; // 5mm safe zone
+  const safeMargin = 5 * 2.83465;
   return issues;
 }
 
@@ -308,7 +308,7 @@ function generateAutoFixes(issues: PreflightIssue[], metadata: PreflightResult['
       description: 'Embed all unembedded fonts by subsetting',
       confidence: 0.95,
       affectedPages: [...new Set(issues.filter(i => i.type === 'missing_font').map(i => i.page))],
-      estimatedSizeIncrease: 50000 // ~50KB per font subset
+      estimatedSizeIncrease: 50000
     });
   }
   
@@ -392,8 +392,7 @@ async function generatePreview(pdfBuffer: Buffer, fileHash: string): Promise<str
     const pdfDoc = await PDFDocument.load(pdfBuffer);
     const page = pdfDoc.getPage(0);
     const { width, height } = page.getSize();
-    
-    
+
     const previewBuffer = await createPlaceholderPreview();
     await uploadToS3(previewKey, previewBuffer, 'image/png');
     return await getPresignedUrl(previewKey, 86400);
@@ -431,11 +430,11 @@ export async function generateInstantQuote(
   let penalty = 0;
   const hasErrors = issues.some(i => i.severity === 'error');
   if (hasErrors) {
-    penalty += 0.1 * baseAmount; // 10% penalty for print readiness issues
+    penalty += 0.1 * baseAmount;
   }
   
   const gangRunEligible = pageCount <= 50 && metadata.pageCount > 0;
-  const gangRunDiscount = gangRunEligible ? 0.4 : 0; // 40% off
+  const gangRunDiscount = gangRunEligible ? 0.4 : 0;
   
   const shopMatches = await findMatchingShops(metadata, printConfig);
   
@@ -560,15 +559,14 @@ async function addBleed(doc: PDFDocument): Promise<PDFDocument> {
     });
     
   }
-  
-  
+
   return doc;
 }
 
 async function addTrimMarks(doc: PDFDocument): Promise<PDFDocument> {
   const pages = doc.getPages();
-  const markLength = 10 * 2.83465; // 10mm
-  const markOffset = 3 * 2.83465;  // 3mm from trim
+  const markLength = 10 * 2.83465;
+  const markOffset = 3 * 2.83465;
   const lineWidth = 0.5;
   
   for (const page of pages) {
@@ -609,7 +607,7 @@ export interface PrintConfig {
   color: 'bw' | 'color';
   sided: 'single' | 'double';
   qualityDpi: 100 | 300 | 600;
-  bleed?: number; // mm
+  bleed?: number;
   orientation?: 'portrait' | 'landscape';
 }
 

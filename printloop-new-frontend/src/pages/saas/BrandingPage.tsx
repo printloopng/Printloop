@@ -6,11 +6,6 @@ import {
   type BrandingPatch,
 } from "@/store/services/saasApi";
 
-/**
- * `/saas/settings/branding` — white-label editor (Dimension 7).
- * Live colour swatches; everything optional (blank = platform
- * default).
- */
 export default function BrandingPage() {
   const navigate = useNavigate();
   const { data, isLoading } = useGetBrandingQuery();
@@ -48,7 +43,6 @@ export default function BrandingPage() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Send empty strings as null-clears (backend treats "" as clear).
     await save(form).unwrap().catch(() => {});
     if (wizardMode) {
       navigate("/saas/dashboard");

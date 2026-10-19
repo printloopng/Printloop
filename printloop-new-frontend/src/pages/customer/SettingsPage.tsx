@@ -85,7 +85,6 @@ export default function SettingsPage() {
         throw new Error(err.message || "Delete failed");
       }
       toast.success("Account closed. 30-day cooling-off started. Contact support to reverse.");
-      // Sign out
       localStorage.removeItem("pl_auth");
       window.location.href = "/";
     } catch (e: any) {

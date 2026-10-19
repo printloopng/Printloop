@@ -24,7 +24,6 @@ vi.mock('../config/redis', () => {
   };
 });
 
-// Mock SMS and Email services to avoid timeouts
 vi.mock('../services/sms.service', () => {
   return {
     SMSService: vi.fn().mockImplementation(() => ({
@@ -46,17 +45,12 @@ vi.mock('../services/email.service', () => {
   };
 });
 
-// Set BEFORE the static imports load database.ts — without this every
-// test file binds to the same default sqlite and they fight each other
-// (and the dev server) with SQLITE_BUSY. vi.hoisted runs pre-import.
 const testDbFile = vi.hoisted(() => {
   const file = process.cwd() + "/data/cups-billing-test.sqlite";
   process.env.DATABASE_FILE = file;
   return file;
 });
 
-// Unique per run — the dev DB is shared across test runs, so fixed
-// references would collide.
 const run1 = Date.now();
 const run2 = run1 + 1;
 
@@ -103,7 +97,6 @@ describe('CUPS billing (V2-55)', () => {
     await userRepo.save(user);
     userId = user.id;
 
-    // Zero-balance ledger bucket (transactions.walletId is NOT NULL).
     await AppDataSource.getRepository(Wallet).save(
       AppDataSource.getRepository(Wallet).create({ tenantId, userId, balance: 0 }),
     );
@@ -123,8 +116,6 @@ describe('CUPS billing (V2-55)', () => {
   it('reuses the pre-minted CUPS code, creates the Payment, and promotes the job', async () => {
     const jobRepo = AppDataSource.getRepository(PrintJob);
     const code1 = `AB${String(Date.now()).slice(-6)}`;
-    // The CUPS route mints the code at submission so `lpq` shows it
-    // before payment. completePrintJobPayment must NOT replace it.
     const job = jobRepo.create({
       userId,
       tenantId,
@@ -155,7 +146,6 @@ describe('CUPS billing (V2-55)', () => {
     const fresh = await jobRepo.findOne({ where: { id: job.id } });
     expect(fresh!.code).toBe(code1);
     expect(fresh!.paymentReference).toBe('JOB_REF_$run1');
-    // Render enqueued post-payment (mocked queue) → RENDERING.
     expect(fresh!.status).toBe(PrintJobStatus.RENDERING);
 
     const payment = await AppDataSource.getRepository(Payment).findOne({
@@ -199,7 +189,7 @@ describe('CUPS billing (V2-55)', () => {
 
     const fresh = await jobRepo.findOne({ where: { id: job.id } });
     expect(fresh!.code).toBe(code2);
-    expect(fresh!.paymentReference).toBe('JOB_REF_$run2'); // first one wins
+    expect(fresh!.paymentReference).toBe('JOB_REF_$run2');
 
     const payments = await AppDataSource.getRepository(Payment).find({
       where: { userId },
@@ -208,5 +198,4 @@ describe('CUPS billing (V2-55)', () => {
     expect(payments.filter((p) => p.reference === 'JOB_REF_$run2DUP').length).toBe(0);
   });
 });
-
 

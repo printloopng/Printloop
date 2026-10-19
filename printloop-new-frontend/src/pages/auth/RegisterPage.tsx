@@ -53,8 +53,6 @@ export default function RegisterPage() {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-[1.1fr_1fr] md:min-h-[600px]">
-      {/* ── Branding panel ────────────────────────────────────────── */}
-      {/* On mobile this becomes a compact strip; on desktop it's a full panel. */}
       <aside className="bg-ink text-paper px-5 sm:px-7 md:px-9 py-6 sm:py-8 md:py-10 relative overflow-hidden">
         <div className="absolute -top-16 -right-16 w-40 sm:w-60 h-40 sm:h-60 rounded-full bg-persimmon/20 pointer-events-none" />
         <div className="hidden md:block absolute -bottom-20 -left-20 w-52 h-52 rounded-full bg-ochre/15 pointer-events-none" />
@@ -73,7 +71,6 @@ export default function RegisterPage() {
             waiting.
           </p>
 
-          {/* Detailed bullets — desktop only (mobile shows them after the form via the tagline). */}
           <div className="hidden md:block">
             {[
               ["01", "No more queues.", "Submit from class, collect when you're free."],
@@ -98,7 +95,6 @@ export default function RegisterPage() {
         </div>
       </aside>
 
-      {/* ── Form panel ────────────────────────────────────────────── */}
       <section className="px-4 sm:px-6 md:px-8 py-6 sm:py-8 md:py-10 flex flex-col justify-center">
         <div className="editorial-label text-persimmon mb-2">▸ STEP 01 OF 03 — CREATE ACCOUNT</div>
         <h2 className="pl-serif font-bold text-2xl sm:text-3xl mb-1 tracking-tight">

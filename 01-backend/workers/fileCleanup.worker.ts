@@ -21,13 +21,6 @@ interface FileCleanupJobData {
   fileIds: string[];
 }
 
-/**
- * File Cleanup Worker
- * 
- * Triggered 24 hours after a print job completes.
- * Deletes all associated files from Cloudinary and nullifies fileURL in DB.
- * Preserves PrintJob record for audit trail (but no file content).
- */
 export const fileCleanupWorker = new Worker<FileCleanupJobData>(
   'file-cleanup',
   async (job: Job<FileCleanupJobData>) => {
@@ -38,7 +31,6 @@ export const fileCleanupWorker = new Worker<FileCleanupJobData>(
     const fileRepo = AppDataSource.getRepository(File);
     const printJobRepo = AppDataSource.getRepository(PrintJob);
 
-    // Verify the print job is actually completed
     const printJob = await printJobRepo.findOne({ where: { id: printJobId } });
     if (!printJob) {
       console.warn(`[FileCleanup] Print job ${printJobId} not found, skipping`);
@@ -50,7 +42,6 @@ export const fileCleanupWorker = new Worker<FileCleanupJobData>(
       return { skipped: true, reason: 'not_completed' };
     }
 
-    // Delete each file from Cloudinary
     const results = await Promise.allSettled(
       fileIds.map(async (fileId) => {
         const file = await fileRepo.findOne({ where: { id: fileId } });
@@ -58,14 +49,12 @@ export const fileCleanupWorker = new Worker<FileCleanupJobData>(
           return { fileId, status: 'skipped' };
         }
 
-        // Extract Cloudinary public_id from URL
         const publicId = extractCloudinaryPublicId(file.fileURL);
 
         if (publicId) {
           await cloudinary.uploader.destroy(publicId, { resource_type: 'raw' });
         }
 
-        // Also delete watermarked version if exists
         const watermarkedUrl = (file as any).watermarkedUrl;
         if (watermarkedUrl) {
           const watermarkedPublicId = extractCloudinaryPublicId(watermarkedUrl);
@@ -74,7 +63,6 @@ export const fileCleanupWorker = new Worker<FileCleanupJobData>(
           }
         }
 
-        // Nullify URLs in DB but preserve metadata
         await fileRepo.update(fileId, {
           fileURL: null as any,
           ...({ watermarkedUrl: null } as any),
@@ -95,10 +83,6 @@ export const fileCleanupWorker = new Worker<FileCleanupJobData>(
   { connection: redisConnection, concurrency: 10 }
 );
 
-/**
- * Extract Cloudinary public_id from a URL like:
- * https://res.cloudinary.com/cloud-name/raw/upload/v123/folder/file.pdf
- */
 function extractCloudinaryPublicId(url: string): string | null {
   try {
     const match = url.match(/\/upload\/(?:v\d+\/)?(.+?)(?:\.\w+)?$/);

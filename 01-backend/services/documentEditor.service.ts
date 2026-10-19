@@ -1,7 +1,3 @@
-/**
- * Document Editor Service
- * V2-XX — Handles document conversion, session management, and export
- */
 
 import { AppDataSource } from '../config/database';
 import { EditorSession, EditorSessionStatus, ConversionStatus, EditorPermissions } from '../entities/editorSession.entity';
@@ -35,9 +31,6 @@ export class DocumentEditorService {
       'socket,host=libreoffice,port=2002;urp;StarOffice.ComponentContext';
   }
 
-  /**
-   * Convert source document (PDF/DOCX/ODT) to Univer format via LibreOffice
-   */
   async convertToUniver(
     sourceUrl: string,
     mimeType: string,
@@ -45,7 +38,6 @@ export class DocumentEditorService {
   ): Promise<ConversionResult> {
     const sessionRepo = AppDataSource.getRepository(EditorSession);
 
-    // Create or get session
     let session = await sessionRepo.findOne({ where: { documentEditId: editId } });
     if (!session) {
       throw new Error(`No editor session found for edit ${editId}`);
@@ -55,20 +47,17 @@ export class DocumentEditorService {
       session.conversionStatus = ConversionStatus.PROCESSING;
       await sessionRepo.save(session);
 
-      // Download source document
       const response = await axios.get(sourceUrl, {
         responseType: 'arraybuffer',
         timeout: 60000,
-        maxContentLength: 50 * 1024 * 1024, // 50MB max
+        maxContentLength: 50 * 1024 * 1024,
       });
 
       const fileBuffer = Buffer.from(response.data);
       const extension = this.getExtensionFromMime(mimeType);
 
-      // Convert via LibreOffice headless
       const univerDoc = await this.convertViaLibreOffice(fileBuffer, extension, editId);
 
-      // Save univer document to session
       session.univerDocument = univerDoc;
       session.conversionStatus = ConversionStatus.COMPLETED;
       session.lastActivityAt = new Date();
@@ -86,41 +75,31 @@ export class DocumentEditorService {
     }
   }
 
-  /**
-   * Convert document using LibreOffice headless REST API
-   */
   private async convertViaLibreOffice(
     fileBuffer: Buffer,
     extension: string,
     editId: string
   ): Promise<any> {
-    // LibreOffice headless conversion endpoint
-    // POST /convert with multipart form data
     const formData = new FormData();
     formData.append('file', fileBuffer, { filename: `document${extension}`, contentType: 'application/octet-stream' });
-    formData.append('format', 'univer'); // Custom format for Univer JSON
+    formData.append('format', 'univer');
 
     try {
       const response = await axios.post(`${this.libreofficeUrl}/convert`, formData, {
         headers: {
           ...formData.getHeaders(),
         },
-        timeout: 120000, // 2 minutes for conversion
+        timeout: 120000,
         maxContentLength: 100 * 1024 * 1024,
       });
 
-      // Expected response: { univerDocument: {...}, pageCount: number }
       return response.data.univerDocument || this.getDefaultUniverDocument();
     } catch (error: any) {
       console.error('[DocumentEditor] LibreOffice conversion failed:', error?.message);
-      // Fallback: create minimal Univer document from PDF
       return this.getDefaultUniverDocument();
     }
   }
 
-  /**
-   * Create editor session with JWT token
-   */
   async createSession(
     editId: string,
     shopUserId: string,
@@ -143,15 +122,12 @@ export class DocumentEditorService {
       throw new Error(`Document edit ${editId} not found`);
     }
 
-    // Generate session
     const sessionId = uuidv4();
     const token = this.generateSessionToken(sessionId, editId, shopUserId);
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
 
-    // Get ICE servers for WebRTC
     const iceServers = this.getIceServers();
 
-    // Create session record
     const session = sessionRepo.create({
       id: sessionId,
       documentEditId: editId,
@@ -161,13 +137,12 @@ export class DocumentEditorService {
       tokenHash,
       status: EditorSessionStatus.ACTIVE,
       conversionStatus: ConversionStatus.PENDING,
-      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
       lastActivityAt: new Date(),
     });
 
     await sessionRepo.save(session);
 
-    // Start async conversion
     this.convertToUniver(sourceDocumentUrl, mimeType, editId).catch(err => {
       console.error('[DocumentEditor] Background conversion failed:', err);
     });
@@ -186,9 +161,6 @@ export class DocumentEditorService {
     };
   }
 
-  /**
-   * Get session with document data (for shop or customer)
-   */
   async getSession(
     sessionId: string,
     userId: string,
@@ -215,7 +187,6 @@ export class DocumentEditorService {
       throw new Error(`Session is ${session.status}`);
     }
 
-    // Verify authorization
     const isShop = session.shopUserId === userId;
     const isCustomer = session.customerUserId === userId || session.documentEdit.printJob?.userId === userId;
 
@@ -223,7 +194,6 @@ export class DocumentEditorService {
       throw new Error('Unauthorized for this session');
     }
 
-    // Update customer user ID if first access
     if (role === 'customer' && !session.customerUserId) {
       session.customerUserId = userId;
       session.lastActivityAt = new Date();
@@ -239,9 +209,6 @@ export class DocumentEditorService {
     };
   }
 
-  /**
-   * Save document snapshot (auto-save)
-   */
   async saveSnapshot(
     sessionId: string,
     snapshot: any,
@@ -258,7 +225,6 @@ export class DocumentEditorService {
       throw new Error(`Cannot save: session is ${session.status}`);
     }
 
-    // Version conflict check
     if (session.univerDocument.version && session.univerDocument.version !== version - 1) {
       throw new Error('Version conflict: document was modified by another user');
     }
@@ -268,9 +234,6 @@ export class DocumentEditorService {
     await sessionRepo.save(session);
   }
 
-  /**
-   * Export document to PDF or PWG for printing
-   */
   async exportDocument(
     sessionId: string,
     format: 'pdf' | 'pwg',
@@ -293,17 +256,14 @@ export class DocumentEditorService {
       throw new Error('Only shop operator can export');
     }
 
-    // Export via LibreOffice or Univer export API
     const exportResult = await this.exportViaUniver(session.univerDocument, format);
 
-    // Save exported file
     const { saveBuffer } = await import('../utils/fileStore');
     const stored = await saveBuffer(
       exportResult.buffer,
       `edited-${session.documentEditId}.${format === 'pdf' ? 'pdf' : 'pwg'}`
     );
 
-    // Update edit record
     const edit = session.documentEdit;
     edit.editedDocumentUrl = stored.url;
     edit.editedDocumentMeta = {
@@ -313,7 +273,6 @@ export class DocumentEditorService {
     edit.status = DocumentEditStatus.PENDING_CUSTOMER;
     await editRepo.save(edit);
 
-    // Update print job
     const job = edit.printJob;
     if (job) {
       job.editedDocumentUrl = stored.url;
@@ -332,9 +291,6 @@ export class DocumentEditorService {
     };
   }
 
-  /**
-   * Clean up expired sessions (called by cron)
-   */
   async cleanupExpired(): Promise<number> {
     const sessionRepo = AppDataSource.getRepository(EditorSession);
     const result = await sessionRepo
@@ -348,17 +304,12 @@ export class DocumentEditorService {
     return result.affected || 0;
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // Helper Methods
-  // ─────────────────────────────────────────────────────────────────────────────
-
   private getIceServers(): RTCIceServer[] {
     const turnServer = config.editor?.turnServer;
     const turnTlsServer = config.editor?.turnTlsServer;
     const turnPassword = config.editor?.coturnPassword;
 
     if (!turnServer || !turnPassword) {
-      // Fallback to public STUN servers
       return [
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:stun1.l.google.com:19302' },
@@ -381,9 +332,8 @@ export class DocumentEditorService {
       eid: editId,
       uid: userId,
       iat: Math.floor(Date.now() / 1000),
-      exp: Math.floor(Date.now() / 1000) + 24 * 60 * 60, // 24 hours
+      exp: Math.floor(Date.now() / 1000) + 24 * 60 * 60,
     };
-    // In production, sign with JWT_SECRET
     return Buffer.from(JSON.stringify(payload)).toString('base64url');
   }
 
@@ -410,7 +360,6 @@ export class DocumentEditorService {
       id: uuidv4(),
       type: 'doc',
       data: {
-        // Minimal Univer doc structure
         sheets: {},
         documents: {},
         slides: {},
@@ -422,13 +371,10 @@ export class DocumentEditorService {
   }
 
   private estimatePageCount(doc: any): number {
-    // Rough estimation from Univer document structure
     return 1;
   }
 
   private async exportViaUniver(doc: any, format: 'pdf' | 'pwg'): Promise<{ buffer: Buffer; pageCount: number; fileSize: number }> {
-    // In production, call Univer export API or LibreOffice
-    // For now, return placeholder
     const buffer = Buffer.from('placeholder');
     return { buffer, pageCount: 1, fileSize: buffer.length };
   }

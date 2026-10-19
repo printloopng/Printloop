@@ -132,8 +132,6 @@ export async function ippConnectionPrefs(): Promise<{
 }
 
 export async function printDispatchMode(): Promise<'cloud-push' | 'kiosk-pull'> {
-  // Env var overrides the SystemSetting — the setting is always seeded
-  // ('cloud-push'), so checking it first made the env var unreachable.
   const s = await settingsMap();
   const raw = String(process.env.PRINT_DISPATCH_MODE || s.printDispatchMode || 'cloud-push').trim();
   return raw === 'kiosk-pull' ? 'kiosk-pull' : 'cloud-push';

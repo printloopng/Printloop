@@ -14,7 +14,7 @@ export interface ExportResult {
 }
 
 export interface UniverExportPayload {
-  document: any; // Univer document snapshot
+  document: any;
   format: 'pdf' | 'pwg';
   options?: {
     dpi?: number;
@@ -33,7 +33,6 @@ export class EditorExportService {
     this.libreofficeUrl = config.editor?.libreofficeUrl || 'http://localhost:9980';
   }
 
-  
   async exportDocument(
     sessionId: string,
     format: 'pdf' | 'pwg',
@@ -107,7 +106,6 @@ export class EditorExportService {
     };
   }
 
-  
   private async exportViaUniver(
     univerDocument: any,
     format: 'pdf' | 'pwg'
@@ -126,7 +124,7 @@ export class EditorExportService {
     try {
       const response = await axios.post(`${this.univerExportUrl}`, payload, {
         responseType: 'arraybuffer',
-        timeout: 120000, // 2 minutes
+        timeout: 120000,
         maxContentLength: 100 * 1024 * 1024,
         headers: {
           'Content-Type': 'application/json',
@@ -152,7 +150,6 @@ export class EditorExportService {
     }
   }
 
-  
   private async exportViaLibreOffice(
     univerDocument: any,
     format: 'pdf' | 'pwg'
@@ -192,7 +189,6 @@ export class EditorExportService {
     }
   }
 
-  
   private univerToHtml(doc: any): string {
     const bodyContent = doc.data?.documents?.[Object.keys(doc.data.documents || {})[0]]?.body?.dataStream
       ?.map((segment: any) => segment.text || '')
@@ -213,7 +209,6 @@ export class EditorExportService {
     `;
   }
 
-  
   private estimatePageCount(buffer: Buffer, format: 'pdf' | 'pwg'): number {
     if (format === 'pwg') {
       const header = buffer.toString('ascii', 0, Math.min(1024, buffer.length));
@@ -227,7 +222,6 @@ export class EditorExportService {
     return Math.max(1, Math.ceil(buffer.length / 50000));
   }
 
-  
   getAvailableFormats(): Array<{ format: 'pdf' | 'pwg'; name: string; description: string }> {
     return [
       {

@@ -59,7 +59,6 @@ export const kioskAuth = async (
       return;
     }
 
-    // Every kiosk call (incl. the 10s job poll) doubles as its heartbeat.
     kiosk.lastSeenAt = new Date();
     await kioskRepository.update({ id: kiosk.id }, { lastSeenAt: kiosk.lastSeenAt });
 

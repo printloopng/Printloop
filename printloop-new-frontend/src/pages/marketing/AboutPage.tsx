@@ -3,11 +3,6 @@ import { PublicHeader } from "@/components/layout/PublicHeader";
 import { EditorialFooter } from "@/components/layout/EditorialFooter";
 import { Counter, Reveal } from "@/components/ui/scrollFx";
 
-/**
- * Marketing About page (V2-54): the story, the loop, and stats —
- * smartedu.ng-style "one platform, four perspectives" rhythm.
- */
-
 const PERSPECTIVES = [
   {
     n: "01",

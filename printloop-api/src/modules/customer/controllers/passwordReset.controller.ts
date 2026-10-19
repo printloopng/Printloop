@@ -7,7 +7,7 @@ import { Tenant } from '@/database/entities/tenant.entity';
 import { LEGACY_TENANT_SLUG } from '@/common/middleware/tenant.middleware';
 import { EmailService } from '@/core/services/email.service';
 
-const RESET_TTL_MS = 60 * 60 * 1000; // 1 hour
+const RESET_TTL_MS = 60 * 60 * 1000;
 const ANTI_ENUMERATION_OK = {
   success: true,
   message:

@@ -7,31 +7,6 @@ import {
 
 const router = Router();
 
-/**
- * Render-worker callback (Phase A — cloud render → kiosk spool).
- *
- * The standalone render-worker (../render-worker/) POSTs here after
- * it finishes normalising a PrintJob to PWG-Raster. We don't trust
- * the network — every call is HMAC-SHA256 signed against the raw
- * request body using `RENDER_CALLBACK_SECRET`.
- *
- * The render worker computes the signature as:
- *
- *   hex(HMAC-SHA256(RENDER_CALLBACK_SECRET, raw_body_bytes))
- *
- * and sends it in the `X-Render-Signature` header. Without a secret
- * configured, the endpoint refuses every request (no permissive
- * default — we'd rather break the dev flow than risk a public
- * unauthenticated way to flip job statuses).
- *
- * Two endpoints:
- *   POST /api/render/callback   — success path: artifact ready
- *   POST /api/render/failure    — error path: render failed
- *
- * Mounted from app.ts at /api/render with no tenant middleware —
- * the render-worker is a platform-level service, not tenant-scoped.
- */
-
 function verifySignature(req: Request): boolean {
   const secret = process.env.RENDER_CALLBACK_SECRET;
   if (!secret) return false;
@@ -45,17 +20,6 @@ function verifySignature(req: Request): boolean {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
-/**
- * POST /api/render/callback
- *
- * Body: { printJobId, renderedKey, pageCount, bytes, durationMs? }
- *
- * Flips PrintJob status RENDERING → READY and persists the
- * rendered artifact metadata. Returns 200 on success, 4xx on bad
- * input / signature, never 5xx for application-level mismatches
- * (e.g. job-not-found) — those are 200s with `updated: false` so
- * the render-worker doesn't retry indefinitely.
- */
 router.post('/callback', async (req: Request, res: Response) => {
   if (!verifySignature(req)) {
     res.status(401).json({ success: false, message: 'Invalid signature' });
@@ -89,16 +53,6 @@ router.post('/callback', async (req: Request, res: Response) => {
   }
 });
 
-/**
- * POST /api/render/failure
- *
- * Body: { printJobId, errorMessage }
- *
- * Render worker hit an error it can't recover from (e.g. PDF
- * malformed, ghostscript crashed). Flips RENDERING → FAILED so the
- * job won't be picked up at a kiosk (V2-53: refunds are eliminated —
- * the shop resolves failed jobs with the customer directly).
- */
 router.post('/failure', async (req: Request, res: Response) => {
   if (!verifySignature(req)) {
     res.status(401).json({ success: false, message: 'Invalid signature' });

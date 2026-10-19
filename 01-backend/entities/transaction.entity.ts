@@ -29,12 +29,6 @@ export class Transaction {
   @Column({ type: 'uuid' })
   walletId: string;
 
-  /**
-   * Which tenant earned (or paid) this transaction. Nullable for
-   * rows that pre-date the multi-tenancy migration; new rows are
-   * always set. Backfilled to the 'legacy' tenant by the
-   * CreateSaasFoundation migration.
-   */
   @Column({ type: 'uuid', nullable: true })
   tenantId: string | null;
 
@@ -44,19 +38,9 @@ export class Transaction {
   })
   type: TransactionType;
 
-  /**
-   * Gross amount the customer paid (for TOPUP/PRINT) or that we
-   * refunded (REFUND). Tenant net = amount - commissionAmount.
-   */
   @Column({ type: 'decimal', precision: 10, scale: 2 })
   amount: number;
 
-  /**
-   * Slice of `amount` that went to PrintLoop as platform commission
-   * via Paystack Split. Zero on transactions that don't carry
-   * commission (e.g. internal credits, legacy rows). See Dimension
-   * 9 in SAAS-ROADMAP.md.
-   */
   @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
   commissionAmount: number;
 

@@ -1,12 +1,5 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-/**
- * Custom-domain claims table (Dimension 8 — V2-16).
- *
- * Tracks the ownership-proof lifecycle for a tenant's custom domain.
- * `tenant.customDomain` is the resolved/active domain; this table is
- * the staging + audit area for getting there.
- */
 export class CreateTenantDomains1718000000000 implements MigrationInterface {
   name = 'CreateTenantDomains1718000000000';
 

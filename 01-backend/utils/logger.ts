@@ -1,22 +1,3 @@
-/**
- * Minimal structured logger (V2-16, v3-polish #19 half).
- *
- * Emits one JSON object per line — the shape Axiom / BetterStack /
- * Datadog / CloudWatch all ingest natively. Deliberately
- * dependency-free so it works today; the field shape matches pino's
- * (`level`, `time`, `msg`, plus arbitrary bindings) so swapping in
- * real pino later is a drop-in: replace `createLogger` internals,
- * keep every call-site.
- *
- * Usage:
- *   import { logger } from '../utils/logger';
- *   logger.info({ tenantId, printJobId }, 'render enqueued');
- *   const reqLog = logger.child({ requestId, tenantId });
- *   reqLog.error({ err: e.message }, 'charge failed');
- *
- * Level gate via LOG_LEVEL env (debug < info < warn < error);
- * default info. Set LOG_PRETTY=true for human-readable dev output.
- */
 
 type Level = 'debug' | 'info' | 'warn' | 'error';
 const LEVEL_RANK: Record<Level, number> = {
@@ -71,7 +52,6 @@ function emit(
       }`.trimEnd()
     : JSON.stringify(record);
 
-  // stderr for warn/error so log shippers can split streams.
   if (level === 'error' || level === 'warn') console.error(line);
   else console.log(line);
 }

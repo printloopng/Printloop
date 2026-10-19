@@ -9,11 +9,6 @@ const router = Router();
 const paystack = new PaystackService();
 const hasPaystack = Boolean(process.env.PAYSTACK_SECRET_KEY);
 
-/**
- * POST /api/payments/initialize-job-payment
- * Begin a direct paystack print-job payment.
- * Body: { jobId: string }
- */
 router.post('/initialize-job-payment', authenticate, resolveTenant, async (req: Request, res: Response) => {
   try {
     const user = (req as any).user;
@@ -68,19 +63,10 @@ router.post('/initialize-job-payment', authenticate, resolveTenant, async (req: 
   }
 });
 
-/**
- * POST /api/payments/webhook
- * Paystack server-to-server callback. Verifies the HMAC-SHA512 signature
- * against the RAW request body (captured by app.ts), then dispatches:
- *   - charge.success → mark the print-job paid + capture the saved-card
- *     authorization code for delta charges (V2-53)
- *   - transfer.* → tenant payouts (Dimension 15)
- */
 router.post('/webhook', async (req: Request, res: Response) => {
   await handleWebhook(req, res);
 });
 
-// Alias for /api/webhooks/paystack (legacy path used by Paystack config)
 router.post('/paystack', async (req: Request, res: Response) => {
   await handleWebhook(req, res);
 });
@@ -90,8 +76,6 @@ async function handleWebhook(req: Request, res: Response) {
     const signature = req.header('x-paystack-signature');
     const rawBody: Buffer | undefined = (req as any).rawBody;
     if (!rawBody) {
-      // The raw-body capture in app.ts didn't fire — refuse rather than
-      // verify against a re-serialised JSON copy (different bytes).
       res.status(400).json({ success: false, message: 'Raw body unavailable' });
       return;
     }
@@ -100,8 +84,6 @@ async function handleWebhook(req: Request, res: Response) {
       return;
     }
     const result = await paystack.handleWebhook(req.body);
-    // Always 200 once verified — Paystack will keep retrying any non-2xx,
-    // and we've already recorded what we needed to (or chosen to ignore).
     res.json({ success: true, ...result });
 } catch (error: any) {
       console.error('Payment webhook error:', error);

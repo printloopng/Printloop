@@ -1,12 +1,5 @@
 import { NavLink, Outlet, Link } from "react-router-dom";
 
-/**
- * `/saas/settings/*` shell — left-rail tab nav + outlet for the
- * branding / domains / webhooks / security / account sub-pages.
- *
- * Restyled (V2-38) to the editorial-brutalist system: Fraunces
- * heading, Ink/Persimmon active-tab treatment, brutalist rail.
- */
 const TABS = [
   { to: "/saas/settings/branding", label: "Branding" },
   { to: "/saas/settings/domains", label: "Custom domain" },

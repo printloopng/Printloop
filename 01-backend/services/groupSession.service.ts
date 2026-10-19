@@ -6,23 +6,16 @@ import { GroupParticipant, ParticipantStatus } from '../entities/groupParticipan
 import { PrintJob } from '../entities/printJob.entity';
 import { File } from '../entities/file.entity';
 import { makeCode } from '../utils/releaseCode';
-// Watermarking is permanently removed from the group printing flow.
-// Participant documents are printed as-is. The watermark queue/worker
-// is no longer driven from here.
 
 export interface SessionOptions {
   paper: string;
   color: 'bw' | 'color';
   sided: 'single' | 'double';
   qualityDpi: 100 | 300 | 600;
-  /** Default page orientation the host picked. Participants inherit this
-   *  unless they override (in non-enforced sessions). */
   orientation: 'portrait' | 'landscape';
   enforce: boolean;
 }
 
-/** Accepts either the new {paper,color,...} shape or the legacy
- * {paperSize,colorType,isDuplex,enforceSettings} shape and normalizes it. */
 function normalizeOptions(raw: any): SessionOptions {
   const r = raw || {};
   const color =
@@ -43,15 +36,10 @@ function normalizeOptions(raw: any): SessionOptions {
 
 export interface CreateGroupSessionInput {
   hostId: string;
-  /** Tenant the session belongs to. Optional during the multi-tenancy
-   *  cutover — falls back to the legacy tenant in the database. New
-   *  callers should always pass it from `req.tenant?.id`. */
   tenantId?: string | null;
   groupName: string;
   deadline: Date;
   sharedSettings: any;
-  // `watermarkPrefix` accepted-and-ignored for back-compat with older
-  // hosts; watermarking is no longer applied.
   watermarkPrefix?: string;
 }
 
@@ -94,7 +82,6 @@ export class GroupSessionService {
       status: GroupSessionStatus.OPEN,
       shareUrl,
       shareId,
-      // Persisted for schema back-compat but never read at print time.
       watermarkPrefix: input.watermarkPrefix || shareId,
       defaultOptions: normalizeOptions(input.sharedSettings),
     });
@@ -124,10 +111,6 @@ export class GroupSessionService {
     if (new Date() > session.deadline)
       throw new Error('The deadline for this group session has passed');
 
-    // Only match on identifiers that were actually provided — a
-    // `{ phoneNumber: undefined }` clause silently collapses to "any
-    // participant in this session", which would attach every later joiner
-    // to the first one.
     const dedupe: Array<Record<string, any>> = [];
     if (input.email) dedupe.push({ groupSessionId: session.id, email: input.email });
     if (input.phoneNumber)
@@ -147,8 +130,6 @@ export class GroupSessionService {
       name: input.name,
       email: input.email,
       phoneNumber: input.phoneNumber,
-      // Watermarking removed — column kept nullable in the schema for
-      // backward compat but never populated.
       watermarkId: null,
       uploadToken,
       status: ParticipantStatus.JOINED,
@@ -186,8 +167,6 @@ export class GroupSessionService {
     participant.status = ParticipantStatus.UPLOADED;
     participant.uploadedAt = new Date();
     const saved = await this.participantRepo.save(participant);
-
-    // Watermarking removed — file is printed as-is.
 
     return saved;
   }
@@ -259,7 +238,7 @@ export class GroupSessionService {
     if (session.status === GroupSessionStatus.CLOSED) throw new Error('Session is already closed');
 
     const batchToken = crypto.randomBytes(32).toString('base64url');
-    const batchCode = makeCode(6); // group authentication code — 6 chars
+    const batchCode = makeCode(6);
 
     session.status = GroupSessionStatus.CLOSED;
     session.batchToken = batchToken;
@@ -301,7 +280,6 @@ export class GroupSessionService {
         if (!job || !file) return null;
         return {
           fileId: file.id,
-          // Watermarking is gone — always serve the original URL.
           fileURL: file.fileURL,
           participantName: participant.name,
           printConfig: job.printConfiguration,

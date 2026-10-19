@@ -113,7 +113,6 @@ export function VersionHistory({
                     </Button>
                   </div>
 
-                  {/* Label input */}
                   <div className="flex gap-2">
                     <input
                       type="text"

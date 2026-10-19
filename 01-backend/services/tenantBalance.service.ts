@@ -3,30 +3,6 @@ import { TenantBalance } from '../entities/tenantBalance.entity';
 import { Transaction, TransactionType } from '../entities/transaction.entity';
 import { Payout, PayoutStatus } from '../entities/payout.entity';
 
-/**
- * Incremental maintenance of the denormalised tenant_balances row.
- *
- * All math is exact-decimal-as-number; the precision(14,2) column
- * accommodates Nigerian-naira amounts well below the
- * Number.MAX_SAFE_INTEGER ceiling.
- *
- * Concurrency: each helper uses a transactional read-modify-write
- * with a row-level lock (SQLite serialises writes, Postgres needs
- * SELECT ... FOR UPDATE — switched on by the driver type). The
- * insert-on-missing path uses an upsert pattern via a try/catch
- * fallback so two concurrent first-writes don't race.
- */
-
-/**
- * Apply a Transaction delta to the tenant's running balance.
- * Called immediately after a Transaction is inserted, from inside
- * the same DB transaction when possible.
- *
- * Sign convention matches `Transaction.amount`:
- *   - TOPUP / PRINT  → positive amount (revenue in)
- *   - REFUND         → negative amount (revenue out)
- *   - CREDIT         → positive (internal credit)
- */
 export async function applyTransactionDelta(
   tenantId: string,
   txAmount: number,
@@ -51,17 +27,6 @@ export async function applyTransactionDelta(
   });
 }
 
-/**
- * Apply a Payout transition. Call AFTER the Payout row has been
- * saved with the new status.
- *
- *   PENDING                       → no balance effect yet
- *   * → PROCESSING                → pendingPayouts += amount
- *   PROCESSING → PAID             → pendingPayouts -= amount;
- *                                   lifetimePayouts += amount
- *   PROCESSING → FAILED/CANCELLED → pendingPayouts -= amount
- *                                   (funds free to pay out again)
- */
 export async function applyPayoutTransition(
   tenantId: string,
   payout: Pick<Payout, 'amount' | 'status'>,
@@ -71,25 +36,21 @@ export async function applyPayoutTransition(
   const amt = round2(Number(payout.amount));
 
   await upsertWithDelta(tenantId, (row) => {
-    // PROCESSING entry (from PENDING / re-enqueued).
     if (
       payout.status === PayoutStatus.PROCESSING &&
       previousStatus !== PayoutStatus.PROCESSING
     ) {
       row.pendingPayouts = round2(Number(row.pendingPayouts) + amt);
     }
-    // Settlement: PAID.
     if (
       payout.status === PayoutStatus.PAID &&
       previousStatus !== PayoutStatus.PAID
     ) {
-      // Was the pending bump applied? Decrement only if so.
       if (previousStatus === PayoutStatus.PROCESSING) {
         row.pendingPayouts = round2(Number(row.pendingPayouts) - amt);
       }
       row.lifetimePayouts = round2(Number(row.lifetimePayouts) + amt);
     }
-    // Failure / cancellation: free the reserve.
     if (
       (payout.status === PayoutStatus.FAILED ||
         payout.status === PayoutStatus.CANCELLED) &&
@@ -105,14 +66,6 @@ export async function applyPayoutTransition(
   });
 }
 
-/**
- * Full rebuild from the source tables. Use for:
- *   - Initial migration from the legacy SUM-based code path.
- *   - Ops command to fix detected drift.
- *   - Test fixtures.
- *
- * O(transactions + payouts) for one tenant; idempotent.
- */
 export async function recomputeFromScratch(
   tenantId: string,
 ): Promise<TenantBalance> {
@@ -177,10 +130,6 @@ export async function recomputeFromScratch(
   return balanceRepo.save(row);
 }
 
-/**
- * Fast read for dashboards. Falls back to a recompute when no row
- * exists yet (first read for a tenant); subsequent reads are O(1).
- */
 export async function getTenantBalance(
   tenantId: string,
 ): Promise<TenantBalance> {
@@ -190,7 +139,6 @@ export async function getTenantBalance(
   return recomputeFromScratch(tenantId);
 }
 
-/** Internal: upsert + apply mutation closure. Idempotent on missing rows. */
 async function upsertWithDelta(
   tenantId: string,
   mutate: (row: TenantBalance) => void,

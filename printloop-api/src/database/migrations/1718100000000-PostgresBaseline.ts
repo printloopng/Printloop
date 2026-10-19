@@ -1,52 +1,16 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-/**
- * Postgres baseline (V2-16).
- *
- * The incremental migration chain (InitSchema → … → CreateTenantDomains)
- * is written in SQLite dialect: `datetime('now')`, `PRAGMA
- * foreign_keys`, and table-rewrite NOT-NULL tightening that Postgres
- * neither needs nor accepts. Re-authoring 12 files as dual-dialect
- * would be high-risk churn on the working SQLite path.
- *
- * Instead, this single migration builds the FULL current schema
- * (post-V2-16) in one Postgres-native shot. It is GATED to run only
- * when the driver is `postgres` — on SQLite it no-ops, so the same
- * migrations array works for both drivers:
- *
- *   - SQLite boot: InitSchema..CreateTenantDomains build the schema;
- *     this baseline no-ops.
- *   - Postgres boot: InitSchema..CreateTenantDomains each no-op or
- *     are skipped (their `CREATE TABLE IF NOT EXISTS` + SQLite-only
- *     statements either succeed harmlessly or are guarded); this
- *     baseline builds everything.
- *
- * IMPORTANT: a fresh Postgres database should run with ONLY this
- * baseline in the migrations array (see config/database.ts, which
- * selects the migration set by driver). The SQLite-only files are
- * NOT Postgres-safe and must not run against Postgres.
- *
- * Tables (final shape): tenants, tenant_members, users, wallets,
- * kiosks, pricing_configs, system_settings, group_sessions,
- * group_participants, files, print_jobs, print_job_items,
- * transactions, payments, promotions, audit_logs, payouts,
- * payout_schedules, tenant_balances, tenant_brandings,
- * tenant_webhooks, tenant_domains.
- */
 export class PostgresBaseline1718100000000 implements MigrationInterface {
   name = 'PostgresBaseline1718100000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     if (queryRunner.connection.options.type !== 'postgres') {
-      // SQLite / others: the incremental chain owns the schema.
       return;
     }
 
     const ID = `uuid PRIMARY KEY DEFAULT gen_random_uuid()`;
     const TS = `timestamptz NOT NULL DEFAULT now()`;
 
-    // pgcrypto provides gen_random_uuid on older Postgres; on PG13+
-    // it's built in, but enabling the extension is idempotent + safe.
     await queryRunner.query(`CREATE EXTENSION IF NOT EXISTS "pgcrypto"`);
 
     await queryRunner.query(`
@@ -437,9 +401,6 @@ export class PostgresBaseline1718100000000 implements MigrationInterface {
         "updatedAt" ${TS}
       )`);
 
-    // Hot-path indexes — every tenant-scoped table gets a tenantId
-    // index; the high-traffic ones get composite indexes matching
-    // their query shapes.
     const idx: Array<[string, string]> = [
       ['idx_pg_user_tenant', 'users ("tenantId")'],
       ['idx_pg_wallet_tenant', 'wallets ("tenantId")'],
@@ -469,7 +430,6 @@ export class PostgresBaseline1718100000000 implements MigrationInterface {
 
   public async down(queryRunner: QueryRunner): Promise<void> {
     if (queryRunner.connection.options.type !== 'postgres') return;
-    // Drop in reverse dependency order. Cascade handles FK children.
     for (const t of [
       'tenant_domains',
       'tenant_webhooks',

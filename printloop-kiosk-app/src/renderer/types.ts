@@ -1,5 +1,4 @@
 export interface KioskSettings {
-  apiUrl: string;
   apiKey: string;
   printerUri: string;
   pollInterval: number;

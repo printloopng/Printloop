@@ -16,13 +16,6 @@ import HowPrintLoopWorks from "@/components/HowPrintLoopWorks";
 const STATUS_FILTERS = ["", "trial", "active", "suspended", "closed"] as const;
 type ConsoleView = "tenants" | "how";
 
-/**
- * `/platform` — PrintLoop operator console (Dimension 11).
- *
- * SUPER_ADMIN only. The backend enforces it (requirePlatformAdmin);
- * we also gate client-side so a non-platform user gets a clear
- * message instead of a wall of 403s.
- */
 export default function PlatformConsolePage() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -52,15 +45,11 @@ export default function PlatformConsolePage() {
   const onImpersonate = async (t: PlatformTenant) => {
     try {
       const res = await impersonate({ id: t.id, ttl: 3600 }).unwrap();
-      // Back up the platform-admin session, swap in the impersonation
-      // token, and jump to the tenant dashboard. The ImpersonationBanner
-      // reads the new token's claim + offers Exit.
       const current = localStorage.getItem("pl_auth");
       if (current) localStorage.setItem("pl_platform_session", current);
       dispatch(setCredentials({ tokens: { accessToken: res.token } }));
       navigate("/saas/dashboard");
     } catch {
-      /* surfaced via impState */
     }
   };
 
@@ -79,7 +68,6 @@ export default function PlatformConsolePage() {
 
   return (
     <div className="max-w-5xl mx-auto p-6 space-y-5">
-      {/* Console tab nav (V2-37) */}
       <nav className="flex gap-1 border-b">
         <TabButton
           active={view === "tenants"}

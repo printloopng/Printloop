@@ -58,11 +58,6 @@ function formatJob(j: PrintJob) {
   };
 }
 
-/**
- * POST /api/customer/print-jobs  (multipart: file + fields)
- * Real flow: store the document, create a real PrintJob the kiosk can
- * fetch & print. Auth handled by the parent router (authenticate).
- */
 router.post('/print-jobs', upload.single('file'), async (req: Request, res: Response) => {
   try {
     const user = (req as any).user;
@@ -71,11 +66,6 @@ router.post('/print-jobs', upload.single('file'), async (req: Request, res: Resp
       res.status(400).json({ success: false, message: 'A document file is required' });
       return;
     }
-    // Pre-pay offline guard (V2-32). For marketplace tenants only —
-    // legacy single-tenant deployments skip so existing flows keep
-    // working unchanged. If the chosen shop has dropped offline since
-    // the customer started, we'd rather 409 cleanly than collect
-    // money for a job that can't print.
     const offlineReason = await assertTenantHasOnlineKiosk(req);
     if (offlineReason) {
       res.status(409).json({
@@ -112,9 +102,7 @@ router.post('/print-jobs', upload.single('file'), async (req: Request, res: Resp
         : 300) as 100 | 300 | 600,
       orientation: cfg.orientation === 'landscape' ? 'landscape' : 'portrait',
     };
-    // Authoritative limits + page count (never trust the client — it sets price).
     const limits = await getUploadLimits();
-    // File size sanity check (50 MB absolute cap)
     const sizeCheck = validateFileSize(file.size);
     if (!sizeCheck.valid) {
       res.status(413).json({
@@ -124,7 +112,6 @@ router.post('/print-jobs', upload.single('file'), async (req: Request, res: Resp
       });
       return;
     }
-    // Tenant-level upload bytes in last 24h (abuse limit)
     if (req.tenant?.id) {
       const uploadLimit = await checkUploadLimit(req.tenant.id, file.size);
       if (!uploadLimit.allowed) {
@@ -145,9 +132,6 @@ router.post('/print-jobs', upload.single('file'), async (req: Request, res: Resp
       });
       return;
     }
-    // Office formats (Word / PowerPoint / Excel) → PDF via the conversion
-    // black box (V2-48) BEFORE anything downstream, so page-count, pricing,
-    // render and the agent all see a real PDF. PDFs/images skip this.
     let sourceBytes = file.buffer;
     if (isOffice) {
       try {
@@ -161,10 +145,6 @@ router.post('/print-jobs', upload.single('file'), async (req: Request, res: Resp
         return;
       }
     }
-    // Bake annotations (signatures, form fills) into the page bytes BEFORE
-    // counting and storing, so a broken printer RIP can't move or drop them.
-    // No-annotation PDFs (and images) pass through byte-exact; any failure
-    // yields the original bytes — the upload never breaks.
     const pdfBytes = await flattenAnnotations(sourceBytes);
     let pageCount: number;
     try {
@@ -187,7 +167,6 @@ router.post('/print-jobs', upload.single('file'), async (req: Request, res: Resp
     }
     const jobType =
       req.body.jobType === 'personal_batch' ? JobType.PERSONAL_BATCH : JobType.SINGLE;
-    // V2-XX — Document Editing Service
     const editingRequired = req.body.editingRequired === 'true' || req.body.editingRequired === true;
     const editingInstructions = req.body.editingInstructions?.trim() || null;
 
@@ -205,7 +184,6 @@ router.post('/print-jobs', upload.single('file'), async (req: Request, res: Resp
     });
     const cost = promo.cost;
 
-    // Persist the (flattened) bytes — served at /api/files, fetched by the kiosk.
     const stored = await saveBuffer(pdfBytes, file.originalname || req.body.fileName || 'document.pdf');
     const savedFile = await AppDataSource.getRepository(File).save(
       AppDataSource.getRepository(File).create({
@@ -225,25 +203,18 @@ router.post('/print-jobs', upload.single('file'), async (req: Request, res: Resp
       tenantId: req.tenant?.id ?? null,
       fileId: savedFile.id,
       fileName: file.originalname || 'document',
-      // Payment happens via Paystack checkout (V2-53 — no wallet); the
-      // release code is minted by completePrintJobPayment on charge.success.
       code: null,
       cost,
       totalPages: pageCount,
       jobType,
-      // V2-XX — Document Editing Service
       editingRequired,
       editingInstructions,
-      // Created in PENDING; completePrintJobPayment (Paystack webhook)
-      // promotes it to RENDERING (render-worker) or READY (fallback).
-      // If editingRequired, status will be AWAITING_EDIT after payment
       status: editingRequired ? PrintJobStatus.AWAITING_EDIT : PrintJobStatus.PENDING,
       printConfiguration,
       expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
     });
     const saved = await jobRepo.save(job);
 
-    // V2-XX — If editing required, create DocumentEdit record and notify shop
     if (editingRequired && req.tenant?.id) {
       try {
         const editPricingRepo = AppDataSource.getRepository(EditPricingConfig);
@@ -254,7 +225,7 @@ router.post('/print-jobs', upload.single('file'), async (req: Request, res: Resp
           const edit = editRepo.create({
             printJobId: saved.id,
             shopId: req.tenant.id,
-            editedBy: '', // Will be set when shop starts editing
+            editedBy: '',
             editOperations: [],
             originalDocumentMeta: {
               pageCount,
@@ -276,7 +247,6 @@ router.post('/print-jobs', upload.single('file'), async (req: Request, res: Resp
           });
           await editRepo.save(edit);
 
-          // Notify shop of new edit job
           const { notificationQueue } = await import('../workers/queues');
           await notificationQueue.add('new-edit-job', {
             shopId: req.tenant.id,
@@ -288,7 +258,6 @@ router.post('/print-jobs', upload.single('file'), async (req: Request, res: Resp
         }
       } catch (editErr) {
         console.error('Failed to create edit job:', editErr);
-        // Don't fail the print job creation if edit job creation fails
       }
     }
 
@@ -302,29 +271,12 @@ router.post('/print-jobs', upload.single('file'), async (req: Request, res: Resp
   }
 });
 
-/**
- * POST /api/customer/print-jobs/batch  (multipart: files[] + items JSON)
- * Real multi-file / ONE-code job: a single PrintJob (the release code) with
- * one PrintJobItem per document, each keeping its own settings.
- */
-/**
- * Pre-pay offline guard (V2-32). Returns a user-facing message when
- * the customer's chosen shop has no kiosk online; null when we
- * should let the request through.
- *
- * Skips when there's no req.tenant (cross-tenant routes), and skips
- * for the legacy tenant — single-tenant deployments don't have the
- * marketplace contract where customers explicitly picked a shop.
- */
 async function assertTenantHasOnlineKiosk(req: Request): Promise<string | null> {
   const t = req.tenant;
   if (!t) return null;
   const { LEGACY_TENANT_SLUG } = await import('../middleware/tenant.middleware');
   if (t.slug === LEGACY_TENANT_SLUG) return null;
 
-  // Operator-controlled availability (V2-57): a shop that's CLOSED
-  // rejects new uploads outright — the student gets a clear reason
-  // instead of paying into a queue that won't print.
   if (t.availability === 'closed') {
     return "This shop is currently closed. Check back soon or try another nearby shop.";
   }
@@ -352,7 +304,6 @@ router.post('/print-jobs/batch', upload.array('files', 50), async (req: Request,
       res.status(400).json({ success: false, message: 'At least one document is required' });
       return;
     }
-    // Pre-pay offline guard (V2-32) — same as /print-jobs.
     const offlineReason = await assertTenantHasOnlineKiosk(req);
     if (offlineReason) {
       res.status(409).json({
@@ -384,7 +335,6 @@ router.post('/print-jobs/batch', upload.array('files', 50), async (req: Request,
     }
     const collate = req.body.collate !== 'false';
 
-    // Authoritative validation pre-pass — fail before we create any rows.
     const limits = await getUploadLimits();
     const perFile: Array<{ pages: number; bytes: Buffer }> = [];
     for (const f of files) {
@@ -396,9 +346,6 @@ router.post('/print-jobs/batch', upload.array('files', 50), async (req: Request,
         });
         return;
       }
-      // Office → PDF (V2-48) first, then bake annotations once here; carry
-      // the flattened bytes into the persist pass below so the stored file
-      // matches the counted pages.
       let src = f.buffer;
       if (officeOk && isOfficeDocument(f.originalname || '', f.mimetype)) {
         try {
@@ -445,16 +392,10 @@ router.post('/print-jobs/batch', upload.array('files', 50), async (req: Request,
       tenantId: req.tenant?.id ?? null,
       fileId: null,
       fileName: `${files.length} document${files.length === 1 ? '' : 's'} (batch)`,
-      // Payment happens via Paystack checkout (V2-53 — no wallet); the
-      // release code is minted by completePrintJobPayment on charge.success.
       code: null,
       cost: 0,
       totalPages: 0,
       jobType: JobType.PERSONAL_BATCH,
-      // Batch parent has no file of its own — the items each carry a
-      // file. Parent stays PENDING until paid; per-item rendering is
-      // enqueued separately when the items table gets its own
-      // tenantId + render-enqueue retrofit (deferred — see JOURNAL Phase V2-6).
       status: PrintJobStatus.PENDING,
       printConfiguration: { collate } as any,
       expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
@@ -480,8 +421,8 @@ router.post('/print-jobs/batch', upload.array('files', 50), async (req: Request,
           ? 'landscape'
           : 'portrait') as 'portrait' | 'landscape',
       };
-      const pages = perFile[i].pages; // authoritative (server-derived)
-      const bytes = perFile[i].bytes; // flattened in the validation pass
+      const pages = perFile[i].pages;
+      const bytes = perFile[i].bytes;
       const cost = await computeCost({ pageCount: pages, ...cfg });
       totalCost += cost;
       totalPages += pages;
@@ -511,8 +452,6 @@ router.post('/print-jobs/batch', upload.array('files', 50), async (req: Request,
       await itemRepo.save(it);
     }
 
-    // Promotion applies once against the whole batch total — single redemption
-    // per code per batch, so the usage counter stays meaningful.
     const promo = await applyPromotion(totalCost, req.body.promotionCode, {
       pageCount: totalPages,
       perPageBw: 5,
@@ -531,17 +470,10 @@ router.post('/print-jobs/batch', upload.array('files', 50), async (req: Request,
   }
 });
 
-/** GET /api/customer/print-jobs — the signed-in user's jobs. */
 router.get('/print-jobs', async (req: Request, res: Response) => {
   try {
     const user = (req as any).user;
     const status = req.query.status?.toString();
-    // userId narrows to *this* customer's jobs; tenantId narrows to
-    // jobs the resolved tenant owns. With tenantId NOT NULL the
-    // tenant filter is required for correctness even though userId
-    // alone would never leak across tenants (one User belongs to
-    // one tenant) — leaving the filter in for defence-in-depth and
-    // index coverage.
     const where: any = { userId: user.id };
     if (req.tenant) where.tenantId = req.tenant.id;
     const [jobs, tenants] = await Promise.all([
@@ -579,12 +511,6 @@ router.get('/print-jobs', async (req: Request, res: Response) => {
   }
 });
 
-/**
- * GET /api/customer/print-token
- * Return the current print token (used by laptops printing via CUPS).
- * Null when the user has never minted one. We never *show* the token after
- * the first reveal in the UI; rotation is the recovery path.
- */
 router.get('/print-token', async (req: Request, res: Response) => {
   try {
     const user = (req as any).user;
@@ -602,17 +528,11 @@ router.get('/print-token', async (req: Request, res: Response) => {
   }
 });
 
-/**
- * POST /api/customer/print-token/rotate
- * Mint or replace the print token. Old token is immediately invalid — any
- * CUPS queue still using it will start failing with 401, prompting the user
- * to copy the new device URI into their laptop.
- */
 router.post('/print-token/rotate', async (req: Request, res: Response) => {
   try {
     const user = (req as any).user;
     const repo = AppDataSource.getRepository(User);
-    const token = crypto.randomBytes(40).toString('hex'); // 80 chars hex
+    const token = crypto.randomBytes(40).toString('hex');
     await repo.update({ id: user.id }, { printToken: token });
     res.json({ success: true, data: { token } });
   } catch (err) {
@@ -621,15 +541,6 @@ router.post('/print-token/rotate', async (req: Request, res: Response) => {
   }
 });
 
-/**
- * GET /api/customer/pricing
- * Live pricing matrix the customer UI uses to show prices. Same data
- * the admin edits — single source of truth. Each row carries the
- * per-cell prices (₦/page for {100,300,600}dpi × {simplex,duplex}) and
- * the legacy multiplier fields so a client can fall back when a cell is
- * blank. The /api/customer/print-jobs/quote endpoint below is the
- * authoritative calc for any displayed total.
- */
 router.get('/pricing', async (_req: Request, res: Response) => {
   try {
     const rows = await AppDataSource.getRepository(PricingConfig).find({
@@ -640,8 +551,6 @@ router.get('/pricing', async (_req: Request, res: Response) => {
       data: {
         currency: 'NGN',
         floor: 5,
-        // V2-48 — does this shop's server have an office→PDF converter?
-        // The upload UI uses this to offer Word/PowerPoint/Excel.
         officeConversion: conversionEnabled(),
         configs: rows.map((r) => ({
           paperSize: r.paperSize,
@@ -664,13 +573,6 @@ router.get('/pricing', async (_req: Request, res: Response) => {
   }
 });
 
-/**
- * POST /api/customer/print-jobs/quote
- * Authoritative server-side price quote — same `computeCost` the job-
- * creation path uses, so the number the customer sees here is the
- * number that will be debited. Promotional code is optional; an
- * invalid code returns the un-discounted price + a `reason` flag.
- */
 router.post('/print-jobs/quote', async (req: Request, res: Response) => {
   try {
     const b = req.body || {};
@@ -705,18 +607,6 @@ router.post('/print-jobs/quote', async (req: Request, res: Response) => {
   }
 });
 
-/**
- * GET /api/customer/stations
- * The customer-facing "Find a station" directory. Real `Kiosk` rows
- * filtered by `isPublic = true`, ordered by name. Replaces the legacy
- * mock array under /api/stations so admin-added kiosks immediately
- * appear on the customer site.
- *
- * `status` is derived from the persisted Kiosk.status (ACTIVE / OFFLINE
- * / MAINTENANCE / DISABLED) AND a freshness check on lastSeenAt — a
- * kiosk that hasn't pinged in 5+ minutes is reported "offline" to the
- * customer even if its persisted status is still ACTIVE.
- */
 router.get('/stations', async (_req: Request, res: Response) => {
   try {
     const rows = await AppDataSource.getRepository(Kiosk).find({
@@ -743,7 +633,7 @@ router.get('/stations', async (_req: Request, res: Response) => {
             campus: k.campus || null,
             status,
             mapsUrl: k.mapsUrl || null,
-            queue: 0, // populated by a future per-kiosk queue endpoint
+            queue: 0,
             lastSeenAt: k.lastSeenAt,
           };
         }),
@@ -755,12 +645,6 @@ router.get('/stations', async (_req: Request, res: Response) => {
   }
 });
 
-/**
- * GET /api/customer/print-jobs/options — UI metadata.
- * Kept for backward compat. Static pricing was removed (it lied — the
- * admin matrix is the source of truth); UIs should read the live matrix
- * from GET /api/customer/pricing instead.
- */
 router.get('/print-jobs/options', (_req: Request, res: Response) => {
   res.json({
     success: true,
@@ -774,12 +658,6 @@ router.get('/print-jobs/options', (_req: Request, res: Response) => {
   });
 });
 
-/**
- * POST /api/customer/shops/:slug/reviews
- *
- * Authenticated customer submits/updates a review for a print shop.
- * Body: { rating: number, comment?: string }
- */
 router.post('/shops/:slug/reviews', async (req: Request, res: Response) => {
   try {
     const user = (req as any).user;
@@ -828,12 +706,6 @@ router.post('/shops/:slug/reviews', async (req: Request, res: Response) => {
   }
 });
 
-/**
- * POST /api/customer/disputes
- *
- * Customer raises a dispute (complaint) for a specific print job.
- * Body: { printJobId: string, reason: string }
- */
 router.post('/disputes', async (req: Request, res: Response) => {
   try {
     const user = (req as any).user;

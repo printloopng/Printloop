@@ -4,12 +4,6 @@ import { EditorialFooter } from "@/components/layout/EditorialFooter";
 import { useGetBlogPostsQuery } from "@/store/services/blogApi";
 import { Reveal } from "@/components/ui/scrollFx";
 
-/**
- * Marketing Blog index (V2-54). Reads published posts from the
- * backend CMS (/api/blog). Editorial-brutalist card grid — no images
- * required, the typography carries the page.
- */
-
 function formatDate(iso: string | null): string {
   if (!iso) return "—";
   return new Intl.DateTimeFormat(undefined, {

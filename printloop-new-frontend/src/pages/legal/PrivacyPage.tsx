@@ -1,10 +1,5 @@
 import { Link } from "react-router-dom";
 
-/**
- * `/privacy` — PrintLoop Privacy Policy (public).
- * Covers: data controller, lawful bases, categories, retention,
- * international transfers, data subject rights (GDPR/NDPR), DPO contact.
- */
 export default function PrivacyPage() {
   const lastUpdated = "2026-08-30";
 

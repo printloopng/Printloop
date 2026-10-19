@@ -54,7 +54,6 @@ export function useEditorSession({
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectAttempts = useRef(0);
 
-  // Initialize socket connection
   useEffect(() => {
     if (!sessionId || !accessToken) return;
 
@@ -88,7 +87,6 @@ export function useEditorSession({
       onError?.(err);
     });
 
-    // Room state
     socket.on('room-state', (data: {
       sessionId: string;
       role: EditorRole;
@@ -99,7 +97,6 @@ export function useEditorSession({
       console.log('[EditorSocket] Room state:', data);
     });
 
-    // Peer events
     socket.on('peer-joined', (data: { role: EditorRole }) => {
       console.log('[EditorSocket] Peer joined:', data.role);
     });
@@ -108,20 +105,15 @@ export function useEditorSession({
       console.log('[EditorSocket] Peer left:', data.role);
     });
 
-    // WebRTC signaling
     socket.on('offer', (data: { offer: RTCSessionDescriptionInit; fromRole: EditorRole }) => {
-      // Handle incoming offer
     });
 
     socket.on('answer', (data: { answer: RTCSessionDescriptionInit; fromRole: EditorRole }) => {
-      // Handle incoming answer
     });
 
     socket.on('ice-candidate', (data: { candidate: RTCIceCandidateInit; fromRole: EditorRole }) => {
-      // Handle incoming ICE candidate
     });
 
-    // Awareness (cursors, selections)
     socket.on('awareness', (awareness: AwarenessState) => {
       setAwarenessStates(prev => {
         const filtered = prev.filter(a => a.userId !== awareness.userId);
@@ -130,19 +122,16 @@ export function useEditorSession({
       onAwarenessChange?.([...awarenessStates.filter(a => a.userId !== awareness.userId), awareness]);
     });
 
-    // Document snapshot (Yjs update)
     socket.on('snapshot', (data: { snapshot: any; version: number; fromRole: EditorRole }) => {
       if (data.fromRole !== role) {
         onDocumentChange?.(data.snapshot);
       }
     });
 
-    // Document version
     socket.on('document-version', (data: { version: number }) => {
       console.log('[EditorSocket] Document version:', data.version);
     });
 
-    // Session closed
     socket.on('session-closed', (data: { reason: string }) => {
       console.log('[EditorSocket] Session closed:', data.reason);
       onError?.(new Error(data.reason));
@@ -154,7 +143,6 @@ export function useEditorSession({
     };
   }, [sessionId, accessToken, role, onDocumentChange, onAwarenessChange, onConnectionChange, onError]);
 
-  // Fetch session data
   const refreshSession = useCallback(async () => {
     try {
       setIsLoading(true);
@@ -184,17 +172,14 @@ export function useEditorSession({
     }
   }, [sessionId, accessToken, config.apiBaseUrl, onError]);
 
-  // Initial load
   useEffect(() => {
     refreshSession();
   }, [refreshSession]);
 
-  // Send signaling message
   const sendSignaling = useCallback((message: SignalingMessage) => {
     socketRef.current?.emit(message.type, message);
   }, []);
 
-  // Save snapshot
   const saveSnapshot = useCallback(async (snapshot: any, version: number) => {
     try {
       const response = await fetch(`${config.apiBaseUrl}/api/saas/editor/session/${sessionId}/snapshot`, {
@@ -216,7 +201,6 @@ export function useEditorSession({
     }
   }, [sessionId, accessToken, config.apiBaseUrl, onError]);
 
-  // Export document
   const exportDocument = useCallback(async (format: 'pdf' | 'pwg') => {
     try {
       const response = await fetch(`${config.apiBaseUrl}/api/saas/editor/session/${sessionId}/export`, {
@@ -241,7 +225,6 @@ export function useEditorSession({
     }
   }, [sessionId, accessToken, config.apiBaseUrl, onError]);
 
-  // Approve edit
   const approveEdit = useCallback(async () => {
     try {
       const response = await fetch(`${config.apiBaseUrl}/api/saas/editor/session/${sessionId}/approve`, {
@@ -265,7 +248,6 @@ export function useEditorSession({
     }
   }, [sessionId, accessToken, config.apiBaseUrl, onError]);
 
-  // Reject edit
   const rejectEdit = useCallback(async (reason: string) => {
     try {
       const response = await fetch(`${config.apiBaseUrl}/api/saas/editor/session/${sessionId}/reject`, {

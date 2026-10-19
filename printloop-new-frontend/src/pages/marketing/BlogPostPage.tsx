@@ -4,11 +4,6 @@ import { EditorialFooter } from "@/components/layout/EditorialFooter";
 import { useGetBlogPostQuery } from "@/store/services/blogApi";
 import { markdownToHtml } from "@/lib/markdown";
 
-/**
- * Marketing blog reader (V2-54). Renders the stored post via the
- * tiny markdown renderer; content comes from trusted admins.
- */
-
 function formatDate(iso: string | null): string {
   if (!iso) return "—";
   return new Intl.DateTimeFormat(undefined, {

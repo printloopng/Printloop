@@ -11,7 +11,6 @@ export default function OperatorConsolePage() {
   const me = useGetTenantMeQuery();
   const balance = useGetTenantBalanceQuery();
   const transactions = useListTransactionsQuery({ limit: 10 });
-  // V2-39 — live "how's my shop today" snapshot (kiosks, jobs, revenue).
   const ops = useGetOpsSummaryQuery(undefined, { pollingInterval: 30_000 });
 
   if (me.isLoading || balance.isLoading) {
@@ -41,10 +40,8 @@ export default function OperatorConsolePage() {
         </p>
       </div>
 
-      {/* Guided go-live wizard (V2-41) — gated by real backend flags. */}
       <GoLiveWizard />
 
-      {/* Live "how's my shop today" — V2-39 */}
       <div>
         <div className="flex items-center justify-between mb-3">
           <h2 className="pl-serif font-extrabold text-xl">Today at a glance</h2>
@@ -86,7 +83,6 @@ export default function OperatorConsolePage() {
         </div>
       </div>
 
-      {/* Go-live status banner */}
       {ops.data && (
         <div
           className={`border-2 rounded-pl p-4 flex flex-wrap items-center justify-between gap-3 ${
@@ -178,7 +174,6 @@ function OperatorCard({
   );
 }
 
-/** Human "what's left before customers can find you" line. */
 function gateHint(g: {
   locationSet: boolean;
   statusActive: boolean;

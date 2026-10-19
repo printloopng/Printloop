@@ -1,20 +1,3 @@
-/**
- * Geocoding (V2-30) — turn a human-readable address into (lat, lng)
- * so the tenant shows up in /api/discovery/nearby.
- *
- * Pluggable. Default = OpenStreetMap Nominatim (free, no API key,
- * Nigerian coverage decent for major cities). Swap providers by
- * setting GEOCODER=google|disabled in env; the disabled mode is
- * a clean no-op for dev runs without internet (returns null).
- *
- * Nominatim's usage policy requires:
- *   1. A descriptive User-Agent (set below).
- *   2. ≤1 req/sec.
- *   3. Caching results (we don't re-geocode on every read — only on
- *      signup or when an admin edits the address).
- *
- * Reference: https://operations.osmfoundation.org/policies/nominatim/
- */
 
 export interface GeocodeResult {
   lat: number;
@@ -31,9 +14,6 @@ const USER_AGENT =
   process.env.GEOCODER_USER_AGENT ||
   'PrintLoop-SaaS/2.0 (https://printloop.app; ops@printloop.app)';
 
-// Simple in-process throttle so a burst of signups stays within
-// Nominatim's 1 req/sec ceiling. Production rarely sees concurrent
-// signups; this is belt-and-braces.
 let lastNominatimAt = 0;
 async function nominatimThrottle(): Promise<void> {
   const gap = Date.now() - lastNominatimAt;
@@ -83,15 +63,8 @@ class DisabledGeocoder implements Geocoder {
   }
 }
 
-/**
- * Fixed-point geocoder for tests — looks up an address against an
- * inline table so the E2E doesn't depend on Nominatim reachability.
- * Activated by `GEOCODER=fixture` in env. The table is intentionally
- * tiny; tests add their entries via the address string they use.
- */
 class FixtureGeocoder implements Geocoder {
   private table: Record<string, GeocodeResult> = {
-    // Lagos landmarks the E2E uses.
     'yaba, lagos': { lat: 6.5095, lng: 3.3711, displayName: 'Yaba, Lagos' },
     'unilag, akoka, lagos': {
       lat: 6.5158,
@@ -116,10 +89,6 @@ class FixtureGeocoder implements Geocoder {
 
 let cached: Geocoder | null = null;
 
-/**
- * Resolve the configured geocoder. Lazy + cached so we don't pay the
- * env read on every call.
- */
 export function getGeocoder(): Geocoder {
   if (cached) return cached;
   const choice = (process.env.GEOCODER || 'nominatim').toLowerCase();
@@ -129,14 +98,6 @@ export function getGeocoder(): Geocoder {
   return cached;
 }
 
-/**
- * Compute great-circle distance between two points in km. Used both
- * by the discovery route's SQL ORDER BY (we'd compute it in SQL for
- * speed but SQLite has no math fns by default) and by tests.
- *
- * Haversine formula — accurate enough for our radii (<100km). Earth
- * radius ≈ 6371 km. Inputs in degrees.
- */
 export function haversineKm(
   lat1: number,
   lng1: number,
@@ -153,7 +114,6 @@ export function haversineKm(
   return 2 * R * Math.asin(Math.min(1, Math.sqrt(a)));
 }
 
-/** Test hook — drop the cached instance so tests can flip GEOCODER mid-run. */
 export function _resetGeocoderForTests(): void {
   cached = null;
 }

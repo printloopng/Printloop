@@ -28,7 +28,6 @@ async function resolveTenantId(req: Request): Promise<string | null> {
   return tenantId;
 }
 
-// Matches password reset and shop-owner signup.
 const MIN_PASSWORD_LENGTH = 10;
 
 export class CustomerAuthService {

@@ -248,7 +248,7 @@ router.post(
 
       const reference = `edit_${edit.id}_${Date.now()}`;
       const payment = await paystackService.initializePayment({
-        amountNaira: feeCalculation.total / 100, // convert kobo to naira
+        amountNaira: feeCalculation.total / 100,
         email: user.email,
         reference,
         metadata: {
@@ -537,7 +537,7 @@ router.get(
           printJob: edit.printJob,
           totalEditFee: edit.totalEditFee,
           bankDetails: edit.printJob?.status === 'awaiting_payment' ? {
-            accountName: null, // Would come from pricing config
+            accountName: null,
             accountNumber: null,
             bankName: null,
             sortCode: null,

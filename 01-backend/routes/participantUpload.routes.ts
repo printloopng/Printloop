@@ -20,13 +20,6 @@ import { makeCode } from '../utils/releaseCode';
 const router = Router();
 const groupService = new GroupSessionService();
 
-/**
- * POST /api/participant-upload/upload
- * A group-session participant submits their document.
- *
- * Headers:  X-Upload-Token: <token returned by /join>
- * Body:     fileURL, fileName, pageCount, mimeType?, sizeBytes?, printConfiguration?
- */
 router.post('/upload', async (req: Request, res: Response) => {
   try {
     const uploadToken = req.headers['x-upload-token'] as string;
@@ -69,9 +62,6 @@ router.post('/upload', async (req: Request, res: Response) => {
       });
       return;
     }
-    // Authoritative server-side page count + limits — never trust the client
-    // (it drives the participant's price). When real bytes are present we
-    // parse them; with a bare fileURL we can only clamp the supplied count.
     const limits = await getUploadLimits();
     let buffer: Buffer | null = null;
     if (fileBase64) {
@@ -84,9 +74,6 @@ router.post('/upload', async (req: Request, res: Response) => {
         });
         return;
       }
-      // Bake annotations (signatures) into the bytes before counting/storing,
-      // so the printer RIP can't move or drop them. Byte-exact passthrough
-      // when there are none; original bytes on any failure.
       buffer = await flattenAnnotations(buffer);
     }
     let authoritativePages: number;
@@ -111,17 +98,10 @@ router.post('/upload', async (req: Request, res: Response) => {
       return;
     }
 
-    // Real bytes win: persist them so the kiosk/IPP service can fetch them.
     const stored = buffer ? await saveBuffer(buffer, String(fileName)) : null;
     const effectiveFileURL = stored ? stored.url : fileURL;
     const effectiveSize = stored ? stored.sizeBytes : Number(sizeBytes) || 0;
 
-    // Enforced sessions force the host's OUTPUT STYLE settings (paper,
-    // colour, sides, quality). Copies and page range are *always*
-    // participant-controlled — the host enforcing "everyone duplex A4
-    // colour" shouldn't also dictate how many copies of your own doc
-    // you want. So we layer: enforced fields come from `opts`; copies
-    // (and range) come from the participant's `printConfiguration`.
     const opts = session.defaultOptions;
     const styleOverride = opts.enforce
       ? {}
@@ -166,8 +146,6 @@ router.post('/upload', async (req: Request, res: Response) => {
 
     const savedFile = await fileRepo.save(
       fileRepo.create({
-        // Inherit from the session — group sessions don't span
-        // tenants, so the file belongs to whoever owns the session.
         tenantId: session.tenantId ?? null,
         fileURL: effectiveFileURL,
         fileName,
@@ -181,18 +159,12 @@ router.post('/upload', async (req: Request, res: Response) => {
     const savedJob = await jobRepo.save(
       jobRepo.create({
         userId: participant.userId ?? null,
-        // Inherit the session's tenant — group sessions don't span
-        // tenants, and the participant is a customer of whoever
-        // owns the session.
         tenantId: session.tenantId ?? null,
         jobType: JobType.GROUP_BATCH,
         groupSessionId: session.id,
-        // Watermarking removed from group printing.
         watermarkId: null,
         fileId: savedFile.id,
         printConfiguration: {
-          // Copies honour the participant's chosen count (default 1) —
-          // the host only dictates output style, not how many to print.
           copies: requestedCopies,
           paper: effective.paper,
           color: effective.color,

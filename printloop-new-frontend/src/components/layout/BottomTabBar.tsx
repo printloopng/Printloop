@@ -6,18 +6,9 @@ export interface BottomTab {
 }
 
 interface BottomTabBarProps {
-  /** 3–5 tabs. More than 5 won't fit comfortably on a phone. */
   tabs: BottomTab[];
 }
 
-/**
- * Fixed bottom-tab bar shown ONLY on phones (md:hidden). Persistent
- * one-tap access to the most-used pages. Stays out of the way of
- * iOS/Android home-bar via `pb-safe`-style padding.
- *
- * The main content area must reserve space for this bar — see
- * `pb-[72px] md:pb-0` on the `<main>` element.
- */
 export function BottomTabBar({ tabs }: BottomTabBarProps) {
   const location = useLocation();
   return (

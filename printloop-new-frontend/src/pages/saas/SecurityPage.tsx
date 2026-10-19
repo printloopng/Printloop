@@ -6,18 +6,6 @@ import {
   useDisable2faMutation,
 } from "@/store/services/saasApi";
 
-/**
- * `/saas/settings/security` — 2FA (TOTP) enrolment (V2-24).
- *
- * Flow: Setup → shows the secret + otpauth URL → user adds it to an
- * authenticator → enters a live code → Enable. Disable also requires
- * a current code (so a hijacked session can't strip 2FA).
- *
- * NOTE: tenant.onboarding from /me doesn't carry the 2FA flag yet, so
- * we track enrolment state locally across the setup→enable steps;
- * a page reload resets the view but the backend remains the source of
- * truth (enable is idempotent on a valid code).
- */
 export default function SecurityPage() {
   const me = useGetTenantMeQuery();
   const [setup, setupState] = useSetup2faMutation();
@@ -35,7 +23,6 @@ export default function SecurityPage() {
       setSecret(r.secret);
       setOtpauth(r.otpauthUrl);
     } catch {
-      /* surfaced below */
     }
   };
 
@@ -47,7 +34,6 @@ export default function SecurityPage() {
       setOtpauth(null);
       setCode("");
     } catch {
-      /* surfaced below */
     }
   };
 
@@ -57,7 +43,6 @@ export default function SecurityPage() {
       setEnabled(false);
       setCode("");
     } catch {
-      /* surfaced below */
     }
   };
 
@@ -82,7 +67,6 @@ export default function SecurityPage() {
         </div>
       )}
 
-      {/* Step 1: setup */}
       {!secret && enabled !== true && (
         <div className="border-2 border-ink rounded-pl p-4 space-y-3 bg-paper-light">
           <h3 className="font-bold">Turn on 2FA</h3>
@@ -101,7 +85,6 @@ export default function SecurityPage() {
         </div>
       )}
 
-      {/* Step 2: show secret + confirm with a code */}
       {secret && (
         <div className="border-2 border-ink rounded-pl p-4 space-y-3 bg-paper-light">
           <h3 className="font-bold">Add this to your authenticator</h3>
@@ -145,7 +128,6 @@ export default function SecurityPage() {
         </div>
       )}
 
-      {/* Disable */}
       {enabled !== false && !secret && (
         <details className="border-2 border-ink rounded-pl p-4 bg-paper-light">
           <summary className="font-bold cursor-pointer text-ink/70">

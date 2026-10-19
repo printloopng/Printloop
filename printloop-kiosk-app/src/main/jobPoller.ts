@@ -5,21 +5,6 @@ import { emitKioskEvent } from './ipc';
 import { kioskApi, unwrap, apiErrorMessage, httpStatus } from './api';
 import { getPrinterState, printDocument, PrinterState } from './ipp';
 
-/*
- * Cloud → kiosk job pipeline.
- *
- * Poll loop: every `pollInterval` (10s, or the API's `nextPollMs` hint) the
- * kiosk calls POST /api/agent/poll with the jobs it still holds. The API
- * claims the next released job for it (RELEASING → PRINTING), returns queue
- * counts, and lists any held jobs that were cancelled in the meantime. The
- * poll also keeps the kiosk "online" for the marketplace.
- *
- * Print worker: prints claimed jobs one at a time, reports page progress,
- * then complete/failed. Reports that fail to send are retried on the next
- * tick; until acked the job stays in `inFlight` so the API doesn't requeue
- * (and double-print) it.
- */
-
 export interface AgentJobItem {
   fileId: string;
   fileName: string;
@@ -70,8 +55,6 @@ type Report = { kind: 'complete' | 'failed'; body: Record<string, unknown> };
 const MAX_BACKOFF_MS = 60_000;
 const AUTH_BACKOFF_MS = 60_000;
 const DOWNLOAD_TIMEOUT_MS = 120_000;
-// After handing a job back on a transient fault, stop claiming for a bit so
-// a persistently failing job doesn't bounce every 2s.
 const CLAIM_PAUSE_MS = 30_000;
 
 const queue: AgentJob[] = [];
@@ -113,7 +96,6 @@ export function stopJobPoller(): void {
   logger.info('Job poller stopped');
 }
 
-/** Poll right away, e.g. after a customer releases a job at this kiosk. */
 export function pollNow(): void {
   if (!running) return;
   if (polling) pollAgain = true;
@@ -122,7 +104,6 @@ export function pollNow(): void {
 
 function schedule(ms: number): void {
   if (timer) clearTimeout(timer);
-  // ±10% jitter so a shop's kiosks don't poll in lockstep.
   const delay = ms > 0 ? Math.round(ms * (0.9 + Math.random() * 0.2)) : 0;
   timer = setTimeout(tick, delay);
 }
@@ -204,8 +185,6 @@ async function tick(): Promise<void> {
 }
 
 function revoke(id: string): void {
-  // The API no longer considers this job ours: it was settled (our earlier
-  // report landed), refunded, or cancelled by the shop.
   pendingReports.delete(id);
   const idx = queue.findIndex((j) => j.id === id);
   if (idx >= 0) queue.splice(idx, 1);
@@ -275,8 +254,6 @@ async function printJob(job: AgentJob): Promise<void> {
     emitJob({ ...base, state: 'done', pagesCompleted: totalPages });
   } catch (err) {
     const reason = apiErrorMessage(err);
-    // Nothing reached the printer and the fault looks temporary: give the
-    // job back to the queue rather than failing the customer's order.
     const retryable = pagesCompleted === 0 && isTransient(err);
     logger.error({ job: job.code, err: reason, retryable }, 'Print job failed');
     if (retryable) claimPausedUntil = Date.now() + CLAIM_PAUSE_MS;
@@ -310,7 +287,6 @@ async function report(jobId: string, r: Report): Promise<void> {
   } catch (err) {
     const code = httpStatus(err);
     if (code === 403 || code === 404 || code === 409) {
-      // The API has already moved the job on; nothing left to tell it.
       pendingReports.delete(jobId);
       return;
     }

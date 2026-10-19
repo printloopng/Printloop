@@ -7,20 +7,6 @@ import {
 import { webhookQueue } from '../workers/queues';
 import { REDIS_ENABLED } from '../config/redis';
 
-/**
- * Tenant webhook dispatcher (Dimension 14 — V2-14, queue in V2-15).
- *
- * `emitTenantEvent(tenantId, event, data)` resolves which webhook
- * rows subscribe to the event, then enqueues one delivery job per
- * row on the `webhook-deliveries` BullMQ queue. The worker
- * (`workers/webhook.worker.ts`) does the HMAC-signed POST with
- * BullMQ's retry/backoff.
- *
- * When Redis is disabled (single-tenant dev), we fall back to inline
- * `nextTick` delivery — best-effort, no retry — so the dev flow
- * still exercises webhooks without standing up Redis.
- */
-
 export interface WebhookPayload {
   event: WebhookEvent;
   tenantId: string;
@@ -28,10 +14,6 @@ export interface WebhookPayload {
   data: Record<string, unknown>;
 }
 
-/**
- * Resolve subscribers + enqueue (or inline-deliver) one job each.
- * Returns immediately; never throws into the caller's request path.
- */
 export function emitTenantEvent(
   tenantId: string,
   event: WebhookEvent,
@@ -61,7 +43,6 @@ async function resolveAndEnqueue(
     emittedAt: new Date().toISOString(),
     data,
   };
-  // Pre-serialise so the worker's HMAC matches the exact bytes sent.
   const body = JSON.stringify(payload);
 
   for (const sub of matched) {
@@ -75,7 +56,6 @@ async function resolveAndEnqueue(
     if (REDIS_ENABLED) {
       await webhookQueue.add('deliver', job);
     } else {
-      // No Redis — best-effort inline delivery, no retry.
       void deliverInline(job).catch((err) =>
         console.error(`[webhook] inline delivery failed for ${sub.id}:`, err),
       );
@@ -83,11 +63,6 @@ async function resolveAndEnqueue(
   }
 }
 
-/**
- * The actual signed POST. Shared by the inline (no-Redis) path here
- * and the BullMQ worker. Updates the webhook row's success/failure
- * stamps. Throws on non-2xx so the BullMQ worker's retry kicks in.
- */
 export async function deliverWebhook(job: {
   webhookId: string;
   url: string;
@@ -123,7 +98,6 @@ export async function deliverWebhook(job: {
   }
 }
 
-/** Inline variant that swallows errors (no-Redis dev path). */
 async function deliverInline(job: {
   webhookId: string;
   url: string;
@@ -134,7 +108,6 @@ async function deliverInline(job: {
   try {
     await deliverWebhook(job);
   } catch {
-    /* already stamped; inline path has no retry */
   }
 }
 
@@ -156,7 +129,6 @@ async function stampFailure(
   );
 }
 
-/** Generate a fresh secret for a new webhook row. */
 export function generateWebhookSecret(): string {
   return crypto.randomBytes(32).toString('base64url');
 }

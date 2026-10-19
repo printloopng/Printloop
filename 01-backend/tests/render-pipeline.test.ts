@@ -12,7 +12,6 @@ import agentRouter from '../routes/agent.routes';
 import jwt from 'jsonwebtoken';
 import { JWT_SECRET } from '../utils/jwt';
 
-// Mock queues and redis config to allow test coverage without Redis
 vi.mock('../workers/queues', () => {
   return {
     renderQueue: {
@@ -33,7 +32,6 @@ const testDbFile = vi.hoisted(() => {
   return file;
 });
 
-// Import the mocked renderQueue so we can assert on it
 import { renderQueue } from '../workers/queues';
 
 describe('Render Pipeline & Agent Integration Tests', () => {
@@ -51,7 +49,6 @@ describe('Render Pipeline & Agent Integration Tests', () => {
     await AppDataSource.runMigrations();
     await dbModule.runPostInitMigrations();
 
-    // Setup tenant
     const tenantRepo = AppDataSource.getRepository(Tenant);
     const tenant = tenantRepo.create({
       name: 'Render Test Tenant',
@@ -80,7 +77,6 @@ describe('Render Pipeline & Agent Integration Tests', () => {
     const fileRepo = AppDataSource.getRepository(File);
     const jobRepo = AppDataSource.getRepository(PrintJob);
 
-    // Create a mock file
     const file = fileRepo.create({
       tenantId: globalTenantId,
       fileName: 'test_doc.docx',
@@ -91,7 +87,6 @@ describe('Render Pipeline & Agent Integration Tests', () => {
     });
     await fileRepo.save(file);
 
-    // Create a mock print job
     const job = jobRepo.create({
       tenantId: globalTenantId,
       fileId: file.id,
@@ -110,7 +105,6 @@ describe('Render Pipeline & Agent Integration Tests', () => {
     });
     await jobRepo.save(job);
 
-    // 1. Enqueue job
     const enqueueRes = await enqueueRender(job.id);
     expect(enqueueRes.enqueued).toBe(true);
 
@@ -120,7 +114,6 @@ describe('Render Pipeline & Agent Integration Tests', () => {
     expect(enqueuedJob!.renderingStartedAt).toBeDefined();
     expect(enqueuedJob!.renderingError).toBeNull();
 
-    // Verify queue call
     expect(renderQueue.add).toHaveBeenCalledWith('render', expect.objectContaining({
       printJobId: job.id,
       sourceFileUrl: file.fileURL,
@@ -128,7 +121,6 @@ describe('Render Pipeline & Agent Integration Tests', () => {
       watermarkId: null,
     }));
 
-    // 2. Callback success
     const callbackRes = await applyRenderResult({
       printJobId: job.id,
       renderedKey: `renders/${globalTenantId}/${job.id}.pwg`,
@@ -136,7 +128,7 @@ describe('Render Pipeline & Agent Integration Tests', () => {
       previewImageUrls: [
         `http://localhost:4000/api/files/renders/${globalTenantId}/${job.id}_preview_0.jpg`
       ],
-      pageCount: 6, // Authoritative count
+      pageCount: 6,
       bytes: 20485,
     });
     expect(callbackRes.updated).toBe(true);
@@ -150,8 +142,6 @@ describe('Render Pipeline & Agent Integration Tests', () => {
     expect(completedJob!.renderingStatus).toBe('ready');
     expect(completedJob!.renderingCompletedAt).toBeDefined();
 
-    // 3. Test agent API download serves the pre-rendered file directly
-    // Generate a temporary mock file on disk where the static server would serve it
     const uploadsDir = path.resolve(__dirname, '../data/uploads');
     const renderedPwgDir = path.join(uploadsDir, 'renders', globalTenantId);
     fs.mkdirSync(renderedPwgDir, { recursive: true });
@@ -161,7 +151,6 @@ describe('Render Pipeline & Agent Integration Tests', () => {
     fs.writeFileSync(pwgFilePath, mockPwgBytes);
 
     try {
-      // Create valid download token
       const token = jwt.sign(
         { kind: 'agent-file-download', jobId: job.id, kioskId: 'mock-kiosk-id' },
         JWT_SECRET,
@@ -195,7 +184,6 @@ describe('Render Pipeline & Agent Integration Tests', () => {
         }
       } as unknown as Response;
 
-      // Find the route handler for GET /jobs/:id/file
       const layer = agentRouter.stack.find((l: any) => l.route?.path === '/jobs/:id/file');
       expect(layer).toBeDefined();
       expect(layer?.route).toBeDefined();
@@ -207,7 +195,6 @@ describe('Render Pipeline & Agent Integration Tests', () => {
       expect(responseHeaders['content-type']).toBe('image/pwg-raster');
       expect(responseBody.toString()).toBe('RaS2MockPwgRasterFormatData');
     } finally {
-      // Cleanup file on disk
       try {
         fs.unlinkSync(pwgFilePath);
       } catch (err) {}
@@ -217,7 +204,6 @@ describe('Render Pipeline & Agent Integration Tests', () => {
   it('correctly handles render failures', async () => {
     const jobRepo = AppDataSource.getRepository(PrintJob);
 
-    // Create a mock print job
     const job = jobRepo.create({
       tenantId: globalTenantId,
       fileId: '00000000-0000-0000-0000-000000000000',
@@ -236,10 +222,8 @@ describe('Render Pipeline & Agent Integration Tests', () => {
     });
     await jobRepo.save(job);
 
-    // Enqueue
     await enqueueRender(job.id);
 
-    // Trigger failure callback
     const failRes = await applyRenderFailure({
       printJobId: job.id,
       errorMessage: 'Ghostscript failed to parse corrupt PDF',

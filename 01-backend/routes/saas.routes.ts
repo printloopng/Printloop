@@ -38,11 +38,6 @@ const paystack = new PaystackService();
 const kioskService = new KioskService();
 const INSTANT_PAYOUT_FEE_NAIRA = 100;
 
-/**
- * Public projection of a kiosk for the tenant operator console.
- * Never leaks the apiKey on reads — it's disclosed only on create /
- * regenerate (the pairing moments).
- */
 function publicKiosk(k: Kiosk) {
   const ONLINE_MS = 5 * 60 * 1000;
   const online =
@@ -59,7 +54,6 @@ function publicKiosk(k: Kiosk) {
     lastSeenAt: k.lastSeenAt ?? null,
     testPrintPassedAt: k.testPrintPassedAt ?? null,
     totalJobsPrinted: k.totalJobsPrinted ?? 0,
-    // V2-44 — agent-discovered hardware capabilities (null = unknown).
     capColor: k.capColor ?? null,
     capDuplex: k.capDuplex ?? null,
     capA3: k.capA3 ?? null,
@@ -68,30 +62,10 @@ function publicKiosk(k: Kiosk) {
   };
 }
 
-/**
- * Load a kiosk and assert it belongs to the resolved tenant. Returns
- * the kiosk, or null when it doesn't exist OR isn't this tenant's —
- * callers respond 404 either way so a tenant can't probe foreign IDs.
- */
 async function ownedKiosk(req: Request, id: string): Promise<Kiosk | null> {
   return kioskService.getKioskById(id, req.tenant!.id);
 }
 
-/**
- * POST /api/saas/signup
- *
- * Self-serve tenant creation. Anonymous — no auth header.
- *
- * Body:
- *   { businessName, slug, ownerFirstName, ownerLastName,
- *     ownerEmail, ownerPhone, ownerPassword }
- *
- * Returns: { tenantId, tenantSlug, ownerEmail, loginUrl }
- *
- * On success the owner can immediately log in via
- * POST /api/customer/auth/login (or /api/admin/auth/login) against
- * the tenant subdomain.
- */
 router.post('/signup', async (req: Request, res: Response) => {
   try {
     const result = await signupTenant({
@@ -134,12 +108,6 @@ router.post('/signup', async (req: Request, res: Response) => {
   }
 });
 
-/**
- * POST /api/saas/check-slug
- *
- * Live availability check while the owner types. Returns
- * { available: boolean, reason?: string } — no error states.
- */
 router.post('/check-slug', async (req: Request, res: Response) => {
   const slug = String(req.body?.slug || '').toLowerCase().trim();
   if (!slug) {
@@ -156,15 +124,6 @@ router.post('/check-slug', async (req: Request, res: Response) => {
   res.json({ available: !existing });
 });
 
-/**
- * POST /api/saas/verify-email
- *
- * Anonymous. Body: { token, email? }. The email is optional but
- * recommended — it narrows the lookup so a guessed 6-digit token
- * has to coincide with a known address to land. Returns
- * { verified: boolean, tenantSlug? } so the frontend can redirect
- * to the right subdomain.
- */
 router.post('/verify-email', async (req: Request, res: Response) => {
   try {
     const token = String(req.body?.token || '').trim();
@@ -191,14 +150,6 @@ router.post('/verify-email', async (req: Request, res: Response) => {
   }
 });
 
-/**
- * POST /api/saas/resend-verification
- *
- * Anonymous. Body: { email, tenantSlug? }. Re-issues the token
- * (the previous one becomes invalid) and resends the email. Always
- * 200 — we don't tell the caller whether the email matches a known
- * account, to avoid leaking which addresses are signed up.
- */
 router.post('/resend-verification', async (req: Request, res: Response) => {
   try {
     const email = String(req.body?.email || '').trim();
@@ -213,21 +164,10 @@ router.post('/resend-verification', async (req: Request, res: Response) => {
     res.json({ success: true });
   } catch (err: any) {
     console.error('Resend-verification error:', err);
-    // Still 200 to the client — don't leak which addresses exist.
     res.json({ success: true });
   }
 });
 
-/**
- * POST /api/saas/setup/paystack-subaccount
- *
- * Creates a Paystack Subaccount for the resolved tenant and stores
- * the returned subaccount_code on tenant.paystackSubaccountCode.
- * After this, customer charges use Paystack Split automatically.
- *
- * Auth: tenant owner only.
- * Body: { businessName, settlementBank, accountNumber, percentageCharge? }
- */
 router.post(
   '/setup/paystack-subaccount',
   authenticate,
@@ -270,16 +210,6 @@ router.post(
   },
 );
 
-/**
- * POST /api/saas/setup/bank-account
- *
- * Creates a Paystack Transfer Recipient for the tenant's payout
- * destination. Stores recipientCode + bank fields on PayoutSchedule
- * (which was seeded at signup with the default weekly cadence).
- *
- * Auth: tenant owner only.
- * Body: { accountName, accountNumber, bankCode }
- */
 router.post(
   '/setup/bank-account',
   authenticate,
@@ -306,8 +236,6 @@ router.post(
         where: { tenantId: tenant.id },
       });
       if (!schedule) {
-        // Defensive — signup seeds one, but if the row was deleted we
-        // recreate it with default cadence.
         schedule = scheduleRepo.create({
           tenantId: tenant.id,
         });
@@ -331,13 +259,6 @@ router.post(
   },
 );
 
-/**
- * GET /api/saas/me
- *
- * Returns the resolved tenant's public-facing config: name, slug,
- * commission %, payout cadence, onboarding completion flags. Used by
- * the tenant admin dashboard to render a "next steps" checklist.
- */
 router.get(
   '/me',
   authenticate,
@@ -353,9 +274,6 @@ router.get(
         where: { tenantId: tenant.id },
       }),
     ]);
-    // "Branding done" = the owner saved anything that visibly changes the
-    // shop (wordmark, logo, or a brand colour). V2-41 — replaces the
-    // hard-coded `false` the operator console used to show.
     const brandingSet = Boolean(
       branding &&
         (branding.wordmark ||
@@ -371,19 +289,15 @@ router.get(
         status: tenant.status,
         commissionPct: Number(tenant.commissionPct),
         customDomain: tenant.customDomain,
-        // Marketplace discovery (V2-30).
         address: tenant.address,
         lat: tenant.lat,
         lng: tenant.lng,
         isDiscoverable: Boolean(tenant.isDiscoverable),
-        // Operator-controlled availability (V2-57): open | busy | closed.
         availability: tenant.availability,
         onboarding: {
           subaccountSet: Boolean(tenant.paystackSubaccountCode),
           bankAccountSet: Boolean(schedule?.recipientCode),
           brandingSet,
-          // The marketplace "ready" gate isn't strictly checked anywhere;
-          // surfaced so the UI can show a setup checklist for it.
           locationSet: Boolean(tenant.lat != null && tenant.lng != null),
         },
         payoutSchedule: schedule
@@ -401,15 +315,6 @@ router.get(
   },
 );
 
-/**
- * GET /api/saas/ops/summary  (V2-39 — turnkey operator console)
- *
- * The "how's my shop doing today" snapshot a non-technical shop owner
- * sees on the operator console: kiosk fleet health (online/offline,
- * test-print status), today's job volume + revenue, in-flight jobs,
- * stuck renders, and the marketplace live-gate state. One query bundle,
- * no developer required.
- */
 router.get(
   '/ops/summary',
   authenticate,
@@ -491,8 +396,6 @@ router.get(
         (j) => now - new Date(j.createdAt).getTime() > STUCK_MS,
       ).length;
 
-      // Live-gate echo so the console can show "what's left before
-      // customers can find you" without re-deriving the rules.
       const liveGate = {
         locationSet: tenant.lat != null && tenant.lng != null,
         statusActive: tenant.status === TenantStatus.ACTIVE,
@@ -530,15 +433,6 @@ router.get(
   },
 );
 
-// ── Self-service kiosks/printers (V2-40) ────────────────────────────────
-//
-// Tenant-native printer management. These are deliberately SEPARATE from
-// the SUPER_ADMIN-scope /api/admin/kiosks surface: every read and write
-// here is hard-filtered to req.tenant.id, so even a privilege
-// mis-grant can't expose another shop's hardware. The operator console
-// talks to these, not /admin/kiosks.
-
-/** GET /api/saas/kiosks — this tenant's printers (apiKey never disclosed). */
 router.get(
   '/kiosks',
   authenticate,
@@ -554,7 +448,6 @@ router.get(
   },
 );
 
-/** POST /api/saas/kiosks — add a printer. Returns the apiKey ONCE (pairing). */
 router.post(
   '/kiosks',
   authenticate,
@@ -573,7 +466,6 @@ router.post(
         location: req.body?.location?.trim() || undefined,
         printerName: req.body?.printerName?.trim() || undefined,
       });
-      // apiKey disclosed here only — it's the QR pairing secret.
       res.status(201).json({
         success: true,
         data: { kiosk: { ...publicKiosk(kiosk), apiKey: kiosk.apiKey } },
@@ -585,7 +477,6 @@ router.post(
   },
 );
 
-/** PATCH /api/saas/kiosks/:id/status — pause / activate (ownership-checked). */
 router.patch(
   '/kiosks/:id/status',
   authenticate,
@@ -610,7 +501,6 @@ router.patch(
   },
 );
 
-/** POST /api/saas/kiosks/:id/regenerate-key — rotate the pairing key. */
 router.post(
   '/kiosks/:id/regenerate-key',
   authenticate,
@@ -630,7 +520,6 @@ router.post(
   },
 );
 
-/** POST /api/saas/kiosks/:id/test-print — confirm a successful test page. */
 router.post(
   '/kiosks/:id/test-print',
   authenticate,
@@ -652,7 +541,6 @@ router.post(
   },
 );
 
-/** DELETE /api/saas/kiosks/:id — remove (soft-disable), ownership-checked. */
 router.delete(
   '/kiosks/:id',
   authenticate,
@@ -669,13 +557,6 @@ router.delete(
   },
 );
 
-/**
- * GET /api/saas/balance
- *
- * Tenant's available + pending payout balance, plus lifetime
- * commission stats. The home-screen widget on the tenant admin
- * dashboard reads this.
- */
 router.get(
   '/balance',
   authenticate,
@@ -725,13 +606,6 @@ router.get(
   },
 );
 
-/**
- * GET /api/saas/payouts?limit=20&before=ISO_DATE
- *
- * Paginated payout history for the tenant admin dashboard. Sorted
- * by createdAt DESC. `before` is a cursor — pass the createdAt of
- * the last row from the previous page.
- */
 router.get(
   '/payouts',
   authenticate,
@@ -779,12 +653,6 @@ router.get(
   },
 );
 
-/**
- * GET /api/saas/transactions?limit=50&before=ISO_DATE
- *
- * Paginated commission-bearing transactions (the gross-revenue
- * feed) for the tenant admin dashboard. Sorted by createdAt DESC.
- */
 router.get(
   '/transactions',
   authenticate,
@@ -830,15 +698,6 @@ router.get(
   },
 );
 
-/**
- * POST /api/saas/payouts/instant
- *
- * Owner-triggered payout outside the schedule. A flat ₦100 fee is
- * deducted from the payout amount. The tenant must have a verified
- * Paystack subaccount and a bank account on their PayoutSchedule.
- *
- * Returns 402 if available balance < (minPayoutAmount + fee).
- */
 router.post(
   '/payouts/instant',
   authenticate,
@@ -877,8 +736,6 @@ router.post(
         return;
       }
 
-      // Net payout = available - instant fee. The fee is recorded
-      // on payout.feeAmount so the dashboard can show it.
       const netPayout = available - INSTANT_PAYOUT_FEE_NAIRA;
       const payout = await initiatePayout({
         tenantId: tenant.id,
@@ -887,7 +744,6 @@ router.post(
         trigger: PayoutTrigger.INSTANT,
         notes: `Instant payout (fee ₦${INSTANT_PAYOUT_FEE_NAIRA})`,
       });
-      // Backfill the fee onto the row so the dashboard reflects it.
       payout.feeAmount = INSTANT_PAYOUT_FEE_NAIRA;
       await AppDataSource.getRepository(Payout).save(payout);
 
@@ -911,15 +767,6 @@ router.post(
   },
 );
 
-// ── Data export + delete (Dimension 13 / GDPR / NDPR — V2-14) ────────────
-
-/**
- * POST /api/saas/me/export — full tenant export.
- *
- * Returns a single JSON document with every tenant-scoped row.
- * Sensitive credentials (password hashes, salts, tokens) stripped.
- * Audit-logged so the trail captures who pulled an export.
- */
 router.post(
   '/me/export',
   authenticate,
@@ -954,12 +801,6 @@ router.post(
   },
 );
 
-/**
- * DELETE /api/saas/me — schedule tenant deletion (status → CLOSED).
- *
- * Body: { confirmSlug: string, reason?: string }. Type the tenant
- * slug to confirm. 30-day cooling-off then ops hard-deletes.
- */
 router.delete(
   '/me',
   authenticate,
@@ -1006,12 +847,9 @@ router.delete(
   },
 );
 
-// ── White-label branding (Dimension 7 — V2-13) ───────────────────────────
-
 const COLOR_RE = /^#[0-9a-fA-F]{6}$/;
 const URL_RE = /^https?:\/\/.+/i;
 
-/** GET /api/saas/me/branding — owner reads. Empty defaults if not yet set. */
 router.get(
   '/me/branding',
   authenticate,
@@ -1026,7 +864,6 @@ router.get(
   },
 );
 
-/** PUT /api/saas/me/branding — upsert, with format validation. */
 router.put(
   '/me/branding',
   authenticate,
@@ -1085,7 +922,6 @@ router.put(
 
 const photoUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
-/** POST /api/saas/me/photos — upload shop photo */
 router.post(
   '/me/photos',
   authenticate,
@@ -1115,7 +951,6 @@ router.post(
   }
 );
 
-/** DELETE /api/saas/me/photos — delete shop photo */
 router.delete(
   '/me/photos',
   authenticate,
@@ -1142,16 +977,6 @@ router.delete(
   }
 );
 
-// ── Marketplace location + discoverability (V2-30 + V2-32 live gate) ────
-
-/**
- * "Live gate" predicates for marketplace opt-in. Returns null when
- * the tenant is allowed to flip isDiscoverable=true; otherwise a
- * structured reason the UI can render against.
- *
- * Coords + status + test-print + online kiosk — see the saas.routes
- * PATCH /me/location handler for the order they fire in.
- */
 const LIVE_ONLINE_WINDOW_MS = 5 * 60 * 1000;
 async function assertLiveGateMet(
   tenant: Tenant,
@@ -1197,25 +1022,6 @@ async function assertLiveGateMet(
   return null;
 }
 
-/**
- * PATCH /api/saas/me/location
- *
- * Body: { address?, isDiscoverable? }
- *
- *  - `address` — when set, we re-geocode it and stamp lat/lng.
- *    Setting an empty string clears the address (and lat/lng).
- *  - `isDiscoverable` — opt in / out of the public /find list.
- *    Refuses to flip TRUE until lat/lng are set (no point in
- *    being "discoverable" with no coordinates to sort by).
- *
- * Returns the updated tenant row's location projection.
- */
-// ── Campus LMS trusted link (V2-44, P3) ──────────────────────────────
-/**
- * GET /api/saas/me/lms — status only. The key itself is never
- * re-disclosed on reads (same discipline as kiosk apiKeys): it shows
- * exactly once, on regenerate.
- */
 router.get(
   '/me/lms',
   authenticate,
@@ -1234,11 +1040,6 @@ router.get(
   },
 );
 
-/**
- * POST /api/saas/me/lms/regenerate — mint (or rotate) the campus LMS
- * key and return the ready-to-paste URL ONCE. Rotating immediately
- * invalidates the previous link everywhere it was embedded.
- */
 router.post(
   '/me/lms/regenerate',
   authenticate,
@@ -1261,8 +1062,6 @@ router.post(
         data: {
           key: row.lmsKey,
           url,
-          // Moodle/Canvas admins who can template the student's email
-          // into a URL get one-tap sign-in; paste this variant there.
           urlWithEmail: `${url}&email={{student_email}}`,
         },
       });
@@ -1294,9 +1093,6 @@ router.patch(
           row.lng = null;
         } else if (trimmed !== row.address) {
           row.address = trimmed;
-          // Re-geocode only on change. The geocoder fails open
-          // (logs + leaves prior coords); we explicitly null them
-          // here so the row stays self-consistent.
           row.lat = null;
           row.lng = null;
           try {
@@ -1315,13 +1111,6 @@ router.patch(
       if ('isDiscoverable' in body) {
         const want = Boolean(body.isDiscoverable);
         if (want) {
-          // Live gate (V2-32). We're about to put this shop in front
-          // of real customers; require proof that:
-          //   1. coords exist (sorting works),
-          //   2. tenant is past TRIAL,
-          //   3. at least one kiosk has passed a test print,
-          //   4. at least one kiosk is currently online.
-          // Each failure has its own reason so the UI can act on it.
           const reason = await assertLiveGateMet(row);
           if (reason) {
             res.status(400).json({
@@ -1355,13 +1144,6 @@ router.patch(
   },
 );
 
-/**
- * PATCH /api/saas/me/availability — operator-controlled shop state
- * (V2-57). Body: { availability: 'open' | 'busy' | 'closed' }.
- *   open   → taking orders (default)
- *   busy   → taking orders, flagged on the student map
- *   closed → rejecting new uploads, hidden from the map list
- */
 router.patch(
   '/me/availability',
   authenticate,
@@ -1391,9 +1173,6 @@ router.patch(
   },
 );
 
-// ── Tenant webhooks (Dimension 14 — V2-14, routes landed V2-16) ──────────
-
-/** GET /api/saas/me/webhooks — list (secret masked). */
 router.get(
   '/me/webhooks',
   authenticate,
@@ -1411,7 +1190,6 @@ router.get(
   },
 );
 
-/** POST /api/saas/me/webhooks — create; returns secret ONCE. */
 router.post(
   '/me/webhooks',
   authenticate,
@@ -1462,7 +1240,6 @@ router.post(
   },
 );
 
-/** PATCH /api/saas/me/webhooks/:id — toggle/rename/edit events. */
 router.patch(
   '/me/webhooks/:id',
   authenticate,
@@ -1499,7 +1276,6 @@ router.patch(
   },
 );
 
-/** DELETE /api/saas/me/webhooks/:id */
 router.delete(
   '/me/webhooks/:id',
   authenticate,
@@ -1527,9 +1303,6 @@ router.delete(
   },
 );
 
-// ── Custom domains (Dimension 8 — V2-16) ─────────────────────────────────
-
-/** GET /api/saas/me/domains — list this tenant's domain claims. */
 router.get(
   '/me/domains',
   authenticate,
@@ -1541,7 +1314,6 @@ router.get(
   },
 );
 
-/** POST /api/saas/me/domains — claim. Returns the TXT + CNAME to publish. */
 router.post(
   '/me/domains',
   authenticate,
@@ -1578,7 +1350,6 @@ router.post(
   },
 );
 
-/** POST /api/saas/me/domains/:id/verify — run the DNS TXT check. */
 router.post(
   '/me/domains/:id/verify',
   authenticate,
@@ -1612,7 +1383,6 @@ router.post(
   },
 );
 
-/** DELETE /api/saas/me/domains/:id */
 router.delete(
   '/me/domains/:id',
   authenticate,
@@ -1638,13 +1408,6 @@ router.delete(
   },
 );
 
-// ── Month-end statement CSV (V2-23, Dimension 14 reports) ────────────────
-
-/**
- * GET /api/saas/me/statement?month=YYYY-MM
- * Streams a CSV of the tenant's transactions + payouts for the month
- * with summary totals. Defaults to the current month.
- */
 router.get(
   '/me/statement',
   authenticate,
@@ -1672,15 +1435,6 @@ router.get(
   },
 );
 
-// ── Two-factor auth (TOTP — V2-22) ───────────────────────────────────────
-
-/**
- * POST /api/saas/me/2fa/setup — begin enrolment.
- * Generates a secret (stored, but totpEnabled stays false) and
- * returns the otpauth:// URL for the authenticator app + the raw
- * secret for manual entry. Idempotent: re-running before enable
- * rotates the secret.
- */
 router.post(
   '/me/2fa/setup',
   authenticate,
@@ -1717,11 +1471,6 @@ router.post(
   },
 );
 
-/**
- * POST /api/saas/me/2fa/enable — confirm enrolment with a live code.
- * Body: { code }. Flips totpEnabled only when the code verifies, so a
- * mistyped/desynced authenticator can never lock the user out.
- */
 router.post(
   '/me/2fa/enable',
   authenticate,
@@ -1756,11 +1505,6 @@ router.post(
   },
 );
 
-/**
- * POST /api/saas/me/2fa/disable — turn off 2FA.
- * Body: { code }. Requires a current code so a hijacked *session*
- * (without the device) can't strip 2FA.
- */
 router.post(
   '/me/2fa/disable',
   authenticate,
@@ -1792,28 +1536,12 @@ await repo.save(user);
   },
 );
 
-/**
- * DOCUMENT EDITING SERVICE FLOW (V2-XX — Edit & Print feature)
- * 
- * Flow:
- * 1. Customer uploads document with editing_required=true + editing_instructions
- * 2. PrintJob status: AWAITING_EDIT → shop picks up edit
- * 3. Shop uploads edited document via /saas/edit/:jobId/upload
- * 4. Shop marks edit complete via /saas/edit/:jobId/complete
- * 5. PrintJob status: EDIT_COMPLETE → customer reviews
- * 6. Customer confirms satisfaction via /saas/edit/:jobId/confirm
- * 7. PrintJob status: AWAITING_PAYMENT → customer pays via bank transfer
- * 8. Shop confirms payment via /saas/edit/:jobId/confirm-payment
- * 9. PrintJob status: PAID → proceeds to normal print flow (RENDERING, etc.)
- */
-
 import { DocumentEdit, DocumentEditStatus } from '../entities/documentEdit.entity';
 import { PrintJob, PrintJobStatus } from '../entities/printJob.entity';
 import { EditPricingConfig, EditComplexityTier } from '../entities/editPricingConfig.entity';
 import { notificationQueue } from '../workers/queues';
 import { etherpadService } from '../services/etherpad.service';
 
-/** POST /api/saas/edit-pricing — Create/update edit pricing config for this shop. */
 router.post(
   '/edit-pricing',
   authenticate,
@@ -1861,7 +1589,6 @@ router.post(
   },
 );
 
-/** GET /api/saas/edit-pricing — Get this shop's edit pricing config. */
 router.get(
   '/edit-pricing',
   authenticate,
@@ -1873,7 +1600,6 @@ router.get(
       const config = await repo.findOne({ where: { tenantId: tenant.id } });
 
       if (!config) {
-        // Return defaults if not configured
         res.json({
           success: true,
           data: {
@@ -1899,7 +1625,6 @@ router.get(
   },
 );
 
-/** GET /api/saas/edit-queue — List edit jobs for this shop (pending/in-progress). */
 router.get(
   '/edit-queue',
   authenticate,
@@ -1968,7 +1693,6 @@ router.get(
   },
 );
 
-/** POST /api/saas/edit/:jobId/start — Shop claims an edit job (moves to IN_PROGRESS). */
 router.post(
   '/edit/:jobId/start',
   authenticate,
@@ -1997,41 +1721,32 @@ router.post(
         return;
       }
 
-      // Update edit status
       edit.status = DocumentEditStatus.IN_PROGRESS;
       edit.editedBy = user.id;
       await editRepo.save(edit);
 
-      // Update print job status
       const job = edit.printJob;
       job.status = PrintJobStatus.AWAITING_EDIT;
       await jobRepo.save(job);
 
-      // Create Etherpad pad with original document content
       const padId = `edit-${edit.id}`;
       let editorUrl = '';
       try {
-        // Get original document text - for now use instructions + placeholder
-        // In production, you'd extract text from the PDF
         const initialText = edit.printJob.editingInstructions
           ? `Editing Instructions:\n${edit.printJob.editingInstructions}\n\n---\nOriginal Document: ${edit.printJob.fileName || 'document.pdf'}\nPages: ${edit.printJob.totalPages}\n\n[Document content would be extracted from PDF here]`
           : `Editing document: ${edit.printJob.fileName || 'document.pdf'}\nPages: ${edit.printJob.totalPages}\n\n[Document content would be extracted from PDF here]`;
 
         await etherpadService.createPad(padId, initialText);
 
-        // Build editor URL - use public URL in production
         const etherpadUrl = process.env.ETHERPAD_URL || 'http://localhost:9001';
         editorUrl = `${etherpadUrl}/p/${padId}?showControls=true&showChat=true&showLineNumbers=true&useMonospaceFont=false`;
 
-        // Store pad ID in edit record for later retrieval
         edit.editOperations = [{ type: 'etherpad_created', padId, createdAt: new Date().toISOString() }];
         await editRepo.save(edit);
       } catch (e: any) {
         console.error('[saas/edit/start] Etherpad error:', e);
-        // Don't fail if Etherpad is unavailable - shop can still edit manually
       }
 
-      // Notify customer that edit has started
       await notificationQueue.add('edit-started', {
         userId: job.userId,
         printJobId: job.id,
@@ -2047,7 +1762,6 @@ router.post(
   },
 );
 
-/** POST /api/saas/edit/:jobId/upload — Shop uploads edited document. */
 router.post(
   '/edit/:jobId/upload',
   authenticate,
@@ -2081,20 +1795,17 @@ router.post(
         return;
       }
 
-      // Update edit record
       edit.editedDocumentMeta = { pageCount: pageCount || 0, fileSize: fileSize || 0 };
       edit.editOperations = editOperations || [];
       edit.shopNotes = shopNotes || null;
       edit.status = DocumentEditStatus.PENDING_CUSTOMER;
       await editRepo.save(edit);
 
-      // Update print job
       const job = edit.printJob;
       job.editedDocumentUrl = documentUrl;
       job.status = PrintJobStatus.EDIT_COMPLETE;
       await jobRepo.save(job);
 
-      // Notify customer that edited document is ready for review
       await notificationQueue.add('edit-complete', {
         userId: job.userId,
         printJobId: job.id,
@@ -2112,7 +1823,6 @@ router.post(
   },
 );
 
-/** POST /api/saas/edit/:jobId/complete — Shop marks edit as complete (exports from Etherpad). */
 router.post(
   '/edit/:jobId/complete',
   authenticate,
@@ -2142,7 +1852,6 @@ router.post(
 
       const job = edit.printJob;
 
-      // Export from Etherpad as PDF
       const padId = `edit-${edit.id}`;
       let documentUrl = job.editedDocumentUrl;
       let pageCount = 0;
@@ -2151,19 +1860,16 @@ router.post(
       try {
         const pdfBuffer = await etherpadService.exportAsPDF(padId);
         
-        // Save PDF to file store
         const { saveBuffer } = await import('../utils/fileStore');
         const stored = await saveBuffer(pdfBuffer, `edited-${edit.printJobId}.pdf`);
         documentUrl = stored.url;
         fileSize = pdfBuffer.length;
         
-        // Estimate page count (rough: ~3KB per page for text PDF)
         pageCount = Math.max(1, Math.ceil(fileSize / 3000));
         
         edit.editedDocumentMeta = { pageCount, fileSize };
       } catch (e: any) {
         console.error('[saas/edit/complete] Etherpad export error:', e);
-        // If Etherpad export fails, require manual upload
         if (!job.editedDocumentUrl) {
           res.status(400).json({ 
             success: false, 
@@ -2184,7 +1890,6 @@ router.post(
       job.status = PrintJobStatus.EDIT_COMPLETE;
       await jobRepo.save(job);
 
-      // Notify customer
       await notificationQueue.add('edit-complete', {
         userId: job.userId,
         printJobId: job.id,
@@ -2202,7 +1907,6 @@ router.post(
   },
 );
 
-/** POST /api/saas/edit/:jobId/confirm — Customer confirms satisfaction with edited document. */
 router.post(
   '/edit/:jobId/confirm',
   authenticate,
@@ -2224,7 +1928,6 @@ router.post(
         return;
       }
 
-      // Verify ownership
       if (edit.printJob.userId !== user.id) {
         res.status(403).json({ success: false, message: 'Not authorized' });
         return;
@@ -2244,7 +1947,6 @@ router.post(
       job.status = PrintJobStatus.AWAITING_PAYMENT;
       await jobRepo.save(job);
 
-      // Notify shop that customer approved, now awaiting payment
       await notificationQueue.add('edit-approved', {
         shopId: edit.shopId,
         printJobId: job.id,
@@ -2260,7 +1962,6 @@ router.post(
   },
 );
 
-/** POST /api/saas/edit/:jobId/reject — Customer rejects edited document. */
 router.post(
   '/edit/:jobId/reject',
   authenticate,
@@ -2283,7 +1984,6 @@ router.post(
         return;
       }
 
-      // Verify ownership
       if (edit.printJob.userId !== user.id) {
         res.status(403).json({ success: false, message: 'Not authorized' });
         return;
@@ -2299,10 +1999,9 @@ router.post(
       await editRepo.save(edit);
 
       const job = edit.printJob;
-      job.status = PrintJobStatus.AWAITING_EDIT; // Back to shop for re-edit
+      job.status = PrintJobStatus.AWAITING_EDIT;
       await jobRepo.save(job);
 
-      // Notify shop that customer rejected
       await notificationQueue.add('edit-rejected', {
         shopId: edit.shopId,
         printJobId: job.id,
@@ -2318,7 +2017,6 @@ router.post(
   },
 );
 
-/** POST /api/saas/edit/:jobId/confirm-payment — Shop confirms customer has paid via bank transfer. */
 router.post(
   '/edit/:jobId/confirm-payment',
   authenticate,
@@ -2359,7 +2057,6 @@ router.post(
       job.status = PrintJobStatus.PAID;
       await jobRepo.save(job);
 
-      // Notify customer that payment confirmed, job proceeding to print
       await notificationQueue.add('edit-payment-confirmed', {
         userId: job.userId,
         printJobId: job.id,
@@ -2374,7 +2071,6 @@ router.post(
   },
 );
 
-/** GET /api/saas/edit/:jobId — Get edit job details (for shop or customer). */
 router.get(
   '/edit/:jobId',
   authenticate,
@@ -2402,7 +2098,6 @@ router.get(
         return;
       }
 
-      // Include bank details only for customer viewing payment screen
       let bankDetails = null;
       if (isCustomer && edit.printJob.status === PrintJobStatus.AWAITING_PAYMENT) {
         const pricingRepo = AppDataSource.getRepository(EditPricingConfig);
@@ -2437,7 +2132,6 @@ router.get(
           completedAt: edit.completedAt,
           createdAt: edit.createdAt,
           bankDetails,
-          // Etherpad editor URL for shop
           editorUrl: isShop && (edit.status === DocumentEditStatus.IN_PROGRESS || edit.status === DocumentEditStatus.PENDING_CUSTOMER)
             ? `${process.env.ETHERPAD_URL || 'http://localhost:9001'}/p/edit-${edit.id}?showControls=true&showChat=true&showLineNumbers=true&useMonospaceFont=false`
             : null,
@@ -2463,7 +2157,6 @@ router.get(
   },
 );
 
-// Mount editor routes
 router.use('/editor', editorRoutes);
 
 export default router;

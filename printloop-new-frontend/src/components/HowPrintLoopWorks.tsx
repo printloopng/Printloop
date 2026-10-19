@@ -1,13 +1,3 @@
-/**
- * In-app "How PrintLoop works" visual documentation (V2-37).
- *
- * Renders the marketplace flow diagrams from HOW-PRINTLOOP-WORKS.md as
- * native React/CSS — no mermaid dependency, no runtime diagram parsing.
- * Mounted as a tab inside the platform console (SUPER_ADMIN only) so
- * operators and investors have the operating model one click away.
- *
- * Pure presentational — no props, no data fetching.
- */
 
 const INK = "#1A1410";
 const PAPER = "#F8F4ED";
@@ -50,8 +40,6 @@ export default function HowPrintLoopWorks() {
     </div>
   );
 }
-
-/* ── Shared primitives ────────────────────────────────────────────── */
 
 function SectionTitle({ n, children }: { n: string; children: React.ReactNode }) {
   return (
@@ -115,8 +103,6 @@ function Arrow({ label, vertical = false }: { label?: string; vertical?: boolean
   );
 }
 
-/* ── 1. Three pillars ─────────────────────────────────────────────── */
-
 function Pillars() {
   const pillars = [
     {
@@ -157,20 +143,16 @@ function Pillars() {
   );
 }
 
-/* ── 2. Two-sided marketplace swimlanes ───────────────────────────── */
-
 function Marketplace() {
   return (
     <section>
       <SectionTitle n="1">The two-sided marketplace</SectionTitle>
       <div className="rounded-lg border-2 p-4" style={{ borderColor: INK, backgroundColor: PAPER }}>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-center">
-          {/* Demand */}
           <Lane title="DEMAND" color={PERSIMMON}>
             <Box label="User" sub="student · lecturer · business" color={PERSIMMON} filled />
           </Lane>
 
-          {/* Platform */}
           <Lane title="PRINTLOOP PLATFORM" color={INK}>
             <div className="grid grid-cols-2 gap-2 w-full">
               <Box label="Discovery" sub="map · match" color={INK} />
@@ -182,7 +164,6 @@ function Marketplace() {
             </div>
           </Lane>
 
-          {/* Supply */}
           <Lane title="SUPPLY" color={SAGE}>
             <Box label="Printshop" sub="owns printer + kiosk PC" color={SAGE} filled />
           </Lane>
@@ -217,8 +198,6 @@ function Lane({
     </div>
   );
 }
-
-/* ── 3. User journey (numbered steps) ─────────────────────────────── */
 
 function UserJourney() {
   const steps = [
@@ -264,8 +243,6 @@ function UserJourney() {
   );
 }
 
-/* ── 4. Job lifecycle state machine ───────────────────────────────── */
-
 function Lifecycle() {
   const happy = [
     { s: "PENDING", d: "created, awaiting pay" },
@@ -309,8 +286,6 @@ function Dot({ c }: { c: string }) {
   );
 }
 
-/* ── 5. Money flow ────────────────────────────────────────────────── */
-
 function MoneyFlow() {
   return (
     <section>
@@ -348,8 +323,6 @@ function RevCard({ t, d, c }: { t: string; d: string; c: string }) {
   );
 }
 
-/* ── 6. Trust loop ────────────────────────────────────────────────── */
-
 function TrustLoop() {
   return (
     <section>
@@ -380,8 +353,6 @@ function TrustLoop() {
     </section>
   );
 }
-
-/* ── 7. One-liner ─────────────────────────────────────────────────── */
 
 function OneLine() {
   return (

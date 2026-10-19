@@ -1,20 +1,3 @@
-/**
- * Office→PDF conversion E2E (V2-48) — proves the black box is wired into
- * the real upload ingest, end to end, WITHOUT needing LibreOffice.
- *
- * A stub "Gotenberg" HTTP server stands in for the converter: it accepts
- * the multipart POST the service makes and returns a known **2-page**
- * PDF. The backend is launched with DOC_CONVERTER=gotenberg pointed at
- * the stub, so a customer uploading a `.docx` exercises:
- *   gate accepts office → convertOfficeToPdf → flatten → countPages → price → job + code
- * We assert the job is created with a 6-char code AND a page count of 2
- * — which can ONLY come from the converted PDF, since the uploaded
- * "docx" bytes are gibberish a PDF parser would reject.
- *
- * Self-contained: own backend on a random port, own stub on a random
- * port, SEED_DEMO=1 (legacy tenant → offline guard skipped),
- * DISABLE_RATE_LIMIT=1, SMTP_HOST=''.
- */
 const http = require('node:http');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
@@ -30,7 +13,6 @@ function ok(m) { process.stdout.write(`ok   ${m}\n`); }
 function fail(m) { process.stdout.write(`FAIL: ${m}\n`); process.exit(1); }
 function assert(c, m) { c ? ok(m) : fail(m); }
 
-// A minimal but valid TWO-page PDF the stub converter returns.
 const TWO_PAGE_PDF = Buffer.from(
   '%PDF-1.4\n' +
   '1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n' +
@@ -47,30 +29,28 @@ async function jr(method, url, body, headers) {
     headers: { 'Content-Type': 'application/json', ...(headers || {}) },
     body: body ? JSON.stringify(body) : undefined,
   });
-  let d = null; try { d = await r.json(); } catch { /* */ }
+  let d = null; try { d = await r.json(); } catch { }
   return { status: r.status, data: d };
 }
 
 async function waitFor(url, ms = 25_000) {
   const s = Date.now();
   while (Date.now() - s < ms) {
-    try { const r = await fetch(url); if (r.ok) return true; } catch { /* */ }
+    try { const r = await fetch(url); if (r.ok) return true; } catch { }
     await new Promise((r) => setTimeout(r, 400));
   }
   return false;
 }
 
 async function main() {
-  try { fs.unlinkSync(DB_FILE); } catch { /* */ }
+  try { fs.unlinkSync(DB_FILE); } catch { }
 
-  // Stub Gotenberg: any POST → the 2-page PDF; GET /health → 200.
   let convertHits = 0;
   const stub = http.createServer((req, res) => {
     if (req.method === 'GET' && req.url === '/health') {
       res.statusCode = 200; return res.end('ok');
     }
     if (req.method === 'POST' && req.url.startsWith('/forms/libreoffice/convert')) {
-      // drain body, then return the PDF
       req.on('data', () => {});
       req.on('end', () => {
         convertHits++;
@@ -98,16 +78,15 @@ async function main() {
   server.stdout.on('data', (c) => (log += c.toString()));
   server.stderr.on('data', (c) => (log += c.toString()));
   const cleanup = () => {
-    try { server.kill('SIGKILL'); } catch { /* */ }
-    try { stub.close(); } catch { /* */ }
-    setTimeout(() => { try { fs.unlinkSync(DB_FILE); } catch { /* */ } }, 500);
+    try { server.kill('SIGKILL'); } catch { }
+    try { stub.close(); } catch { }
+    setTimeout(() => { try { fs.unlinkSync(DB_FILE); } catch { } }, 500);
   };
 
   try {
     if (!(await waitFor(`http://localhost:${PORT}/health`))) { process.stdout.write(log); fail('server boot'); }
     ok('server up');
 
-    // Register a customer on the legacy tenant.
     const email = `office-${process.pid}@example.test`;
     const reg = await jr('POST', '/customer/auth/register', {
       firstName: 'Off', lastName: 'Ice', email,
@@ -117,12 +96,9 @@ async function main() {
     assert(!!token, `register → token (${reg.status})`);
     const auth = { Authorization: `Bearer ${token}` };
 
-    // Fund the wallet.
     const topup = await jr('POST', '/wallet/top-up', { amount: 2000 }, auth);
     assert(topup.status === 200, `wallet top-up → ${topup.status}`);
 
-    // Upload a ".docx" (gibberish bytes) paying from wallet. The stub
-    // converter turns it into the 2-page PDF.
     const fd = new FormData();
     fd.set(
       'file',

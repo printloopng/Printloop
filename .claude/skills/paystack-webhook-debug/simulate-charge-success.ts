@@ -14,7 +14,7 @@ function generateChargeSuccessPayload(jobId: string, reference: string, amount: 
       domain: 'test',
       status: 'success',
       reference,
-      amount: amount * 100, // kobo
+      amount: amount * 100,
       message: null,
       gateway_response: 'Successful',
       paid_at: new Date().toISOString(),
@@ -92,7 +92,7 @@ async function main() {
 
   const jobId = process.argv[2] || 'test-job-' + Date.now();
   const reference = `JOB_${jobId}_${Date.now()}`;
-  const amount = parseInt(process.argv[3]) || 280; // ₦280 default
+  const amount = parseInt(process.argv[3]) || 280;
   const email = process.argv[4] || 'test@printloop.ng';
 
   const payload = generateChargeSuccessPayload(jobId, reference, amount, email);
@@ -113,7 +113,6 @@ async function main() {
         'Content-Type': 'application/json',
         'x-paystack-signature': signature,
       },
-      // Critical: axios must not transform the body
       transformRequest: [(data) => JSON.stringify(data)],
     });
     console.log('✅ Webhook sent successfully!');

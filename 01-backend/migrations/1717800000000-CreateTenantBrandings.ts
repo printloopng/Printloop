@@ -1,12 +1,5 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-/**
- * Per-tenant brand overrides table (Dimension 7).
- *
- * No backfill — empty branding rows are absence-of-override; the
- * frontend falls back to Tenant.name + the default palette when
- * fields are NULL.
- */
 export class CreateTenantBrandings1717800000000 implements MigrationInterface {
   name = 'CreateTenantBrandings1717800000000';
 

@@ -1,7 +1,3 @@
-/**
- * Remap leftover relative imports from the 01-backend flat layout
- * into printloop-api @/ paths after the port.
- */
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -19,7 +15,6 @@ function walk(dir, out = []) {
 }
 
 const replacements = [
-  // Relative entity / service / middleware / utils / workers / config from old flat layout
   [/from\s+['"]\.\.\/entities\/([^'"]+)['"]/g, "from '@/database/entities/$1'"],
   [/from\s+['"]\.\.\/\.\.\/entities\/([^'"]+)['"]/g, "from '@/database/entities/$1'"],
   [/from\s+['"]\.\.\/services\/([^'"]+)['"]/g, "from '@/core/services/$1'"],
@@ -33,7 +28,6 @@ const replacements = [
   [/from\s+['"]\.\.\/config['"]/g, "from '@/config'"],
   [/from\s+['"]\.\.\/\.\.\/config['"]/g, "from '@/config'"],
   [/from\s+['"]\.\.\/config\/([^'"]+)['"]/g, "from '@/config/$1'"],
-  // Dynamic import() forms
   [/import\(['"]\.\.\/entities\/([^'"]+)['"]\)/g, "import('@/database/entities/$1')"],
   [/import\(['"]\.\.\/services\/([^'"]+)['"]\)/g, "import('@/core/services/$1')"],
   [/import\(['"]\.\.\/middleware\/([^'"]+)['"]\)/g, "import('@/common/middleware/$1')"],
@@ -49,7 +43,6 @@ for (const file of walk(srcRoot)) {
   for (const [re, rep] of replacements) {
     text = text.replace(re, rep);
   }
-  // import.meta.url → __filename / __dirname (CommonJS)
   text = text.replace(
     /path\.dirname\(fileURLToPath\(import\.meta\.url\)\)/g,
     "__dirname",

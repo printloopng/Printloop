@@ -2,22 +2,6 @@ import { useEffect, useState, createContext } from "react";
 import { CONFIG } from "@/constants/config";
 import { setSentryTenant } from "@/lib/sentry";
 
-/**
- * White-label brand application (Dimension 7).
- *
- * On mount, fetches `GET /api/branding` (anonymous, tenant-resolved
- * by Host / subdomain on the backend) and:
- *   - sets `--pl-brand-primary/secondary/accent` CSS variables on
- *     :root, so any component using `var(--pl-brand-primary, #225275)`
- *     picks up the tenant's colour with a safe fallback.
- *   - sets document.title to the wordmark.
- *   - swaps the favicon when the tenant supplies one.
- *
- * Fail-soft: any error leaves the PrintLoop defaults in place. The
- * landing/apex host resolves to the legacy tenant (no overrides), so
- * the default look is preserved there.
- */
-
 interface BrandData {
   tenant: { id: string; name: string; slug: string } | null;
   branding: {
@@ -54,11 +38,8 @@ export default function BrandProvider({
         if (cancelled) return;
         setBrand(data);
         applyBrand(data);
-        // V2-36 — stamp the resolved tenant on every subsequent
-        // Sentry event so issues are filterable to a single shop.
         setSentryTenant(data.tenant?.slug ?? null);
       } catch {
-        /* keep defaults */
       }
     })();
     return () => {

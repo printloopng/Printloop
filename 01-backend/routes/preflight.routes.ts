@@ -8,17 +8,6 @@ import { authenticate } from '../middleware/auth.middleware';
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
-/**
- * POST /api/preflight/analyze
- * 
- * Analyze a document for print readiness issues.
- * Supports PDF, images, and office documents (ODT/ODP/ODS, etc.)
- * Returns issues, auto-fixes, 3D preview URL, and instant quote.
- * 
- * Body (multipart):
- * - file: PDF, image, or office document (ODT/ODP/ODS, etc.)
- * - printConfiguration: JSON string of PrintConfig
- */
 router.post('/analyze', optionalTenant, upload.single('file'), async (req: Request, res: Response) => {
   try {
     const file = req.file;
@@ -27,7 +16,6 @@ router.post('/analyze', optionalTenant, upload.single('file'), async (req: Reque
       return;
     }
 
-    // Accept PDF, images, and office documents
     const isPdf = file.mimetype.includes('pdf');
     const isImage = file.mimetype.startsWith('image/');
     const isOffice = isOfficeDocument(file.originalname || '', file.mimetype);
@@ -67,16 +55,6 @@ router.post('/analyze', optionalTenant, upload.single('file'), async (req: Reque
   }
 });
 
-/**
- * POST /api/preflight/fix
- * 
- * Apply selected auto-fixes to a document and return the fixed file.
- * Supports PDF and office documents (ODT/ODP/ODS, etc.)
- * 
- * Body (multipart):
- * - file: PDF or office document
- * - fixes: JSON array of fix types to apply
- */
 router.post('/fix', optionalTenant, upload.single('file'), async (req: Request, res: Response) => {
   try {
     const file = req.file;
@@ -87,7 +65,6 @@ router.post('/fix', optionalTenant, upload.single('file'), async (req: Request, 
 
     const isOffice = isOfficeDocument(file.originalname || '', file.mimetype);
     
-    // If it's an office document, convert to PDF first
     let pdfBuffer: Buffer;
     if (isOffice) {
       if (!conversionEnabled()) {
@@ -115,7 +92,6 @@ router.post('/fix', optionalTenant, upload.single('file'), async (req: Request, 
       return;
     }
 
-    // Map fix type strings to AutoFix objects with default values
     const { applyAutoFixes } = await import('../services/preflight.service');
     const autoFixes: AutoFix[] = fixes.map(t => ({
       type: t as AutoFix['type'],
@@ -135,12 +111,6 @@ router.post('/fix', optionalTenant, upload.single('file'), async (req: Request, 
   }
 });
 
-/**
- * POST /api/preflight/quote
- * 
- * Get instant quote without full preflight analysis.
- * Faster endpoint for pricing calculator.
- */
 router.post('/quote', optionalTenant, async (req: Request, res: Response) => {
   try {
     const { printConfig, pageCount, metadata } = req.body;
@@ -171,11 +141,6 @@ router.post('/quote', optionalTenant, async (req: Request, res: Response) => {
   }
 });
 
-/**
- * GET /api/preflight/capabilities
- * 
- * Returns supported fix types and their descriptions for UI.
- */
 router.get('/capabilities', (req: Request, res: Response) => {
   const capabilities = [
     {
@@ -239,13 +204,6 @@ router.get('/capabilities', (req: Request, res: Response) => {
   res.json({ success: true, data: capabilities });
 });
 
-/**
- * POST /api/preflight/apply-fix
- * 
- * Apply a single fix and return the fixed PDF.
- * Used for "Preview Fix" functionality.
- * Supports PDF and office documents (ODT/ODP/ODS, etc.)
- */
 router.post('/apply-fix', optionalTenant, upload.single('file'), async (req: Request, res: Response) => {
   try {
     const file = req.file;
@@ -262,7 +220,6 @@ router.post('/apply-fix', optionalTenant, upload.single('file'), async (req: Req
 
     const isOffice = isOfficeDocument(file.originalname || '', file.mimetype);
     
-    // If it's an office document, convert to PDF first
     let pdfBuffer: Buffer;
     if (isOffice) {
       if (!conversionEnabled()) {

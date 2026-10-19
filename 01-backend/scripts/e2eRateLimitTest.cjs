@@ -1,30 +1,7 @@
-/**
- * Rate-limit end-to-end (V2-28).
- *
- * Spawns its own backend on :4198 against a fresh SQLite + Redis,
- * with SEED_DEMO=1 (so there's a real admin to attempt to log in as)
- * and DISABLE_RATE_LIMIT deliberately unset (so the limiter actively
- * enforces). Then hits /api/admin/auth/login with the WRONG password
- * 6 times in quick succession:
- *
- *   attempts 1–5: 401 (loginLimiter window is 5 / minute)
- *   attempt   6:  429 + code=LOGIN_RATE_LIMIT
- *
- * If attempt 6 returns 401 instead, either the limiter isn't wired
- * (V2-28 regressed) or Redis isn't reachable (the limiter falls back
- * to a no-op when REDIS_ENABLED is false). Both are failure modes
- * we want CI to catch loudly.
- *
- * Requires REDIS_URL pointing at a reachable Redis (default
- * redis://localhost:6379). In CI the GitHub Actions Redis service
- * container provides one; locally you need `docker run -p 6379:6379
- * redis` or similar.
- */
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 
-// Random high port — see e2eDiscoveryTest.cjs for the rationale.
 const PORT = 5000 + Math.floor(Math.random() * 4000);
 const B = `http://localhost:${PORT}/api`;
 const DB_FILE = path.resolve(
@@ -58,7 +35,6 @@ async function jr(method, url, body) {
   try {
     d = await r.json();
   } catch {
-    /* ignore */
   }
   return { status: r.status, data: d };
 }
@@ -70,7 +46,6 @@ async function waitFor(url, timeoutMs = 25_000) {
       const r = await fetch(url);
       if (r.ok) return true;
     } catch {
-      /* not up */
     }
     await new Promise((r) => setTimeout(r, 400));
   }
@@ -78,8 +53,6 @@ async function waitFor(url, timeoutMs = 25_000) {
 }
 
 async function probeRedis() {
-  // Simple TCP probe (we don't want a node-redis dep in this CJS
-  // script). Connect to host:port from REDIS_URL.
   const u = new URL(REDIS_URL);
   const net = require('node:net');
   return new Promise((resolve) => {
@@ -99,9 +72,6 @@ async function probeRedis() {
 }
 
 async function main() {
-  // Without Redis the limiter silently no-ops (graceful degrade by
-  // design — see middleware/rateLimit.middleware.ts). That makes
-  // this test meaningless, so refuse to run.
   const redisUp = await probeRedis();
   if (!redisUp) {
     process.stdout.write(
@@ -115,7 +85,6 @@ async function main() {
   try {
     fs.unlinkSync(DB_FILE);
   } catch {
-    /* ok */
   }
 
   const env = {
@@ -125,7 +94,6 @@ async function main() {
     SEED_DEMO: '1',
     REDIS_URL,
   };
-  // Crucial: this must NOT be set or the limiter no-ops.
   env.DISABLE_RATE_LIMIT = '';
   env.DISABLE_REDIS = '0';
 
@@ -143,13 +111,11 @@ async function main() {
     try {
       server.kill('SIGKILL');
     } catch {
-      /* ignore */
     }
     setTimeout(() => {
       try {
         fs.unlinkSync(DB_FILE);
       } catch {
-        /* ignore */
       }
     }, 500);
   };
@@ -162,9 +128,6 @@ async function main() {
     }
     ok('server up on test port');
 
-    // Hit login 6 times with a deliberately bad password. The first
-    // 5 should be 401 (invalid credentials); the 6th should be the
-    // limiter kicking in with 429.
     const attempts = [];
     for (let i = 1; i <= 6; i++) {
       const r = await jr('POST', '/admin/auth/login', {
@@ -175,20 +138,12 @@ async function main() {
     }
     process.stdout.write(JSON.stringify(attempts) + '\n');
 
-    // First 5 must be 401 (auth route's "invalid credentials"). If
-    // any of them were 429 already, the limiter is too tight (or our
-    // Redis key collided with a previous run — but a fresh DB +
-    // fresh server keying by 'global:login:IP' should be clean).
     for (let i = 0; i < 5; i++) {
       assert(
         attempts[i].status === 401,
         `attempt ${i + 1}: 401 invalid credentials (got ${attempts[i].status})`,
       );
     }
-    // Attempt 6 MUST be 429 with our specific code. If it's 401, the
-    // limiter never engaged → either V2-28 regressed, the limiter
-    // failed open under Redis pressure, or DISABLE_RATE_LIMIT leaked
-    // into the child env.
     assert(
       attempts[5].status === 429,
       `attempt 6: 429 LOGIN_RATE_LIMIT (got ${attempts[5].status})`,

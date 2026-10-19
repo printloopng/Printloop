@@ -1,9 +1,5 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-/**
- * V2-54 — marketing blog. Platform-wide posts, tenant-owned, surfaced
- * publicly when PUBLISHED.
- */
 export class CreateBlogPosts1720200000000 implements MigrationInterface {
   name = 'CreateBlogPosts1720200000000';
 

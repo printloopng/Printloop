@@ -2,29 +2,13 @@ import { AppDataSource } from '../config/database';
 import { Transaction, TransactionType } from '../entities/transaction.entity';
 import { PrintJob } from '../entities/printJob.entity';
 
-/**
- * Dimension 10 — Abuse & fraud limits (replaces plan-limit enforcement).
- *
- * No monthly plans = no plan limits. But we still need guard rails
- * to prevent a single tenant or customer from soaking platform
- * resources (S3 bandwidth, DB rows, Paystack API calls) or brute-forcing
- * pickup codes.
- *
- * Each limit is keyed by tenantId (where applicable) so Tenant A's
- * abuse never affects Tenant B.
- */
-
 export const ABUSE_LIMITS = {
-  /** Max bytes a tenant can upload in 24h (default 5 GB). */
   UPLOAD_BYTES_24H: 5 * 1024 * 1024 * 1024,
 
-  /** Max pickup-code attempts per customer per hour (default 30). */
   PICKUP_ATTEMPTS_PER_HOUR: 30,
 
-  /** Min commission revenue before we flag a tenant as "abandoned" (₦0 = no flag). */
   MIN_COMMISSION_30D: 0,
 
-  /** Max file size per upload (50 MB). */
   MAX_FILE_SIZE: 50 * 1024 * 1024,
 } as const;
 
@@ -48,10 +32,6 @@ export interface CommissionHealthResult {
   threshold: number;
 }
 
-/**
- * Check if a tenant's upload would exceed the 24h byte limit.
- * If allowed, tentatively reserves the bytes (caller must confirm or release).
- */
 export async function checkUploadLimit(
   tenantId: string,
   fileSize: number,
@@ -59,10 +39,6 @@ export async function checkUploadLimit(
   const uploadRepo = AppDataSource.getRepository(Transaction);
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-  // Sum all upload-related transactions in the last 24h for this tenant.
-  // We use TOPUP transactions as a proxy for uploads since every upload
-  // creates a print job which creates a payment. For a more precise
-  // measure we'd add an `upload_bytes` column to print_jobs or files.
   const row = await uploadRepo
     .createQueryBuilder('tx')
     .select(
@@ -74,11 +50,10 @@ export async function checkUploadLimit(
     .andWhere('tx.type = :type', { type: TransactionType.TOPUP })
     .getRawOne<{ total: string }>();
 
-  const used = Math.round(row ? Number(row.total) * 100 : 0); // approximate bytes from naira
+  const used = Math.round(row ? Number(row.total) * 100 : 0);
   const limit = ABUSE_LIMITS.UPLOAD_BYTES_24H;
   const allowed = used + fileSize <= limit;
 
-  // Next midnight UTC
   const resetAt = new Date();
   resetAt.setUTCHours(24, 0, 0, 0);
 
@@ -90,19 +65,9 @@ export async function checkUploadLimit(
   };
 }
 
-/**
- * Record that an upload of `fileSize` bytes actually happened.
- * Called after the file is successfully stored.
- */
 export async function recordUpload(tenantId: string, fileSize: number): Promise<void> {
-  // In a production implementation, we'd write to a dedicated
-  // `tenant_upload_bytes` table with a TTL. For now, the check
-  // uses TOPUP as a proxy; if we need precision, add the column.
 }
 
-/**
- * Check pickup-code attempts for a specific customer in the last hour.
- */
 export async function checkPickupLimit(
   tenantId: string,
   customerUserId: string,
@@ -134,10 +99,6 @@ export async function checkPickupLimit(
   };
 }
 
-/**
- * Check if a tenant's commission revenue over the last 30 days is
- * below the sanity threshold. If so, alert platform admins.
- */
 export async function checkCommissionHealth(
   tenantId: string,
 ): Promise<CommissionHealthResult> {
@@ -165,9 +126,6 @@ export async function checkCommissionHealth(
   };
 }
 
-/**
- * Validate file size before accepting upload.
- */
 export function validateFileSize(fileSize: number): { valid: boolean; message?: string } {
   if (fileSize > ABUSE_LIMITS.MAX_FILE_SIZE) {
     return {

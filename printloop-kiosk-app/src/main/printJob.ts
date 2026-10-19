@@ -1,12 +1,6 @@
 import { kioskApi, unwrap, apiErrorMessage } from './api';
 import { pollNow } from './jobPoller';
 
-/*
- * Walk-up flow: the customer types their pickup code, sees the job, taps
- * Print. "Print" releases the job to this kiosk (READY → RELEASING); the
- * job poller then claims and prints it like any other released job.
- */
-
 export interface PrintJobData {
   jobId: string;
   code: string;
@@ -24,7 +18,6 @@ export interface PrintJobData {
 export async function fetchPrintJob(code: string): Promise<PrintJobData> {
   try {
     const api = kioskApi();
-    // validate-code enforces READY + pickup limits; get-job returns details.
     await api.post('/printer/validate-code', { code });
     const res = await api.post('/printer/get-job', { code });
     const data = unwrap<any>(res.data);
@@ -41,7 +34,6 @@ export async function releasePrintJob(code: string): Promise<{ mode: 'kiosk-pull
   try {
     const res = await kioskApi().post('/printer/complete', { code });
     const data = unwrap<any>(res.data);
-    // cloud-push: the API already sent it to the printer and marked it done.
     if (data?.mode !== 'kiosk-pull') return { mode: 'cloud-push' };
     pollNow();
     return { mode: 'kiosk-pull' };

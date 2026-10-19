@@ -1,21 +1,3 @@
-/**
- * End-to-end: kiosk-pull architecture.
- *
- * Proves the new agent-pull pipeline:
- *   customer upload (READY) → /printer/complete (RELEASING) →
- *   /agent/jobs/ready (visible) → /agent/start (PRINTING) →
- *   /agent/file (byte-exact download) → /agent/complete (DONE)
- *
- * Unlike e2ePrintTest / e2eCustomerTest this does NOT need
- * virtualPrinter.cjs — the agent is the thing doing dispatch, and
- * we're testing the cloud half of the contract. The agent's own
- * IPP/raw-9100 dispatch is the same code as the backend's, already
- * exercised by the other tests.
- *
- * Pre-req: dev backend running on :4000.
- *
- *   node scripts/e2eAgentPullTest.cjs
- */
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { PDFDocument, StandardFonts } = require('pdf-lib');
@@ -23,7 +5,6 @@ const { PDFDocument, StandardFonts } = require('pdf-lib');
 try {
   require('dotenv').config({ path: path.resolve(__dirname, '..', '.env') });
 } catch (e) {
-  // ignore
 }
 
 const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
@@ -63,7 +44,6 @@ async function fetchBytes(url, headers) {
 }
 
 (async () => {
-  // 1. Generate a small PDF whose bytes we can compare end-to-end.
   const pdf = await PDFDocument.create();
   const pg = pdf.addPage([595, 842]);
   const font = await pdf.embedFont(StandardFonts.HelveticaBold);
@@ -73,7 +53,6 @@ async function fetchBytes(url, headers) {
   const srcHash = sha(srcBytes);
   console.log(`1. PDF ${srcBytes.length}B sha ${srcHash.slice(0, 12)}…`);
 
-  // 2. Customer register → JWT.
   const email = `pull${Date.now()}@printloop.test`;
   const reg = await j('POST', '/customer/auth/register', {
     firstName: 'Pull', lastName: 'Tester', email, phoneNumber: '+2348000000124', password: 'Passw0rd!',
@@ -87,7 +66,6 @@ async function fetchBytes(url, headers) {
   await topUpWallet(userId, 1000);
   console.log(`   Topped up wallet for user ${userId} with ₦1000`);
 
-  // 3. Multipart upload (real customer single-file path).
   const fd = new FormData();
   fd.append('file', new Blob([srcBytes], { type: 'application/pdf' }), 'pull.pdf');
   fd.append('fileName', 'pull.pdf');
@@ -104,7 +82,6 @@ async function fetchBytes(url, headers) {
   if (!code || !jobId) throw new Error(`upload failed: ${cr.status} ${JSON.stringify(cj)}`);
   console.log(`3. PrintJob created — code=${code} id=${jobId.slice(0, 8)}… (${cr.status})`);
 
-  // 4. Admin: ensure a kiosk + flip printDispatchMode to kiosk-pull.
   const al = await j('POST', '/admin/auth/login', { email: 'admin@printloop.test', password: 'Admin1234!' });
   const AH = { Authorization: `Bearer ${al.data?.data?.tokens?.accessToken}` };
   const ks = await j('GET', '/admin/kiosks', null, AH);
@@ -112,58 +89,44 @@ async function fetchBytes(url, headers) {
   const rk = await j('POST', `/admin/kiosks/${k.id}/regenerate-key`, {}, AH);
   const kioskKey = rk.data?.data?.kiosk?.apiKey;
   if (!kioskKey) throw new Error('no kiosk key');
-  // Switch to kiosk-pull mode for this test, restore at the end.
   const patchRes = await j('PATCH', '/admin/settings/printDispatchMode', { value: 'kiosk-pull' }, AH);
   console.log(`PATCH /admin/settings/printDispatchMode status: ${patchRes.status}`, patchRes.data);
   console.log(`4. Kiosk "${k.name}" key=${kioskKey.slice(0, 10)}…, printDispatchMode=kiosk-pull`);
 
-  // Wait for settings cache TTL (printPolicy.service caches for 20s).
-  // For the test we don't want to sleep 20s, so the FIRST call after
-  // the PATCH may still see 'cloud-push' — restart the backend or wait.
-  // Cheaper: poll the agent endpoint until it sees the job, with a
-  // longer ceiling that accommodates the cache.
   await new Promise((r) => setTimeout(r, 21_000));
 
-  // 5. Release at the kiosk — should mark RELEASING, NOT dispatch.
   const rel = await j('POST', '/printer/complete', { code }, { 'X-Kiosk-Key': kioskKey });
   console.log(`5. /printer/complete → ${rel.status} mode=${rel.data?.data?.mode} status=${rel.data?.data?.status}`);
   if (rel.status !== 200 || rel.data?.data?.status !== 'releasing') {
     console.log('   ❌ Expected status=releasing in kiosk-pull mode.');
   }
 
-  // 6. Agent polls /jobs/ready.
   const ready = await j('GET', '/agent/jobs/ready', null, { 'X-Kiosk-Key': kioskKey });
   const jobs = ready.data?.data?.jobs || [];
   const ours = jobs.find((x) => x.id === jobId);
   console.log(`6. /agent/jobs/ready → ${ready.status}  jobs=${jobs.length}  has-our-job=${!!ours}`);
   if (!ours) {
     console.log('   ❌ Our job not in the ready list.');
-    // Try restoring mode and exit.
     await j('PATCH', '/admin/settings/printDispatchMode', { value: 'cloud-push' }, AH);
     process.exit(1);
   }
   const item = ours.items?.[0];
   console.log(`   item.fileName=${item?.fileName} downloadUrl?=${!!item?.downloadUrl}`);
 
-  // 7. Agent claims the job atomically.
   const claim = await j('POST', `/agent/jobs/${ours.id}/start`, {}, { 'X-Kiosk-Key': kioskKey });
   console.log(`7. /agent/start → ${claim.status}`);
 
-  // 8. Agent downloads bytes via signed URL — byte-exact?
   const dl = await fetchBytes(item.downloadUrl);
   const dlHash = sha(dl.bytes);
   const exact = dl.bytes.length === srcBytes.length && dlHash === srcHash;
   console.log(`8. download ${dl.bytes.length}B sha ${dlHash.slice(0, 12)}…  ${exact ? '✅ BYTE-EXACT' : '❌ MISMATCH'}`);
 
-  // 9. Agent reports complete.
   const done = await j('POST', `/agent/jobs/${ours.id}/complete`, {}, { 'X-Kiosk-Key': kioskKey });
   console.log(`9. /agent/complete → ${done.status} success=${done.data?.success}`);
 
-  // 10. Race-claim check: a SECOND /start must 409, not 200.
   const race = await j('POST', `/agent/jobs/${ours.id}/start`, {}, { 'X-Kiosk-Key': kioskKey });
   console.log(`10. second /agent/start → ${race.status}  ${race.status === 409 ? '✅ correctly rejected' : '❌ expected 409'}`);
 
-  // 11. Restore the setting so other tests don't pick up kiosk-pull mode.
   await j('PATCH', '/admin/settings/printDispatchMode', { value: 'cloud-push' }, AH);
   console.log('11. Restored printDispatchMode=cloud-push.');
 

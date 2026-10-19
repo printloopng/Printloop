@@ -13,16 +13,6 @@ import {
   type OperatorKiosk,
 } from "@/store/services/saasApi";
 
-/**
- * `/saas/operator/printers` — self-service printer/kiosk management
- * (V2-39, the turnkey console). Shop owners add/remove printers, confirm
- * a test print, and pair the kiosk PC by scanning a QR — no support
- * ticket, no PowerShell config typing. Mirrors what EFI's M600 does at
- * onboarding, but in a web console.
- */
-
-// The cloud base URL the on-site agent should poll. Derived from the
-// configured API base; the agent appends /api/agent/* itself.
 function cloudBaseUrl(): string {
   try {
     const u = new URL(CONFIG.apiBaseUrl, window.location.origin);
@@ -32,7 +22,6 @@ function cloudBaseUrl(): string {
   }
 }
 
-/** Pairing payload the kiosk installer scans. */
 function pairingPayload(kioskId: string, apiKey: string): string {
   const base = cloudBaseUrl();
   return `printloop://pair?base=${encodeURIComponent(base)}&kiosk=${encodeURIComponent(
@@ -49,8 +38,6 @@ export default function OperatorPrintersPage() {
   const [del] = useDeleteKioskMutation();
 
   const [form, setForm] = useState({ name: "", location: "", printerName: "" });
-  // Pairing modal: { kioskId, apiKey } — apiKey only known right after
-  // create / regenerate (the API never re-discloses it).
   const [pairing, setPairing] = useState<{
     id: string;
     name: string;
@@ -132,7 +119,6 @@ export default function OperatorPrintersPage() {
         </Link>
       </div>
 
-      {/* Add printer */}
       <form
         onSubmit={onCreate}
         className="border-2 border-ink rounded-pl p-4 sm:p-5 bg-paper-light space-y-3"
@@ -183,7 +169,6 @@ export default function OperatorPrintersPage() {
         </button>
       </form>
 
-      {/* Printer list */}
       <div className="space-y-3">
         {isLoading && (
           <p className="text-fog text-sm pl-serif italic">Loading printers…</p>
@@ -213,7 +198,6 @@ export default function OperatorPrintersPage() {
         ))}
       </div>
 
-      {/* Pairing modal */}
       {pairing && (
         <PairingModal
           name={pairing.name}
@@ -265,9 +249,6 @@ function KioskRow({
               <> · last seen {new Date(k.lastSeenAt).toLocaleString()}</>
             )}
           </div>
-          {/* V2-44: hardware truth, auto-discovered over IPP by the
-              agent. Only shown once the agent has reported (null =
-              unknown = say nothing rather than guess). */}
           {(k.capColor != null || k.capDuplex != null || k.capA3 != null) && (
             <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
               {k.capColor != null && (

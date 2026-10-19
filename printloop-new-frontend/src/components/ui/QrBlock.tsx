@@ -4,18 +4,13 @@ import { Download, Share2 } from "lucide-react";
 import { toast } from "sonner";
 
 type Props = {
-  /** The payload encoded in the QR (a link, printloop:// uri, etc.) */
   value: string;
-  /** Big human-readable text under the QR (e.g. the code) */
   caption?: string;
-  /** Small label above the buttons */
   label?: string;
   size?: number;
-  /** Download/share file name (no extension) */
   fileName?: string;
 };
 
-/** Renders the SVG QR to a padded PNG blob (white background). */
 async function toPng(svg: SVGSVGElement, size: number): Promise<Blob> {
   const xml = new XMLSerializer().serializeToString(svg);
   const svg64 = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(xml)));
@@ -67,7 +62,6 @@ export default function QrBlock({ value, caption, label, size = 150, fileName = 
       const blob = await toPng(svg, size);
       const file = new File([blob], `${fileName}.png`, { type: "image/png" });
       const nav = navigator as any;
-      // Prefer sharing the actual image + link so it can be sent to others
       if (nav.canShare && nav.canShare({ files: [file] })) {
         await nav.share({
           files: [file],

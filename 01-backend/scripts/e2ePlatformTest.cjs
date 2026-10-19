@@ -1,18 +1,3 @@
-/* Platform console + impersonation end-to-end (V2-19).
- *
- * Proves the Dimension 11 surface works against the live backend:
- *   1. super_admin logs in → JWT carries role + memberships.
- *   2. GET /api/platform/tenants returns the tenant list.
- *   3. A non-super_admin (customer) is refused (403 NOT_PLATFORM_ADMIN).
- *   4. Suspend a target tenant → status flips; resolveTenant would 403
- *      it (we assert the row status via the list).
- *   5. Reactivate → status back to active.
- *   6. Impersonate → token carries the `impersonating` claim and a
- *      synthetic owner membership for the target tenant.
- *
- * Run (backend must be listening on :4000):
- *   node scripts/e2ePlatformTest.cjs
- */
 const B = 'http://localhost:4000/api';
 
 async function jr(method, url, body, headers) {
@@ -49,7 +34,6 @@ function assert(cond, msg) {
 }
 
 (async () => {
-  // 1. super_admin login.
   const login = await jr('POST', '/admin/auth/login', {
     email: 'admin@printloop.test',
     password: 'Admin1234!',
@@ -62,14 +46,11 @@ function assert(cond, msg) {
   assert(Array.isArray(claims?.memberships), 'JWT carries memberships[]');
   const auth = { Authorization: `Bearer ${token}` };
 
-  // 2. List tenants.
   const list = await jr('GET', '/platform/tenants?limit=100', null, auth);
   assert(list.status === 200, `GET /platform/tenants (got ${list.status})`);
   const tenants = list.data?.data?.items || [];
   assert(tenants.length >= 1, `tenant list non-empty (${tenants.length})`);
 
-  // 3. Non-admin is refused. Register a throwaway customer, then hit
-  //    the platform route with their token.
   const cust = await jr('POST', '/customer/auth/register', {
     firstName: 'Plat',
     lastName: 'Probe',
@@ -90,8 +71,6 @@ function assert(cond, msg) {
     console.log(`skip customer-refusal check (register got ${cust.status})`);
   }
 
-  // 4. Pick a target tenant that isn't the legacy one (so suspending it
-  //    can't lock the admin out of their own legacy-scoped data).
   const target = tenants.find((t) => t.slug !== 'legacy') || tenants[0];
   console.log(`-> target tenant: ${target.slug} (${target.status})`);
 
@@ -110,7 +89,6 @@ function assert(cond, msg) {
   const t2 = (afterSuspend.data?.data?.items || []).find((t) => t.id === target.id);
   assert(t2?.status === 'suspended', 'target is suspended after suspend');
 
-  // 5. Reactivate.
   const react = await jr(
     'POST',
     `/platform/tenants/${target.id}/reactivate`,
@@ -122,7 +100,6 @@ function assert(cond, msg) {
   const t3 = (afterReact.data?.data?.items || []).find((t) => t.id === target.id);
   assert(t3?.status === 'active', 'target is active after reactivate');
 
-  // 6. Impersonate → token carries the claim + synthetic membership.
   const imp = await jr(
     'POST',
     `/platform/tenants/${target.id}/impersonate?ttl=600`,
@@ -147,8 +124,6 @@ function assert(cond, msg) {
     'impersonation token has synthetic owner membership for target',
   );
 
-  // 7. The impersonation token actually grants tenant access: hit
-  //    /api/saas/me with it + the target's slug.
   const me = await jr('GET', '/saas/me', null, {
     Authorization: `Bearer ${impToken}`,
     'X-Tenant-Slug': target.slug,

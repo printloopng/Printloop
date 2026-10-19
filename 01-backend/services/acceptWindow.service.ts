@@ -8,23 +8,6 @@ import { computeCommissionSplit } from './commission.service';
 import { applyTransactionDelta } from './tenantBalance.service';
 import { scheduledQueue } from '../workers/queues';
 
-// ─────────────────────────────────────────────────────────────────────────
-// Accept window (V2-58) — the Bolt-style reliability mechanic.
-//
-// A paid job for a marketplace shop enters `awaiting_accept`. The
-// operator has ACCEPT_WINDOW_MS to accept it from the shop console;
-// the delayed `accept-window` BullMQ job then:
-//   1. reroutes the job to the NEXT NEAREST open shop with an online
-//      kiosk (reversing the original shop's ledger credit — the money
-//      follows the job), re-arming a fresh window for the new shop; or
-//   2. auto-accepts (READY) when no other shop can take it — the
-//      customer is never blocked waiting on a dead shop.
-//
-// The accepting shop is credited on accept (`acceptJob`) when the job
-// was rerouted to it; the original shop's credit was reversed at
-// reroute time, so money moves exactly once per shop.
-// ─────────────────────────────────────────────────────────────────────────
-
 export const ACCEPT_WINDOW_MS = 2 * 60 * 1000;
 
 const ONLINE_WINDOW_MS = 5 * 60 * 1000;
@@ -41,11 +24,6 @@ function haversineKm(a: { lat: number; lng: number }, b: { lat: number; lng: num
   return 2 * R * Math.asin(Math.sqrt(s));
 }
 
-/**
- * Nearest open marketplace shops that could take the job: discoverable,
- * ACTIVE, not closed, not the job's current tenant, with an online
- * kiosk — ordered by distance from the current tenant.
- */
 export async function findRerouteCandidates(
   job: PrintJob,
   limit = 5,
@@ -101,7 +79,6 @@ export async function findRerouteCandidates(
     .slice(0, limit);
 }
 
-/** Reverse a tenant's ledger credit for a job (reroute money-back). */
 export async function reverseJobCredit(
   tenantId: string,
   job: PrintJob,
@@ -119,7 +96,6 @@ export async function reverseJobCredit(
   }
 }
 
-/** Credit a tenant for a job it accepted after reroute. */
 export async function creditJobToTenant(
   tenantId: string,
   job: PrintJob,
@@ -159,11 +135,6 @@ export async function creditJobToTenant(
   }
 }
 
-/**
- * The delayed accept-window job body. Called ~2 minutes after the job
- * entered awaiting_accept: reroute to the next nearest open shop, or
- * auto-accept when nobody can take it.
- */
 export async function enforceAcceptWindow(
   printJobId: string,
 ): Promise<{
@@ -190,12 +161,8 @@ export async function enforceAcceptWindow(
 
   job.tenantId = next.id;
   job.reroutedFromTenantId = fromTenantId;
-  // The job stays awaiting_accept — the new shop accepts it (and gets
-  // credited on accept).
   await AppDataSource.getRepository(PrintJob).save(job);
 
-  // Re-arm the window for the new shop (best-effort; the job is still
-  // visible + acceptable in the new shop's queue regardless).
   try {
     await scheduledQueue.add(
       'accept-window',
@@ -214,11 +181,6 @@ export async function enforceAcceptWindow(
   return { action: 'rerouted', toTenantId: next.id };
 }
 
-/**
- * Operator accept (from the shop console). awaiting_accept → READY,
- * and — when the job was rerouted to this shop — credits its ledger
- * (the original shop's credit was reversed at reroute time).
- */
 export async function acceptJob(printJobId: string): Promise<{
   accepted: boolean;
   reason?: string;

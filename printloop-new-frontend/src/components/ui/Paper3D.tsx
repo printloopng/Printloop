@@ -1,28 +1,8 @@
 import { useEffect, useRef } from "react";
 import { useScrollScrub } from "@/components/ui/scrollFx";
 
-/**
- * Paper3D (V2-45) — a CSS-3D stack of printed sheets that turns on a
- * turntable as you scroll while the top proof lifts off toward the
- * viewer. Real perspective + `transform-style: preserve-3d`, GPU-
- * composited, NO WebGL/Three.js — chosen to stay smooth on a low-end
- * campus Android. Paper only, no printer.
- *
- *   • scroll position (useScrollScrub, 0..1 as the scene crosses the
- *     viewport) drives BOTH the turntable rotateY and the top sheet's
- *     lift — that's the "3D scroll".
- *   • depth comes from sheets layered in Z (a receding stack), not a
- *     fake drop shadow.
- *   • fine pointer (desktop) leans the stage toward the cursor; inert
- *     on touch + reduced motion (where useScrollScrub fires once at
- *     p=1 → finished state, static).
- *
- * Per-frame work is direct style mutation via refs — no React
- * re-renders inside the scroll/pointer loop.
- */
-
-const SW = 152; // sheet width
-const SH = 210; // sheet height (≈ √2 A-series ratio)
+const SW = 152;
+const SH = 210;
 
 const reduced = () =>
   typeof window !== "undefined" &&
@@ -42,21 +22,19 @@ export default function Paper3D() {
   const apply = () => {
     const p = progress.current;
 
-    // Turntable: −20° → +20° across the scroll, plus pointer lean.
     const ry = -20 + p * 40 + tilt.current.x;
     const rx = 15 + tilt.current.y;
     if (stageRef.current) {
       stageRef.current.style.transform = `rotateX(${rx.toFixed(2)}deg) rotateY(${ry.toFixed(2)}deg)`;
     }
 
-    // Top sheet peels up off the stack and forward toward the viewer.
     const e = clamp01((p - 0.05) / 0.8);
     const ease = 1 - Math.pow(1 - e, 3);
     if (topRef.current) {
-      const ty = -ease * 120; // lifts up off the stack
-      const tz = 12 + ease * 70; // already proud of the stack, comes forward
-      const rxS = -ease * 12; // leans its top edge back toward the viewer
-      const rzS = -ease * 5; // slight peel skew
+      const ty = -ease * 120;
+      const tz = 12 + ease * 70;
+      const rxS = -ease * 12;
+      const rzS = -ease * 5;
       topRef.current.style.transform =
         `translate(-50%,-50%) translateY(${ty.toFixed(1)}px) translateZ(${tz.toFixed(1)}px) rotateX(${rxS.toFixed(1)}deg) rotateZ(${rzS.toFixed(1)}deg)`;
     }
@@ -72,7 +50,6 @@ export default function Paper3D() {
     apply();
   });
 
-  // Pointer lean (fine-pointer only; off on touch + reduced motion).
   useEffect(() => {
     const el = scrubRef.current;
     if (!el) return;
@@ -99,7 +76,6 @@ export default function Paper3D() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // The receding stack behind the top sheet — pure Z-depth.
   const backSheets = [1, 2, 3];
 
   return (
@@ -119,7 +95,6 @@ export default function Paper3D() {
           transition: "transform 120ms linear",
         }}
       >
-        {/* Floor contact shadow under the stack. */}
         <div
           ref={shadowRef}
           className="pl-face"
@@ -134,7 +109,6 @@ export default function Paper3D() {
           }}
         />
 
-        {/* Receding stack (back → front), each pushed deeper in Z. */}
         {backSheets.map((i) => (
           <div
             key={i}
@@ -154,7 +128,6 @@ export default function Paper3D() {
           </div>
         ))}
 
-        {/* The top sheet — the live proof, lifts off on scroll. */}
         <div
           ref={topRef}
           className="pl-face border-2 border-ink rounded-sm overflow-hidden"

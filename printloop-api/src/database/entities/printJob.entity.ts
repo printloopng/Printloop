@@ -13,13 +13,13 @@ import { File } from './file.entity';
 import { Kiosk } from './kiosk.entity';
 
 export enum PrintJobStatus {
-  PENDING = 'pending', // created, awaiting payment (e.g. group-batch participant jobs)
+  PENDING = 'pending',
   RENDERING = 'rendering',
   AWAITING_ACCEPT = 'awaiting_accept',
-  READY = 'ready', // paid + rendered, awaiting release at a kiosk
+  READY = 'ready',
   RELEASING = 'releasing',
   PRINTING = 'printing',
-  DONE = 'done', // printed / completed
+  DONE = 'done',
   FAILED = 'failed',
   EXPIRED = 'expired',
   REFUNDED = 'refunded',
@@ -46,7 +46,6 @@ export class PrintJob {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  
   @Column({ type: 'uuid', nullable: true })
   tenantId: string | null;
 
@@ -76,11 +75,9 @@ export class PrintJob {
   @Column({ type: 'decimal', precision: 10, scale: 2 })
   cost: number;
 
-  
   @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
   finalCost: number | null;
 
-  
   @Column({ type: 'datetime', nullable: true })
   costReconciledAt: Date | null;
 
@@ -124,15 +121,12 @@ export class PrintJob {
   @Column({ type: 'uuid', nullable: true })
   kioskId: string;
 
-  
   @Column({ type: 'uuid', nullable: true })
   printerProfileId: string | null;
 
-  
   @Column({ type: 'boolean', default: false })
   requiresAccept: boolean;
 
-  
   @Column({ type: 'uuid', nullable: true })
   reroutedFromTenantId: string | null;
 
@@ -151,7 +145,6 @@ export class PrintJob {
   @Column({ type: 'int', default: 0 })
   pagesCompleted: number;
 
-  
   @Column({ type: 'varchar', length: 64, nullable: true })
   agentConfirmation: string | null;
 
@@ -180,7 +173,6 @@ export class PrintJob {
   @Column({ type: 'datetime', nullable: true })
   renderingCompletedAt: Date | null;
 
-  
   @Column({ type: 'varchar', length: 128, nullable: true })
   idempotencyKey: string | null;
 

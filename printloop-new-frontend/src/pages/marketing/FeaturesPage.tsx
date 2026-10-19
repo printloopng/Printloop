@@ -4,12 +4,6 @@ import { PublicHeader } from "@/components/layout/PublicHeader";
 import { EditorialFooter } from "@/components/layout/EditorialFooter";
 import { Counter, Reveal } from "@/components/ui/scrollFx";
 
-/**
- * Marketing Features page (V2-54), modelled on the smartedu.ng
- * feature-section rhythm: hero → alternating feature blocks with a
- * stats/visual column → closing CTA. All editorial-brutalist.
- */
-
 const FEATURES: {
   n: string;
   label: string;
@@ -93,7 +87,6 @@ function FeatureBlock({ f, flip }: { f: (typeof FEATURES)[number]; flip: boolean
         </Reveal>
       </div>
 
-      {/* Visual column — a stamped "paper card" so the page needs no images. */}
       <div className={flip ? "lg:order-1" : ""}>
         <Reveal variant="rise">
           <div className="border-4 border-ink bg-paper-light p-6 sm:p-8 shadow-[6px_6px_0_#1A1410] relative">

@@ -1,8 +1,3 @@
-/**
- * `/saas/closed` — landing state after a tenant owner closes their
- * account. Plain, final, with a support contact for reversal during
- * the 30-day cooling-off window.
- */
 export default function ClosedPage() {
   return (
     <div className="max-w-md mx-auto p-12 text-center">

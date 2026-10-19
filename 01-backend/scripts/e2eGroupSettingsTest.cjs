@@ -1,5 +1,3 @@
-/* Group batch: two participants pick DIFFERENT settings → one batch code →
-   kiosk prints both byte-exact, each with its own settings. */
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
@@ -36,7 +34,6 @@ const run = (db, sql, args) =>
   const want = new Set([sha(a), sha(b)]);
   console.log(`1. 2 PDFs — A ${a.length}B/${sha(a).slice(0,10)}  B ${b.length}B/${sha(b).slice(0,10)}`);
 
-  // 2. Guest session, host does NOT enforce → participants choose their own
   const deadline = new Date(Date.now() + 2 * 864e5).toISOString();
   const host = 'grp-host-' + Date.now();
   const c = await j('POST', '/groups', {
@@ -47,7 +44,6 @@ const run = (db, sql, args) =>
   const sessionId = c.data?.data?.session?.id;
   console.log(`2. Session shareId=${shareId}`);
 
-  // 3. Two participants, different settings
   const join = async (name, email) => {
     const r = await j('POST', `/groups/${shareId}/join`, { name, email });
     return r.data?.data?.uploadToken;
@@ -64,18 +60,15 @@ const run = (db, sql, args) =>
     { 'X-Upload-Token': t2 });
   console.log('3. P1 bw/single, P2 color/double uploaded');
 
-  // 4. Mark participants PAID (no guest-payment rail yet — test harness)
   const db = new sqlite3.Database(DB);
   const n = await run(db, "UPDATE group_participants SET status='PAID' WHERE groupSessionId=?", [sessionId]);
   db.close();
   console.log(`4. Marked ${n} participants PAID`);
 
-  // 5. Host closes → batch code
   const cl = await j('POST', `/groups/${sessionId}/close`, { hostId: host });
   const batchCode = cl.data?.data?.batchCode;
   console.log(`5. Closed → batchCode=${batchCode}`);
 
-  // 6. Admin → kiosk at virtual printer
   const al = await j('POST', '/admin/auth/login', { email: 'admin@printloop.test', password: 'Admin1234!' });
   const AH = { Authorization: `Bearer ${al.data?.data?.tokens?.accessToken}` };
   const ks = await j('GET', '/admin/kiosks', null, AH);
@@ -86,7 +79,6 @@ const run = (db, sql, args) =>
   await j('PATCH', '/admin/settings/ippPort', { value: '6310' }, AH);
   await j('PATCH', '/admin/settings/ippSecure', { value: 'false' }, AH);
 
-  // 7. Release the batch
   const before = new Set(fs.existsSync(PRINTED) ? fs.readdirSync(PRINTED) : []);
   const rel = await j('POST', '/printer/complete-batch', { code: batchCode }, { 'X-Kiosk-Key': kioskKey });
   console.log(`6. /printer/complete-batch → ${rel.status} printed=${rel.data?.data?.printed}/${rel.data?.data?.total} transport=${rel.data?.data?.transport}`);

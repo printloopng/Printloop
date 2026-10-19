@@ -8,7 +8,7 @@ export interface PrintOptions {
   
   sided?: 'single' | 'double';
   color?: 'bw' | 'color';
-  paper?: string; // A4 | A3 | Letter | Legal
+  paper?: string;
   
   orientation?: 'portrait' | 'landscape';
   
@@ -100,7 +100,6 @@ export class IppService {
       const b64 = src.base64.replace(/^data:.*?;base64,/, '');
       return Buffer.from(b64, 'base64');
     }
-    // Only documents PrintLoop stored itself (see loadDocumentBytes).
     return loadDocumentBytes(src.url || '');
   }
 
@@ -133,7 +132,6 @@ export class IppService {
     return attrs;
   }
 
-  
   async printJob(
     printerIp: string,
     source: PrintSource,
@@ -175,7 +173,6 @@ export class IppService {
     });
   }
 
-  
   async rawPrint(
     printerIp: string,
     source: PrintSource,
@@ -213,7 +210,7 @@ export class IppService {
       `@PJL SET RESOLUTION=${resolution}`,
       `@PJL SET ECONOMODE=${economy ? 'ON' : 'OFF'}`,
       `@PJL ENTER LANGUAGE=PDF`,
-      '', // blank line then PDF body
+      '',
     ];
     const prologue = Buffer.from(pjl.join('\r\n'));
     const epilogue = Buffer.from('\r\n' + UEL);
@@ -244,7 +241,6 @@ export class IppService {
     });
   }
 
-  
   async lprPrint(
     printerIp: string,
     source: PrintSource,
@@ -331,7 +327,6 @@ export class IppService {
     });
   }
 
-  
   async emailPrint(
     printerEmail: string,
     source: PrintSource,
@@ -366,7 +361,6 @@ export class IppService {
     return { email: true, transport: 'email', success };
   }
 
-  
   private async openSocket(host: string, port: number): Promise<net.Socket> {
     const proxy = process.env.TS_SOCKS5_PROXY;
     if (!proxy) {
@@ -389,7 +383,6 @@ export class IppService {
     return socket as net.Socket;
   }
 
-  
   async checkPrinterStatus(
     printerIp: string,
     opts: PrintOptions = {}

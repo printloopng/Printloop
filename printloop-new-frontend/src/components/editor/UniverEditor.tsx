@@ -49,7 +49,6 @@ export function UniverEditor({
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [versions, setVersions] = useState<DocumentVersion[]>([]);
 
-  // Initialize Univer
   useEffect(() => {
     if (!containerRef.current || !token || !initialDocument) return;
 
@@ -58,7 +57,6 @@ export function UniverEditor({
         setIsLoading(true);
         setSaveStatus('saving');
 
-        // Dynamic import Univer modules
         const [
           { Univer },
           { UniverDocsPlugin },
@@ -77,14 +75,12 @@ export function UniverEditor({
           import('@univerjs/slides-ui'),
         ]);
 
-        // Create Univer instance
         const univer = new Univer({
           locale: LocaleType.EN_US,
           theme: defaultTheme,
           darkMode: false,
         });
 
-        // Register plugins based on document type
         const docType = initialDocument.type || 'doc';
         setDocumentType(docType);
 
@@ -99,7 +95,6 @@ export function UniverEditor({
           univer.registerPlugin(UniverSlidesUIPlugin);
         }
 
-        // Load initial document
         if (initialDocument.data) {
           const unitType = docType === 'doc' ? UniverInstanceType.UNIVER_DOC : docType === 'sheet' ? UniverInstanceType.UNIVER_SHEET : UniverInstanceType.UNIVER_SLIDE;
           univer.createUnit(unitType, {
@@ -108,7 +103,6 @@ export function UniverEditor({
           });
         }
 
-        // Store instance
         univerInstanceRef.current = { univer, docUnitId: initialDocument.id };
 
         setIsLoading(false);
@@ -123,11 +117,9 @@ export function UniverEditor({
     initUniver();
 
     return () => {
-      // Cleanup
     };
   }, [token, initialDocument]);
 
-  // Save snapshot
   const saveSnapshot = useCallback(async () => {
     try {
       console.log('[UniverEditor] Snapshot saved');
@@ -137,7 +129,6 @@ export function UniverEditor({
     }
   }, []);
 
-  // Handle export
   const handleExport = useCallback(async (format: 'pdf' | 'pwg') => {
     try {
       console.log('[UniverEditor] Export requested:', format);
@@ -147,7 +138,6 @@ export function UniverEditor({
     }
   }, [onExport]);
 
-  // Loading state
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-full min-h-[500px]">
@@ -170,7 +160,6 @@ export function UniverEditor({
 
   return (
     <div className="flex flex-col h-full min-h-[500px] border-2 border-ink rounded-pl bg-paper">
-      {/* Toolbar */}
       <div className="border-b-2 border-ink bg-paper-light p-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3 flex-wrap">
           <span className="editorial-label hidden sm:inline">
@@ -215,7 +204,6 @@ export function UniverEditor({
         </div>
       </div>
 
-      {/* Editor container */}
       <div
         ref={containerRef}
         className="flex-1 relative min-h-0"
@@ -237,9 +225,7 @@ export function UniverEditor({
         </div>
       </div>
 
-      {/* Main content area with optional version history sidebar */}
       <div className="flex-1 flex relative min-h-0" style={{ height: 'calc(100% - 120px)' }}>
-        {/* Editor container */}
         <div
           ref={containerRef}
           className={`flex-1 relative min-h-0 transition-all duration-300 ${showVersionHistory ? 'pr-96' : ''}`}
@@ -261,7 +247,6 @@ export function UniverEditor({
           </div>
         </div>
 
-        {/* Version History Sidebar */}
         {showVersionHistory && (
           <div className="absolute right-0 top-0 bottom-0 w-full max-w-[24rem] sm:w-96 bg-paper border-l-2 border-ink shadow-[-8px_0_16px_-4px_rgba(26,20,16,0.15)] animate-slide-in z-20 lg:absolute lg:static lg:w-96 lg:border-l-2 lg:shadow-none lg:bg-transparent">
             <VersionHistory
@@ -274,7 +259,6 @@ export function UniverEditor({
         )}
       </div>
 
-      {/* Save status indicator */}
       <div className={`border-t-2 border-ink px-4 py-2.5 flex items-center justify-between ${
         saveStatus === 'saving' ? 'bg-ochre/10' : saveStatus === 'error' ? 'bg-persimmon/10' : 'bg-sage/10'
       }`}>

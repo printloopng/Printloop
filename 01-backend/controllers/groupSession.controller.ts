@@ -7,7 +7,6 @@ import { GroupSessionStatus } from '../entities/groupSession.entity';
 const groupService = new GroupSessionService();
 const qrService = new QRCodeService();
 
-/** Host identity: a signed-in user, or a client-held guest host id. */
 function hostIdOf(req: Request): string | undefined {
   return (
     (req as any).user?.id ||
@@ -17,7 +16,6 @@ function hostIdOf(req: Request): string | undefined {
   );
 }
 
-/** POST /api/groups — create a session (guest hosts allowed) */
 export const createGroupSession = async (req: Request, res: Response): Promise<void> => {
   try {
     const { groupName, deadline, sharedSettings, defaultOptions, watermarkPrefix } = req.body || {};
@@ -28,8 +26,6 @@ export const createGroupSession = async (req: Request, res: Response): Promise<v
     const hostId = hostIdOf(req) || crypto.randomUUID();
     const result = await groupService.createSession({
       hostId,
-      // Stamp the resolved tenant onto the session so every
-      // participant PrintJob created downstream inherits it.
       tenantId: req.tenant?.id ?? null,
       groupName,
       deadline: new Date(deadline),
@@ -43,7 +39,7 @@ export const createGroupSession = async (req: Request, res: Response): Promise<v
         session: result.session,
         shareUrl: result.shareUrl,
         shareId: result.shareId,
-        hostId, // client stores this to manage the session later
+        hostId,
       },
     });
   } catch (error: any) {
@@ -52,7 +48,6 @@ export const createGroupSession = async (req: Request, res: Response): Promise<v
   }
 };
 
-/** GET /api/groups/share/:shareId — public join-page lookup */
 export const getSessionByShareId = async (req: Request, res: Response): Promise<void> => {
   try {
     const session = await groupService.getSessionByShareId(req.params.shareId);
@@ -82,7 +77,6 @@ export const getSessionByShareId = async (req: Request, res: Response): Promise<
   }
 };
 
-/** POST /api/groups/:shareId/join — public, optional auth */
 export const joinSession = async (req: Request, res: Response): Promise<void> => {
   try {
     const { shareId } = req.params;
@@ -124,7 +118,6 @@ export const joinSession = async (req: Request, res: Response): Promise<void> =>
   }
 };
 
-/** GET /api/groups/:id — host dashboard (guest host via ?hostId=) */
 export const getHostSessionDetails = async (req: Request, res: Response): Promise<void> => {
   try {
     const hostId = hostIdOf(req);
@@ -144,7 +137,6 @@ export const getHostSessionDetails = async (req: Request, res: Response): Promis
   }
 };
 
-/** GET /api/groups — list a host's sessions (guest host via ?hostId=) */
 export const listHostSessions = async (req: Request, res: Response): Promise<void> => {
   try {
     const hostId = hostIdOf(req);
@@ -160,7 +152,6 @@ export const listHostSessions = async (req: Request, res: Response): Promise<voi
   }
 };
 
-/** POST /api/groups/:id/close — close + generate batch token */
 export const closeSession = async (req: Request, res: Response): Promise<void> => {
   try {
     const hostId = hostIdOf(req);

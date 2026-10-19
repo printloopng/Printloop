@@ -31,7 +31,6 @@ vi.mock('../config/redis', () => {
   };
 });
 
-// Mock SMS and Email services to avoid timeouts
 vi.mock('../services/sms.service', () => {
   return {
     SMSService: vi.fn().mockImplementation(() => ({
@@ -64,7 +63,7 @@ const run = Date.now();
 describe('Accept window (V2-58)', () => {
   let shopA: Tenant;
   let shopB: Tenant;
-  let shopC: Tenant; // fresh tenant for the ledger-reversal test (no cross-test contamination)
+  let shopC: Tenant;
   let customer: User;
   let wallet: Wallet;
 
@@ -174,7 +173,6 @@ describe('Accept window (V2-58)', () => {
       }),
     );
 
-    // Shop B has an online kiosk (NODE_ENV=test → always online).
     await AppDataSource.getRepository(Kiosk).save(
       AppDataSource.getRepository(Kiosk).create({
         tenantId: shopB.id,
@@ -184,8 +182,6 @@ describe('Accept window (V2-58)', () => {
       }),
     );
 
-    // Deactivate any seed rows, then seed the only active A4/bw pricing
-    // cell so the render callback reconciles 5 pages @ ₦100 = ₦500.
     await AppDataSource.getRepository(PricingConfig)
       .createQueryBuilder()
       .update()
@@ -220,17 +216,14 @@ describe('Accept window (V2-58)', () => {
     expect(res.success).toBe(true);
 
     const fresh = await AppDataSource.getRepository(PrintJob).findOne({ where: { id: job.id } });
-    // Render enqueued (mocked) → RENDERING; requiresAccept stamped.
     expect(fresh!.requiresAccept).toBe(true);
     expect(fresh!.status).toBe(PrintJobStatus.RENDERING);
-    // Accept window armed.
     expect(mockScheduledAdd).toHaveBeenCalledWith(
       'accept-window',
       { printJobId: job.id },
       expect.objectContaining({ delay: 120_000, jobId: `accept-window:${job.id}` }),
     );
 
-    // Render completes → lands in awaiting_accept (not READY).
     const cb = await applyRenderResult({
       printJobId: job.id,
       renderedKey: `renders/${shopA.id}/${job.id}.pwg`,
@@ -246,12 +239,10 @@ describe('Accept window (V2-58)', () => {
   });
 
   it('an unaccepted job reroutes to the nearest open shop and reverses the ledger', async () => {
-    // Fresh shop so the ledger starts at zero regardless of earlier tests.
     const job = await makeJob(shopC.id, { status: PrintJobStatus.AWAITING_ACCEPT });
     job.requiresAccept = true;
     await AppDataSource.getRepository(PrintJob).save(job);
 
-    // Shop C was credited at payment; simulate that ledger entry.
     const { applyTransactionDelta } = await import('../services/tenantBalance.service');
     await applyTransactionDelta(shopC.id, 500, 50);
     expect(await balanceOf(shopC.id)).toBe(450);
@@ -265,7 +256,6 @@ describe('Accept window (V2-58)', () => {
     expect(fresh!.reroutedFromTenantId).toBe(shopC.id);
     expect(fresh!.status).toBe(PrintJobStatus.AWAITING_ACCEPT);
 
-    // Shop C's credit was reversed (450 → 0); window re-armed for B.
     expect(await balanceOf(shopC.id)).toBe(0);
     expect(mockScheduledAdd).toHaveBeenCalledWith(
       'accept-window',
@@ -286,12 +276,10 @@ describe('Accept window (V2-58)', () => {
     expect(fresh!.status).toBe(PrintJobStatus.READY);
     expect(fresh!.reroutedFromTenantId).toBeNull();
 
-    // The accepting shop gets the credit (500 - 10% = 450 net).
     expect(await balanceOf(shopB.id)).toBe(450);
   });
 
   it('auto-accepts when no other shop can take the job', async () => {
-    // A job on shop A, but make shop B closed so no candidate exists.
     const bRepo = AppDataSource.getRepository(Tenant);
     const b = await bRepo.findOne({ where: { id: shopB.id } });
     b!.availability = 'closed';

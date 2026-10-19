@@ -53,7 +53,6 @@ export function AutoFixPanel({ fixes, selectedFixes, onToggle, onApply, isApplyi
 
   return (
     <div className="space-y-4">
-      {/* Header */}
       <Reveal variant="wipe">
         <div className="flex items-center justify-between mb-4">
           <div>
@@ -88,7 +87,6 @@ export function AutoFixPanel({ fixes, selectedFixes, onToggle, onApply, isApplyi
         </div>
       </Reveal>
 
-      {/* Fix Cards */}
       <Reveal variant="rise" delay={100}>
         <div className="space-y-3">
           {fixes.map((fix, idx) => {
@@ -140,7 +138,6 @@ export function AutoFixPanel({ fixes, selectedFixes, onToggle, onApply, isApplyi
         </div>
       </Reveal>
 
-          {/* Apply Button */}
           <Reveal variant="fade" delay={200}>
             <div className="border-t-2 border-ink pt-4">
               <div className="flex items-center justify-between">

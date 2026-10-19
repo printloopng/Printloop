@@ -7,13 +7,6 @@ import {
   useDeletePrinterProfileMutation,
 } from "@/store/services/adminApi";
 
-/**
- * Admin printer profiles (V2-56). Each profile declares what a
- * physical printer can do (DPI cap, mono-or-colour, paper size,
- * duplex). The tenant's DEFAULT profile drives cloud renders — the
- * worker rasterizes at the machine's capability, never above it.
- */
-
 const DRIVERS = ["unknown", "hplip", "gutenprint", "ps", "gs", "retrofit"];
 const DPIS = [100, 300, 600];
 const PAPERS = ["A4", "A3", "LETTER", "LEGAL"];

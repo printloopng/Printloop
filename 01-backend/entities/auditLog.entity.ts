@@ -16,9 +16,6 @@ export class AuditLog {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  /** Owning tenant of the audited event. Platform-level actions (e.g.
-   *  the SaaS operator suspending a tenant) carry the targeted tenant's
-   *  id here, not the platform's. NULL only for boot / migration logs. */
   @Column({ type: 'uuid', nullable: true })
   tenantId: string | null;
 
@@ -30,16 +27,16 @@ export class AuditLog {
   actor: User;
 
   @Column({ type: 'varchar', length: 100 })
-  actorName: string; // Denormalized in case user is soft-deleted
+  actorName: string;
 
   @Column({ type: 'varchar', length: 100 })
-  action: string; // e.g., 'user.promoted', 'pricing.updated'
+  action: string;
 
   @Column({ type: 'varchar', length: 255, nullable: true })
-  target: string; // e.g., 'user:uuid', 'pricing:global'
+  target: string;
 
   @Column({ type: 'simple-json', nullable: true })
-  detail: any; // Before/after JSON
+  detail: any;
 
   @Column({ type: 'varchar', length: 45, nullable: true })
   ipAddress: string;

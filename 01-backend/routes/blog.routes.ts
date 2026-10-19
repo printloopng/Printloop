@@ -4,12 +4,6 @@ import { BlogPost, BlogPostStatus } from '../entities/blogPost.entity';
 
 const router = Router();
 
-/**
- * Public blog (V2-54). No auth — powers the marketing site's
- * /blog page and /blog/:slug reader. Only PUBLISHED posts surface;
- * drafts are invisible outside the admin console.
- */
-
 function serialize(post: BlogPost) {
   return {
     id: post.id,
@@ -25,10 +19,6 @@ function serialize(post: BlogPost) {
   };
 }
 
-/**
- * GET /api/blog?limit=&offset=
- * Newest published posts first.
- */
 router.get('/', async (req: Request, res: Response) => {
   try {
     const limit = Math.min(50, Math.max(1, Number(req.query.limit) || 20));
@@ -50,9 +40,6 @@ router.get('/', async (req: Request, res: Response) => {
   }
 });
 
-/**
- * GET /api/blog/:slug — one published post.
- */
 router.get('/:slug', async (req: Request, res: Response) => {
   try {
     const repo = AppDataSource.getRepository(BlogPost);

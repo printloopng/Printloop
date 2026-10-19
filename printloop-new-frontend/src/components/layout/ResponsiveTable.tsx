@@ -1,43 +1,22 @@
 import type { ReactNode } from "react";
 
 export interface ResponsiveColumn<T> {
-  /** Short label for the column header. Shows in the table head AND in
-   *  the mobile card as the row's left-side label. */
   label: string;
-  /** Cell renderer. Receives the row and returns whatever JSX you want. */
   cell: (row: T) => ReactNode;
-  /** Hide this column on the phone-card form. Useful for redundant info
-   *  already encoded in the row title (e.g. the row's primary code). */
   hideOnMobile?: boolean;
-  /** Optional text-align hint for the desktop table cell. */
   align?: "left" | "right" | "center";
 }
 
 interface ResponsiveTableProps<T> {
   columns: ResponsiveColumn<T>[];
   rows: T[];
-  /** Unique key per row. */
   rowKey: (row: T) => string;
-  /** Phone-card title: a short, scan-friendly summary of the row
-   *  (e.g. the job code). Falls back to the first column's cell. */
   mobileTitle?: (row: T) => ReactNode;
-  /** Phone-card optional trailing content (status pill, chevron). */
   mobileTrailing?: (row: T) => ReactNode;
-  /** Optional row click handler — wraps the row in a button. */
   onRowClick?: (row: T) => void;
-  /** Shown when `rows` is empty. */
   emptyState?: ReactNode;
 }
 
-/**
- * Renders a tabular list as:
- *   - a traditional <table> on tablet+ (md:)
- *   - a stack of phone-friendly cards on small screens
- *
- * Phone cards show `mobileTitle` on top, then a labelled key/value
- * grid for the remaining (non-hidden) columns. Same data, mobile-
- * shaped layout.
- */
 export function ResponsiveTable<T>({
   columns,
   rows,
@@ -59,7 +38,6 @@ export function ResponsiveTable<T>({
 
   return (
     <>
-      {/* Desktop / tablet table */}
       <div className="hidden md:block border-2 border-ink rounded-lg overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-ink text-paper">
@@ -99,7 +77,6 @@ export function ResponsiveTable<T>({
         </table>
       </div>
 
-      {/* Mobile cards */}
       <ul className="md:hidden flex flex-col gap-3">
         {rows.map((row) => {
           const Wrapper = onRowClick ? "button" : "div";

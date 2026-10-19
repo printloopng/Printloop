@@ -28,7 +28,7 @@ const RESERVED_SLUGS = new Set<string>([
   'dashboard',
 ]);
 
-const SLUG_RE = /^[a-z][a-z0-9-]{1,28}[a-z0-9]$/; // 3–30 chars, lowercase, no leading/trailing dash.
+const SLUG_RE = /^[a-z][a-z0-9-]{1,28}[a-z0-9]$/;
 
 const OWNER_PRIVILEGES: string[] = Object.values(Permission).filter(
   (p) => p !== Permission.SUPER_ADMIN,

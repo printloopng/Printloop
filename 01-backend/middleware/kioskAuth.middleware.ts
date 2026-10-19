@@ -2,7 +2,6 @@ import { Request, Response, NextFunction } from 'express';
 import { AppDataSource } from '../config/database';
 import { Kiosk, KioskStatus } from '../entities/kiosk.entity';
 
-// Extend Express Request to include kiosk
 declare global {
   namespace Express {
     interface Request {
@@ -11,20 +10,12 @@ declare global {
   }
 }
 
-/**
- * Middleware to authenticate kiosk requests via X-Kiosk-Key header
- * 
- * Usage:
- * import { kioskAuth } from '../middleware/kioskAuth.middleware';
- * router.post('/printer/validate-code', kioskAuth, validateCode);
- */
 export const kioskAuth = async (
   req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
-    // Extract API key from header
     const apiKey = req.headers['x-kiosk-key'] as string;
 
     if (!apiKey) {
@@ -36,7 +27,6 @@ export const kioskAuth = async (
       return;
     }
 
-    // Lookup kiosk by API key
     const kioskRepository = AppDataSource.getRepository(Kiosk);
     const kiosk = await kioskRepository.findOne({
       where: { apiKey },
@@ -51,7 +41,6 @@ export const kioskAuth = async (
       return;
     }
 
-    // Check if kiosk is disabled
     if (kiosk.status === KioskStatus.DISABLED) {
       res.status(403).json({
         success: false,
@@ -61,7 +50,6 @@ export const kioskAuth = async (
       return;
     }
 
-    // Check if kiosk is in maintenance mode
     if (kiosk.status === KioskStatus.MAINTENANCE) {
       res.status(503).json({
         success: false,
@@ -71,11 +59,9 @@ export const kioskAuth = async (
       return;
     }
 
-    // Update last seen timestamp
     kiosk.lastSeenAt = new Date();
     await kioskRepository.save(kiosk);
 
-    // Attach kiosk to request object
     req.kiosk = kiosk;
 
     next();

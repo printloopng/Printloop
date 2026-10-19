@@ -24,16 +24,6 @@ interface WatermarkJobData {
   participantName: string;
 }
 
-/**
- * PDF Watermarking Worker
- * 
- * Process:
- * 1. Fetch PDF from Cloudinary
- * 2. Open with pdf-lib
- * 3. Stamp watermarkId at bottom-right of every page
- * 4. Re-upload to Cloudinary as new file
- * 5. Update File entity with watermarkedUrl
- */
 export const watermarkWorker = new Worker<WatermarkJobData>(
   'watermark-pdf',
   async (job: Job<WatermarkJobData>) => {
@@ -48,19 +38,16 @@ export const watermarkWorker = new Worker<WatermarkJobData>(
       throw new Error(`File ${fileId} not found`);
     }
 
-    // Step 1: Download PDF
     const response = await axios.get(file.fileURL, {
       responseType: 'arraybuffer',
       timeout: 30000,
     });
     const pdfBytes = Buffer.from(response.data);
 
-    // Step 2: Load PDF with pdf-lib
     const pdfDoc = await PDFDocument.load(pdfBytes);
     const pages = pdfDoc.getPages();
     const helveticaFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
-    // Step 3: Stamp watermark on every page
     const watermarkText = watermarkId;
     const fontSize = 10;
     const padding = 20;
@@ -69,20 +56,18 @@ export const watermarkWorker = new Worker<WatermarkJobData>(
       const { width, height } = page.getSize();
       const textWidth = helveticaFont.widthOfTextAtSize(watermarkText, fontSize);
 
-      // Bottom-right corner
       page.drawText(watermarkText, {
         x: width - textWidth - padding,
         y: padding,
         size: fontSize,
         font: helveticaFont,
-        color: rgb(0.4, 0.4, 0.4), // Grey
+        color: rgb(0.4, 0.4, 0.4),
         opacity: 0.6,
       });
     }
 
     const watermarkedBytes = await pdfDoc.save();
 
-    // Step 4: Upload watermarked version to Cloudinary
     const uploadResult = await new Promise<any>((resolve, reject) => {
       cloudinary.uploader
         .upload_stream(
@@ -100,10 +85,7 @@ export const watermarkWorker = new Worker<WatermarkJobData>(
         .end(Buffer.from(watermarkedBytes));
     });
 
-    // Step 5: Update File entity with watermarked URL
     await fileRepo.update(file.id, {
-      // Store original in case we need it; new field would need to be added
-      // For now, we add watermarkedUrl as a new column
       ...(({ watermarkedUrl: uploadResult.secure_url } as any)),
     });
 

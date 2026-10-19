@@ -1,13 +1,3 @@
-/* Promotion concurrency end-to-end:
- *   - admin creates a promo with maxUses=3
- *   - 10 concurrent customer prints redeem the same code
- *   - DB usageCount MUST end at exactly 3 (no overshoot)
- *   - the 3rd-to-last redemption that wins gets a discount; the rest get
- *     {discount:0, reason:'exhausted'} and pay full price
- *
- * Proves the bounds-check vs increment race in promotion.service.ts is
- * closed by the conditional UPDATE.
- */
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
@@ -48,8 +38,6 @@ async function jr(method, url, body, headers) {
 }
 
 (async () => {
-  // 1. Admin login → create promo (maxUses=3, 50% off so the discount is
-  //    obvious in the cost).
   const al = await jr('POST', '/admin/auth/login', {
     email: 'admin@printloop.test', password: 'Admin1234!',
   });
@@ -76,7 +64,6 @@ async function jr(method, url, body, headers) {
   const promoId = promo.data?.data?.promotion?.id;
   console.log(`1. Created promo ${code} maxUses=3 → id=${promoId?.slice(0, 8)}… (${promo.status})`);
 
-  // 2. Register 10 customers + multipart bodies.
   const pdf = await PDFDocument.create();
   const pg = pdf.addPage([595, 842]);
   pg.drawText('promo race', { x: 60, y: 760, size: 20, font: await pdf.embedFont(StandardFonts.HelveticaBold) });
@@ -99,7 +86,6 @@ async function jr(method, url, body, headers) {
   );
   console.log(`2. Registered ${users.filter(Boolean).length}/10 customers`);
 
-  // 3. Fire 10 parallel uploads, each redeeming the promo.
   const fire = (jwt) => {
     const fd = new FormData();
     fd.append('file', new Blob([bytes], { type: 'application/pdf' }), 'race.pdf');
@@ -124,17 +110,12 @@ async function jr(method, url, body, headers) {
     console.error('Errors:', results.map(x => x?.message || x));
   }
 
-  // 4. Inspect the promo row — usageCount must be 3, not 4+.
   const row = await sqlGet(`SELECT usageCount FROM promotions WHERE id = ?`, [promoId]);
   const usage = Number(row?.usageCount ?? -1);
   console.log(`4. DB usageCount=${usage} (expect 3) ${usage === 3 ? 'PASS' : 'FAIL'}`);
 
-  // 5. Sanity-check the costs. The test uploads 1 page · 1 copy · A4 color
-  //    simplex 300dpi. Matrix lookup → ₦200/page → ₦200 baseline. The 50%
-  //    discount uses Math.floor → ₦100. The 3 redemptions that win the
-  //    race pay ₦100; the other 7 pay full ₦200.
   const full = 200;
-  const discounted = full - Math.floor((full * 50) / 100); // 100
+  const discounted = full - Math.floor((full * 50) / 100);
   const discountedCount = results.filter((x) => x?.data?.job?.cost === discounted).length;
   const fullCount = results.filter((x) => x?.data?.job?.cost === full).length;
   console.log(`5. discounted ₦${discounted}: ${discountedCount} jobs · full ₦${full}: ${fullCount} jobs`);

@@ -1,9 +1,7 @@
 import { z } from 'zod';
 
 export const agentPollBodySchema = z.object({
-  // Jobs the kiosk still holds (printing, or awaiting a complete/failed ack).
   inFlight: z.array(z.string().uuid()).max(50).optional(),
-  // How many new jobs to claim this tick; 0 = just report in (busy / printer down).
   max: z.number().int().min(0).max(5).optional(),
 });
 

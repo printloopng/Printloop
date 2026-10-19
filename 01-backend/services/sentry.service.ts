@@ -23,11 +23,9 @@ export function initSentry(): void {
       nodeProfilingIntegration(),
     ],
     beforeSend(event, hint) {
-      // Filter out known noisy errors in development
       if (config.app.env !== 'production') {
         const error = hint.originalException;
         if (error instanceof Error) {
-          // Skip validation errors, auth errors, etc.
           if (error.message.includes('ValidationError') ||
               error.message.includes('Unauthorized') ||
               error.message.includes('RATE_LIMIT')) {

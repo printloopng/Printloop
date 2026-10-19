@@ -2,13 +2,6 @@ import { Router, type Request, type Response } from 'express';
 
 const router = Router();
 
-/**
- * GET /api/legal/dpa
- *
- * Data Processing Agreement (DPA) — public read.
- * Returns the DPA as plain text (Markdown) for display or PDF generation.
- * Standard DPA covering GDPR Art. 28 + NDPR requirements.
- */
 router.get('/dpa', async (req: Request, res: Response) => {
   const dpa = `# PrintLoop Data Processing Agreement
 
@@ -189,13 +182,6 @@ privacy@printloop.ng
   res.send(dpa);
 });
 
-/**
- * GET /api/legal/terms
- * GET /api/legal/privacy
- *
- * Serve the same content as the public /terms and /privacy pages
- * for API consumers / PDF generation.
- */
 router.get('/terms', async (req: Request, res: Response) => {
   const terms = `# PrintLoop Terms of Service
 

@@ -6,13 +6,7 @@ export default {
       colors: {
         ink: "#1A1410",
         paper: "#F8F4ED",
-        // Existing canonical surface tokens — kept.
         "paper-light": "#FFFEFA",
-        // New evolved-direction surfaces:
-        //   paper-deep — slightly darker paper for soft borders / dividers
-        //                on raised surfaces. Replaces ink/10 hairlines.
-        //   paper-warm — mid paper tone for chrome (browser frame, code
-        //                inline backgrounds, summary strips).
         "paper-deep": "#EEE7D9",
         "paper-warm": "#FBF6EC",
         persimmon: "#D14B2C",
@@ -28,25 +22,16 @@ export default {
       letterSpacing: {
         editorial: "0.2em",
       },
-      // ── Evolved-direction motion + form tokens ─────────────────────────
-      // The expressive ease (overshoot-free spring) is the new default for
-      // softer hover/lift interactions; `ease-snap` stays available for
-      // tight tap targets.
       transitionTimingFunction: {
         expressive: "cubic-bezier(0.16, 1, 0.3, 1)",
         snap: "cubic-bezier(0.4, 0, 0.2, 1)",
       },
-      // Larger radii — the redesign's softer language. Use `rounded-pl*`
-      // alongside the existing rounded-md / rounded-lg where intended.
       borderRadius: {
         "pl-sm": "8px",
         pl: "12px",
         "pl-lg": "16px",
         "pl-xl": "24px",
       },
-      // Soft drop shadows (NOT hard offsets). The shipped `5px 5px 0` hard
-      // shadows remain in any explicit inline `box-shadow:` strings;
-      // everything that uses `shadow-soft*` gets the new look.
       boxShadow: {
         soft: "0 6px 16px rgba(26,20,16,0.08), 0 2px 4px rgba(26,20,16,0.06)",
         "soft-md": "0 12px 28px rgba(26,20,16,0.12), 0 4px 10px rgba(26,20,16,0.08)",
@@ -78,7 +63,6 @@ export default {
           from: { opacity: "0", transform: "translateY(4px)" },
           to: { opacity: "1", transform: "translateY(0)" },
         },
-        // New: gentler entrance with a longer drift; for hero sections.
         "rise-in": {
           from: { opacity: "0", transform: "translateY(12px)" },
           to: { opacity: "1", transform: "translateY(0)" },

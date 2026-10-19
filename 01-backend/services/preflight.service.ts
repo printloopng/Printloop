@@ -19,7 +19,7 @@ export interface AutoFix {
   description: string;
   confidence: number;
   affectedPages: number[];
-  estimatedSizeIncrease: number; // bytes
+  estimatedSizeIncrease: number;
 }
 
 export interface PreflightResult {
@@ -77,7 +77,7 @@ export interface ShopMatch {
   shopId: string;
   shopName: string;
   distanceKm: number;
-  capabilityMatch: number; // 0-1
+  capabilityMatch: number;
   estimatedTurnaroundHrs: number;
   price: number;
   rating: number;
@@ -86,19 +86,14 @@ export interface ShopMatch {
 const MIN_DPI = 150;
 const RECOMMENDED_DPI = 300;
 const BLEED_MM = 3;
-const BLEED_PT = BLEED_MM * 2.83465; // 1mm = 2.83465pt
+const BLEED_PT = BLEED_MM * 2.83465;
 
-/**
- * Main preflight analysis entry point
- * Supports PDF, images, and office documents (ODT/ODP/ODS, etc.)
- */
 export async function analyzePreflight(
   fileBuffer: Buffer,
   fileName: string,
   mimeType: string,
   printConfig: PrintConfig
 ): Promise<PreflightResult> {
-  // Check if it's an office document that needs conversion
   const isOffice = isOfficeDocument(fileName, mimeType);
   const officeConversionEnabled = conversionEnabled();
   
@@ -106,12 +101,10 @@ export async function analyzePreflight(
     if (!conversionEnabled()) {
       throw new Error('Office document conversion is not enabled on this server. Please upload a PDF instead.');
     }
-    // Convert office document to PDF first
     const pdfBuffer = await convertOfficeToPdf(fileBuffer, fileName);
     return await analyzePreflightPdf(fileBuffer, fileName, printConfig);
   }
   
-  // For PDF and images, analyze directly
   return await analyzePreflightPdf(fileBuffer, fileName, printConfig);
 }
 
@@ -122,11 +115,9 @@ async function analyzePreflightPdf(
 ): Promise<PreflightResult> {
   const fileHash = createHash('sha256').update(pdfBuffer).digest('hex');
   
-  // Check cache first
   const cached = await getCachedPreflight(fileHash);
   if (cached) return cached;
 
-  // Parse PDF structure
   const pdfDoc = await PDFDocument.load(pdfBuffer);
   const pdfParse = require('pdf-parse');
   const parseResult = await pdfParse(pdfBuffer);
@@ -134,19 +125,14 @@ async function analyzePreflightPdf(
   const pageCount = pdfDoc.getPageCount();
   const pages = pdfDoc.getPages();
   
-  // Extract metadata
   const metadata = await extractMetadata(pdfDoc, pages, parseResult);
   
-  // Analyze issues
   const issues = await analyzeIssues(pdfDoc, pages, printConfig, metadata);
   
-  // Generate auto-fixes
   const autoFixes = generateAutoFixes(issues, metadata);
   
-  // Generate preview
   const previewUrl = await generatePreview(pdfBuffer, fileHash);
   
-  // Generate instant quote
   const quote = await generateInstantQuote(printConfig, metadata, issues);
   
   const result: PreflightResult = {
@@ -158,15 +144,11 @@ async function analyzePreflightPdf(
     metadata
   };
 
-  // Cache result (24hr TTL)
   await cachePreflight(fileHash, result);
 
   return result;
 }
 
-/**
- * Extract comprehensive metadata from PDF
- */
 async function extractMetadata(
   pdfDoc: PDFDocument,
   pages: PDFPage[],
@@ -182,20 +164,16 @@ async function extractMetadata(
     const { width, height } = page.getSize();
     dimensions.push({ w: width, h: height });
     
-    // Extract fonts from page
     const pageFonts = await extractPageFonts(pdfDoc, i);
     fonts.push(...pageFonts);
     
-    // Note: pdf-lib doesn't easily expose images/colorspaces per page
-    // For production, use pdfjs-dist or poppler for deeper analysis
   }
   
-  // Parse text content for font info
   const textContent = parseResult.text || '';
   
   return {
     pageCount: pages.length,
-    fileSize: 0, // set by caller
+    fileSize: 0,
     dimensions,
     colorspaces: Array.from(colorspaces),
     fonts: deduplicateFonts(fonts),
@@ -213,9 +191,6 @@ function deduplicateFonts(fonts: FontInfo[]): FontInfo[] {
   });
 }
 
-/**
- * Analyze PDF for print readiness issues
- */
 async function analyzeIssues(
   pdfDoc: PDFDocument,
   pages: PDFPage[],
@@ -231,31 +206,24 @@ async function analyzeIssues(
     const { width: pageWidth, height: pageHeight } = page.getSize();
     const pageNum = i + 1;
     
-    // 1. Check bleed
     const bleedIssues = checkBleed(page, pageWidth, pageHeight, bleedPt, pageNum);
     issues.push(...bleedIssues);
     
-    // 2. Check fonts
     const fontIssues = checkFonts(pageNum, metadata.fonts);
     issues.push(...fontIssues);
     
-    // 3. Check images (resolution, colorspace)
     const imageIssues = await checkImages(pageNum);
     issues.push(...imageIssues);
     
-    // 4. Check trim/afety margins
     const trimIssues = checkTrimMargins(page, pageWidth, pageHeight, pageNum);
     issues.push(...trimIssues);
     
-    // 5. Check for overprint/transparency
     const transparencyIssues = checkTransparency(pageNum);
     issues.push(...transparencyIssues);
     
-    // 5. Check overprint
     const overprintIssues = checkOverprint(pageNum);
     issues.push(...overprintIssues);
     
-    // 6. Check for overset text
     const oversetIssues = checkOversetText(pageNum);
     issues.push(...oversetIssues);
   }
@@ -266,9 +234,7 @@ async function analyzeIssues(
 function checkBleed(page: PDFPage, pageWidth: number, pageHeight: number, bleedPt: number, pageNum: number): PreflightIssue[] {
   const issues: PreflightIssue[] = [];
   
-  // Check if content extends to bleed area
-  // This is a simplified check - real implementation needs content stream analysis
-  const hasBleed = false; // Placeholder - needs content stream parsing
+  const hasBleed = false;
   
   if (!hasBleed) {
     issues.push({
@@ -304,40 +270,30 @@ function checkFonts(pageNum: number, fonts: FontInfo[]): PreflightIssue[] {
 
 async function checkImages(pageNum: number): Promise<PreflightIssue[]> {
   const issues: PreflightIssue[] = [];
-  // Placeholder - real implementation uses pdfjs-dist or poppler
-  // to extract and analyze each image
   return issues;
 }
 
 function checkTrimMargins(page: PDFPage, pageWidth: number, pageHeight: number, pageNum: number): PreflightIssue[] {
   const issues: PreflightIssue[] = [];
-  const safeMargin = 5 * 2.83465; // 5mm safe zone
-  // Check if critical content is within safe margin
-  // Requires content stream analysis
+  const safeMargin = 5 * 2.83465;
   return issues;
 }
 
 function checkTransparency(pageNum: number): PreflightIssue[] {
   const issues: PreflightIssue[] = [];
-  // Check for transparency in artwork - can cause RIP issues
   return issues;
 }
 
 function checkOverprint(pageNum: number): PreflightIssue[] {
   const issues: PreflightIssue[] = [];
-  // Check for overprint settings that may cause unexpected results
   return issues;
 }
 
 function checkOversetText(pageNum: number): PreflightIssue[] {
   const issues: PreflightIssue[] = [];
-  // Check for text frames with overset text
   return issues;
 }
 
-/**
- * Generate auto-fix suggestions based on detected issues
- */
 function generateAutoFixes(issues: PreflightIssue[], metadata: PreflightResult['metadata']): AutoFix[] {
   const fixes: AutoFix[] = [];
   const issueTypes = new Set(issues.map(i => i.type));
@@ -348,7 +304,7 @@ function generateAutoFixes(issues: PreflightIssue[], metadata: PreflightResult['
       description: 'Embed all unembedded fonts by subsetting',
       confidence: 0.95,
       affectedPages: [...new Set(issues.filter(i => i.type === 'missing_font').map(i => i.page))],
-      estimatedSizeIncrease: 50000 // ~50KB per font subset
+      estimatedSizeIncrease: 50000
     });
   }
   
@@ -425,24 +381,14 @@ function generateAutoFixes(issues: PreflightIssue[], metadata: PreflightResult['
   return fixes;
 }
 
-/**
- * Generate WebGL 3D preview of the printed piece
- */
 async function generatePreview(pdfBuffer: Buffer, fileHash: string): Promise<string> {
   const previewKey = generatePreflightKey(fileHash, 'preview');
   
-  // For now, generate a simple preview image using pdf-lib + sharp
-  // Production: use three.js + pdf.js for 3D folding simulation
   try {
     const pdfDoc = await PDFDocument.load(pdfBuffer);
     const page = pdfDoc.getPage(0);
     const { width, height } = page.getSize();
-    
-    // Render first page as PNG
-    // Note: pdf-lib can't render to image directly
-    // Production: use pdfjs-dist to render to canvas, then three.js for 3D
-    
-    // For now, create a placeholder preview
+
     const previewBuffer = await createPlaceholderPreview();
     await uploadToS3(previewKey, previewBuffer, 'image/png');
     return await getPresignedUrl(previewKey, 86400);
@@ -453,7 +399,6 @@ async function generatePreview(pdfBuffer: Buffer, fileHash: string): Promise<str
 }
 
 async function createPlaceholderPreview(): Promise<Buffer> {
-  // Create a simple SVG preview
   const svg = `
     <svg width="400" height="500" xmlns="http://www.w3.org/2000/svg">
       <rect width="400" height="500" fill="#F8F4ED" stroke="#1A1410" stroke-width="4"/>
@@ -467,9 +412,6 @@ async function createPlaceholderPreview(): Promise<Buffer> {
   return Buffer.from(svg);
 }
 
-/**
- * Generate instant quote using ML model (or fallback heuristic)
- */
 export async function generateInstantQuote(
   printConfig: PrintConfig,
   metadata: PreflightResult['metadata'],
@@ -478,22 +420,18 @@ export async function generateInstantQuote(
   const { pageCount, dimensions } = metadata;
   const { copies = 1, paper = 'A4', color = 'bw', sided = 'single', qualityDpi = 300 } = printConfig;
   
-  // Base pricing (from tenant's pricing matrix)
   const baseRate = getBaseRate(paper, color, qualityDpi, sided);
   const baseAmount = baseRate * pageCount * copies;
   
-  // Apply issue penalties
   let penalty = 0;
   const hasErrors = issues.some(i => i.severity === 'error');
   if (hasErrors) {
-    penalty += 0.1 * baseAmount; // 10% penalty for print readiness issues
+    penalty += 0.1 * baseAmount;
   }
   
-  // Gang run eligibility
   const gangRunEligible = pageCount <= 50 && metadata.pageCount > 0;
-  const gangRunDiscount = gangRunEligible ? 0.4 : 0; // 40% off
+  const gangRunDiscount = gangRunEligible ? 0.4 : 0;
   
-  // Shop matching (simplified - real impl queries matching engine)
   const shopMatches = await findMatchingShops(metadata, printConfig);
   
   const breakdown: QuoteBreakdown[] = [
@@ -516,7 +454,6 @@ export async function generateInstantQuote(
 }
 
 function getBaseRate(paper: string, color: string, dpi: number, sided: string): number {
-  // Simplified - real impl loads from tenant's PricingConfig
   const rates: Record<string, number> = {
     'A4-bw-300-single': 50,
     'A4-bw-300-double': 65,
@@ -532,11 +469,6 @@ function getBaseRate(paper: string, color: string, dpi: number, sided: string): 
 }
 
 async function findMatchingShops(metadata: any, printConfig: PrintConfig): Promise<ShopMatch[]> {
-  // Real implementation:
-  // 1. Query shops with matching capabilities (material, size, finish)
-  // 2. Filter by capacity (queue depth < max)
-  // 3. Rank by: distance, rating, price, turnaround
-  // 4. Return top 3
   
   return [
     {
@@ -560,9 +492,6 @@ async function findMatchingShops(metadata: any, printConfig: PrintConfig): Promi
   ];
 }
 
-/**
- * Apply auto-fixes to PDF and return fixed buffer
- */
 export async function applyAutoFixes(
   pdfBuffer: Buffer,
   fixes: AutoFix[]
@@ -584,17 +513,12 @@ export async function applyAutoFixes(
         doc = await addTrimMarks(doc);
         break;
       case 'upscale_images':
-        // Requires re-rendering pages with upscaled images
-        // Use pdfjs-dist + sharp + pdf-lib
         break;
       case 'fix_overset_text':
-        // Requires text frame analysis
         break;
       case 'flatten_transparency':
-        // Render pages to high-res raster, re-embed
         break;
       case 'fix_overprint':
-        // Remove overprint settings
         break;
     }
   }
@@ -603,15 +527,10 @@ export async function applyAutoFixes(
 }
 
 async function embedFonts(doc: PDFDocument): Promise<PDFDocument> {
-  // pdf-lib automatically subsets and embeds fonts when saving
-  // Just re-save to trigger embedding
   return doc;
 }
 
 async function convertToCMYK(doc: PDFDocument): Promise<PDFDocument> {
-  // Requires rendering pages to raster with CMYK profile
-  // Then re-embedding as images
-  // Use Ghostscript via child_process for production
   return doc;
 }
 
@@ -624,10 +543,8 @@ async function addBleed(doc: PDFDocument): Promise<PDFDocument> {
     const newWidth = width + 2 * bleedPt;
     const newHeight = height + 2 * bleedPt;
     
-    // Create new page with bleed
     const newPage = doc.addPage([newWidth, newHeight]);
     
-    // Draw original page centered (offset by bleed)
     const { width: srcW, height: srcH } = page.getSize();
     const form = await doc.embedPage(page);
     newPage.drawPage(form, {
@@ -637,21 +554,15 @@ async function addBleed(doc: PDFDocument): Promise<PDFDocument> {
       height: srcH
     });
     
-    // Mirror edges for bleed (simplified)
-    // Real impl: mirror edge pixels
   }
-  
-  // Remove original pages (keep only new ones with bleed)
-  // Note: pdf-lib doesn't support page removal easily
-  // Production: use pdf-lib + page removal or rebuild doc
-  
+
   return doc;
 }
 
 async function addTrimMarks(doc: PDFDocument): Promise<PDFDocument> {
   const pages = doc.getPages();
-  const markLength = 10 * 2.83465; // 10mm
-  const markOffset = 3 * 2.83465;  // 3mm from trim
+  const markLength = 10 * 2.83465;
+  const markOffset = 3 * 2.83465;
   const lineWidth = 0.5;
   
   for (const page of pages) {
@@ -662,8 +573,6 @@ async function addTrimMarks(doc: PDFDocument): Promise<PDFDocument> {
     const trimW = width - 2 * bleedPt;
     const trimH = height - 2 * bleedPt;
     
-    // Draw corner marks
-    // Top-left
     page.drawLine({
       start: { x: trimX - markOffset - markLength, y: trimY + trimH + markOffset },
       end: { x: trimX - markOffset, y: trimY + trimH + markOffset },
@@ -676,54 +585,31 @@ async function addTrimMarks(doc: PDFDocument): Promise<PDFDocument> {
       thickness: lineWidth,
       color: rgb(0, 0, 0)
     });
-    // ... repeat for all 4 corners (8 lines total)
   }
   
   return doc;
 }
 
-/**
- * Cache management
- */
 async function getCachedPreflight(fileHash: string): Promise<PreflightResult | null> {
-  // Redis cache with 24hr TTL
-  // Implementation depends on redis client
   return null;
 }
 
 async function cachePreflight(fileHash: string, result: PreflightResult): Promise<void> {
-  // Store in Redis with 24hr TTL
 }
 
-/**
- * Print configuration interface
- */
 export interface PrintConfig {
   copies: number;
   paper: 'A4' | 'A3' | 'Letter' | 'Legal';
   color: 'bw' | 'color';
   sided: 'single' | 'double';
   qualityDpi: 100 | 300 | 600;
-  bleed?: number; // mm
+  bleed?: number;
   orientation?: 'portrait' | 'landscape';
 }
 
-/**
- * Extract fonts from PDF page (simplified)
- */
 async function extractPageFonts(pdfDoc: PDFDocument, pageIndex: number): Promise<FontInfo[]> {
-  // pdf-lib doesn't expose per-page font info easily
-  // Production: use pdfjs-dist to get font dict per page
   return [];
-/**
- * Find shops matching job requirements
- */
 async function findMatchingShops(metadata: any, printConfig: PrintConfig): Promise<ShopMatch[]> {
-  // Real implementation:
-  // 1. Query shops with matching capabilities (material, size, finish)
-  // 2. Filter by capacity (queue depth < max)
-  // 3. Rank by: distance, rating, price, turnaround
-  // 4. Return top 3
   
   return [
     {

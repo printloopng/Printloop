@@ -1,14 +1,5 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-/**
- * Add `tenantId` to `print_job_items` so per-tenant queries can
- * filter without joining the parent PrintJob.
- *
- * Backfill: populated from the parent PrintJob's tenantId via a
- * single correlated UPDATE. Idempotent — re-running is a no-op
- * (the column add is PRAGMA-guarded and the UPDATE filters on
- * NULL).
- */
 export class AddPrintJobItemTenantId1717500000000
   implements MigrationInterface
 {
@@ -26,8 +17,6 @@ export class AddPrintJobItemTenantId1717500000000
       `CREATE INDEX IF NOT EXISTS "idx_pji_tenant" ON "print_job_items" ("tenantId")`,
     );
 
-    // Backfill from the parent PrintJob's tenantId. SQLite's
-    // correlated-subquery UPDATE syntax keeps this to one statement.
     await queryRunner.query(`
       UPDATE "print_job_items"
          SET "tenantId" = (
@@ -40,8 +29,6 @@ export class AddPrintJobItemTenantId1717500000000
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    // SQLite can't DROP COLUMN without a table rewrite; leaving the
-    // column in place is harmless on rollback.
     await queryRunner.query(`DROP INDEX IF EXISTS "idx_pji_tenant"`);
   }
 

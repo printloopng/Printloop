@@ -7,15 +7,9 @@ import fs from 'node:fs';
 
 const INLINE_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp']);
 
-/**
- * Serves files saved by saveBuffer. The key carries a random UUID, so the
- * link itself is the access credential; only well-formed upload keys are
- * served (no paths, no other objects in the bucket).
- */
 export class FilesController {
   getByKey = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      // Express has already URL-decoded the param once; don't decode again.
       const key = String(req.params.key || '');
       if (!isStorageKey(key)) {
         res.status(404).json({ success: false, message: 'File not found' });
@@ -42,8 +36,6 @@ export class FilesController {
 
       const filePath = insideUploadDir(path.join(UPLOAD_DIR, key));
       if (filePath && fs.existsSync(filePath)) {
-        // Only images render inline; everything else downloads, so an
-        // uploaded file can never run as a page on the API's origin.
         const ext = path.extname(key).toLowerCase();
         if (!INLINE_EXT.has(ext)) {
           res.setHeader('Content-Disposition', `attachment; filename="${key.split('__')[1]}"`);

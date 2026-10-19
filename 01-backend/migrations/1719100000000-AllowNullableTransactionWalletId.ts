@@ -1,19 +1,5 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-/**
- * Wallet removal (Paystack-only). The wallet feature was deleted, but
- * the `transactions` table is the platform's commission/payout/print
- * ledger — NOT a wallet artifact — so it stays. Its rows no longer
- * carry a walletId, so this makes `transactions.walletId` nullable.
- *
- * Without this, `completePrintJobPayment` (the Paystack money path)
- * would hit a NOT NULL violation when it writes a PRINT ledger row.
- *
- * Postgres: ALTER COLUMN DROP NOT NULL. The FK to wallets is left in
- * place — NULL values bypass the FK check, so no dangling reference.
- * SQLite: table rebuild with walletId nullable and the wallet FK
- * dropped (SQLite can't ALTER a column's nullability in place).
- */
 export class AllowNullableTransactionWalletId1719100000000
   implements MigrationInterface
 {

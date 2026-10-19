@@ -1,33 +1,7 @@
-/**
- * Password reset end-to-end (V2-29).
- *
- * Self-contained: spawns its own backend on :4197 against a fresh
- * SQLite + SEED_DEMO=1 (so there's a demo super admin to reset).
- * SMTP is deliberately unconfigured → the EmailService no-ops and
- * the route logs the minted token to stdout, which this script
- * scrapes to complete the flow (the same way QA without a real
- * mailbox would).
- *
- * Proves:
- *   1. forgot-password for an UNKNOWN email returns 200 with the
- *      same opaque body as a known one (anti-enumeration).
- *   2. forgot-password for a known email returns 200 + logs a token.
- *   3. reset-password with a malformed token → 400 TOKEN_MALFORMED.
- *   4. reset-password with an unknown token → 400 TOKEN_INVALID.
- *   5. reset-password with the real token → 200 success.
- *   6. login with the OLD password → 401.
- *   7. login with the NEW password → 200 + role=super_admin.
- *   8. Replaying the same valid token → 400 TOKEN_INVALID (single-use).
- *
- * No Redis required (the route is rate-limited but the limiter
- * gracefully no-ops without Redis — see V2-28 middleware/skip
- * clause).
- */
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 
-// Random high port — see e2eDiscoveryTest.cjs for the rationale.
 const PORT = 5000 + Math.floor(Math.random() * 4000);
 const B = `http://localhost:${PORT}/api`;
 const DB_FILE = path.resolve(
@@ -64,7 +38,6 @@ async function jr(method, url, body) {
   try {
     d = await r.json();
   } catch {
-    /* ignore */
   }
   return { status: r.status, data: d };
 }
@@ -76,7 +49,6 @@ async function waitFor(url, timeoutMs = 25_000) {
       const r = await fetch(url);
       if (r.ok) return true;
     } catch {
-      /* not up */
     }
     await new Promise((r) => setTimeout(r, 400));
   }
@@ -87,7 +59,6 @@ async function main() {
   try {
     fs.unlinkSync(DB_FILE);
   } catch {
-    /* ok */
   }
 
   const env = {
@@ -95,11 +66,9 @@ async function main() {
     DATABASE_FILE: DB_FILE,
     PORT: String(PORT),
     SEED_DEMO: '1',
-    DISABLE_RATE_LIMIT: '1', // route is rate-limited; this test isn't about that
-    NODE_ENV: 'development', // ensure the dev token log line emits
+    DISABLE_RATE_LIMIT: '1',
+    NODE_ENV: 'development',
   };
-  // SMTP deliberately unset → EmailService no-ops + we read the
-  // token from the route's own console.log.
   env.SMTP_HOST = '';
 
   const server = spawn('npx', ['tsx', SERVER], {
@@ -116,13 +85,11 @@ async function main() {
     try {
       server.kill('SIGKILL');
     } catch {
-      /* ignore */
     }
     setTimeout(() => {
       try {
         fs.unlinkSync(DB_FILE);
       } catch {
-        /* ignore */
       }
     }, 500);
   };
@@ -135,7 +102,6 @@ async function main() {
     }
     ok('server up on test port');
 
-    // 1) Anti-enumeration: unknown email returns success body.
     const unknown = await jr('POST', '/auth/forgot-password', {
       email: 'nobody-' + process.pid + '@nowhere.test',
     });
@@ -145,7 +111,6 @@ async function main() {
       'unknown email body is success:true',
     );
 
-    // 2) Known email returns same opaque body; token gets logged.
     const known = await jr('POST', '/auth/forgot-password', { email: EMAIL });
     assert(known.status === 200, `known email → 200 (got ${known.status})`);
     assert(
@@ -153,7 +118,6 @@ async function main() {
       'known + unknown share IDENTICAL message (anti-enumeration)',
     );
 
-    // Give the async log a beat to flush.
     await new Promise((r) => setTimeout(r, 200));
     const m = serverLog.match(
       new RegExp('minted token for ' + EMAIL.replace(/[.@]/g, '\\$&') + ': (\\S+)'),
@@ -161,7 +125,6 @@ async function main() {
     assert(m && m[1], 'token logged to server stdout (dev mode)');
     const TOKEN = m[1];
 
-    // 3) Malformed token rejected.
     const malformed = await jr('POST', '/auth/reset-password', {
       email: EMAIL,
       token: 'not-a-valid-format',
@@ -172,7 +135,6 @@ async function main() {
       `malformed token → 400 TOKEN_MALFORMED (got ${malformed.status} ${malformed.data && malformed.data.code})`,
     );
 
-    // 4) Unknown-but-well-formed token rejected.
     const wrong = await jr('POST', '/auth/reset-password', {
       email: EMAIL,
       token:
@@ -185,7 +147,6 @@ async function main() {
       `unknown valid-shape token → 400 TOKEN_INVALID (got ${wrong.status} ${wrong.data && wrong.data.code})`,
     );
 
-    // 5) Real token → success.
     const reset = await jr('POST', '/auth/reset-password', {
       email: EMAIL,
       token: TOKEN,
@@ -196,14 +157,12 @@ async function main() {
       `reset with real token → 200 success (got ${reset.status})`,
     );
 
-    // 6) Old password no longer works.
     const loginOld = await jr('POST', '/admin/auth/login', {
       email: EMAIL,
       password: OLD_PW,
     });
     assert(loginOld.status === 401, `old password rejected (got ${loginOld.status})`);
 
-    // 7) New password works + role intact.
     const loginNew = await jr('POST', '/admin/auth/login', {
       email: EMAIL,
       password: NEW_PW,
@@ -217,7 +176,6 @@ async function main() {
       'role preserved through reset (super_admin)',
     );
 
-    // 8) Single-use: replaying the same token now fails.
     const replay = await jr('POST', '/auth/reset-password', {
       email: EMAIL,
       token: TOKEN,

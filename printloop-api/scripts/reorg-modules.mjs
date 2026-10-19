@@ -1,7 +1,3 @@
-/**
- * Move domain services from core/services into module services/
- * matching verraearth-api layout. Leave only cross-cutting in core.
- */
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -11,7 +7,6 @@ const src = path.join(__dirname, "..", "src");
 
 /** @type {Record<string, string>} serviceFile -> module name */
 const OWNERS = {
-  // customer
   "payments.service.ts": "customer",
   "preflight.service.ts": "customer",
   "groupSession.service.ts": "customer",
@@ -19,7 +14,6 @@ const OWNERS = {
   "acceptWindow.service.ts": "customer",
   "promotion.service.ts": "customer",
 
-  // public
   "pricing.service.ts": "public",
   "geocoding.service.ts": "public",
   "renderEnqueue.service.ts": "public",
@@ -27,7 +21,6 @@ const OWNERS = {
   "documentConvert.service.ts": "public",
   "qrCode.service.ts": "public",
 
-  // saas
   "onboarding.service.ts": "saas",
   "customDomain.service.ts": "saas",
   "statement.service.ts": "saas",
@@ -48,15 +41,12 @@ const OWNERS = {
   "costReconciliation.service.ts": "saas",
   "printPolicy.service.ts": "saas",
 
-  // platform
   "adminDashboard.service.ts": "platform",
   "backup.service.ts": "platform",
 
-  // kiosk
   "ipp.service.ts": "kiosk",
 };
 
-/** Stay in core/services (cross-cutting, like verraearth core/) */
 const CORE_KEEP = new Set([
   "email.service.ts",
   "sms.service.ts",
@@ -92,7 +82,6 @@ for (const [file, mod] of Object.entries(OWNERS)) {
   console.log(`moved ${file} → modules/${mod}/services/`);
 }
 
-// Rewrite imports across src
 const files = walk(src);
 let rewriteCount = 0;
 for (const f of files) {
@@ -102,20 +91,17 @@ for (const f of files) {
     const oldPath = `@/core/services/${base}`;
     const newPath = `@/modules/${mod}/services/${base}`;
     text = text.split(oldPath).join(newPath);
-    // relative leftovers
     text = text.replace(
       new RegExp(`from ['"]\\.\\./services/${base.replace(".", "\\.")}['"]`, "g"),
       `from '${newPath}'`,
     );
   }
-  // Also rewrite core utils that wrongly point — leave alone
   if (text !== orig) {
     fs.writeFileSync(f, text);
     rewriteCount++;
   }
 }
 
-// Move _shared controllers into modules
 const shared = path.join(src, "modules", "_shared", "controllers");
 const sharedMap = {
   "kiosk.controller.ts": ["saas", "kiosk.controller.ts"],
@@ -129,7 +115,6 @@ if (fs.existsSync(shared)) {
     const destDir = path.join(src, "modules", mod, "controllers");
     fs.mkdirSync(destDir, { recursive: true });
     let body = fs.readFileSync(from, "utf8");
-    // rewrite service imports already handled above if paths were @/core
     fs.writeFileSync(path.join(destDir, destName), body);
     fs.unlinkSync(from);
     console.log(`moved _shared/${name} → modules/${mod}/controllers/`);

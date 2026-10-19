@@ -7,13 +7,6 @@ import {
   OfficeConversionError,
 } from '../services/documentConversion.service';
 
-/**
- * Pure-logic coverage for the Office→PDF black box (V2-48). The actual
- * conversion (Gotenberg/LibreOffice) is exercised end-to-end against a
- * stub converter in scripts/e2eOfficeConvertTest.cjs — here we lock the
- * detection + env-gating, which is what decides whether an office upload
- * is accepted at all.
- */
 describe('Office→PDF conversion black box (V2-48)', () => {
   const saved = { DOC_CONVERTER: process.env.DOC_CONVERTER, GOTENBERG_URL: process.env.GOTENBERG_URL };
   afterEach(() => {

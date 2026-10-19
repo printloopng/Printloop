@@ -1,6 +1,5 @@
 import { apiSlice } from "@/store/services/apiSlice";
 
-/** Build a query string from a params object, skipping empty values. */
 function qs(params?: Record<string, any>) {
   const q = new URLSearchParams();
   if (params) {
@@ -16,7 +15,6 @@ const unwrap = (r: any) => r?.data ?? r;
 
 export const adminApi = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
-    // ── Auth ────────────────────────────────────────────────────────────
     adminLogin: builder.mutation<any, { email: string; password: string }>({
       query: (body) => ({ url: "admin/auth/login", method: "POST", body }),
     }),
@@ -25,14 +23,12 @@ export const adminApi = apiSlice.injectEndpoints({
       transformResponse: unwrap,
     }),
 
-    // ── Dashboard ───────────────────────────────────────────────────────
     getDashboardStats: builder.query<any, void>({
       query: () => "admin/dashboard/stats",
       transformResponse: unwrap,
       providesTags: ["AdminStats"],
     }),
 
-    // ── Jobs ────────────────────────────────────────────────────────────
     getAdminJobs: builder.query<
       any,
       { status?: string; search?: string; page?: number; limit?: number } | void
@@ -54,7 +50,6 @@ export const adminApi = apiSlice.injectEndpoints({
       invalidatesTags: ["AdminJobs", "AdminStats"],
     }),
 
-    // ── Users ───────────────────────────────────────────────────────────
     getAdminUsers: builder.query<
       any,
       { search?: string; page?: number; limit?: number } | void
@@ -93,7 +88,6 @@ export const adminApi = apiSlice.injectEndpoints({
       invalidatesTags: ["AdminUsers"],
     }),
 
-    // ── Pricing ─────────────────────────────────────────────────────────
     getPricing: builder.query<any, void>({
       query: () => "admin/pricing",
       transformResponse: unwrap,
@@ -105,27 +99,17 @@ export const adminApi = apiSlice.injectEndpoints({
         method: "PATCH",
         body,
       }),
-      // Bust the customer-side `Pricing` tag too — admin saves should
-      // propagate to the customer's New Print page on the next refetch
-      // without a hard reload.
       invalidatesTags: ["AdminPricing", "Pricing"],
     }),
     createPricingConfig: builder.mutation<any, Record<string, any>>({
       query: (body) => ({ url: "admin/pricing", method: "POST", body }),
-      // Bust the customer-side `Pricing` tag too — admin saves should
-      // propagate to the customer's New Print page on the next refetch
-      // without a hard reload.
       invalidatesTags: ["AdminPricing", "Pricing"],
     }),
     deletePricingConfig: builder.mutation<any, string>({
       query: (id) => ({ url: `admin/pricing/${id}`, method: "DELETE" }),
-      // Bust the customer-side `Pricing` tag too — admin saves should
-      // propagate to the customer's New Print page on the next refetch
-      // without a hard reload.
       invalidatesTags: ["AdminPricing", "Pricing"],
     }),
 
-    // ── Promotions ──────────────────────────────────────────────────────
     getPromotions: builder.query<any, void>({
       query: () => "admin/promotions",
       transformResponse: unwrap,
@@ -144,7 +128,6 @@ export const adminApi = apiSlice.injectEndpoints({
       invalidatesTags: ["AdminPromotions"],
     }),
 
-    // ── Blog (V2-54) ───────────────────────────────────────────────────
     getBlogPosts: builder.query<any, void>({
       query: () => "admin/blog",
       transformResponse: unwrap,
@@ -163,7 +146,6 @@ export const adminApi = apiSlice.injectEndpoints({
       invalidatesTags: ["AdminBlog", "Blog"],
     }),
 
-    // ── Printer profiles (V2-56) ────────────────────────────────────────
     getPrinterProfiles: builder.query<any, void>({
       query: () => "admin/printer-profiles",
       transformResponse: unwrap,
@@ -185,20 +167,15 @@ export const adminApi = apiSlice.injectEndpoints({
       query: (id) => ({ url: `admin/printer-profiles/${id}`, method: "DELETE" }),
       invalidatesTags: ["AdminPrinterProfiles"],
     }),
-    // One-tap print (V2-57): operator releases a READY job to the
-    // tenant's first active kiosk; the on-site agent silent-prints it.
     releaseJob: builder.mutation<any, string>({
       query: (id) => ({ url: `saas/jobs/${id}/release`, method: "POST" }),
       invalidatesTags: ["AdminJobs"],
     }),
-    // Accept window (V2-58): the operator accepts an awaiting_accept
-    // job → READY. Rerouted jobs get their ledger credit here.
     acceptJob: builder.mutation<any, string>({
       query: (id) => ({ url: `saas/jobs/${id}/accept`, method: "POST" }),
       invalidatesTags: ["AdminJobs"],
     }),
 
-    // ── Transactions ────────────────────────────────────────────────────
     getTransactions: builder.query<
       any,
       { status?: string; method?: string; page?: number; limit?: number } | void
@@ -208,7 +185,6 @@ export const adminApi = apiSlice.injectEndpoints({
       providesTags: ["AdminTransactions"],
     }),
 
-    // ── Reports ─────────────────────────────────────────────────────────
     getRevenueReport: builder.query<any, { days?: number } | void>({
       query: (p) => `admin/reports/revenue${qs({ days: (p as any)?.days ?? 30 })}`,
       transformResponse: unwrap,
@@ -220,7 +196,6 @@ export const adminApi = apiSlice.injectEndpoints({
       providesTags: ["AdminReports"],
     }),
 
-    // ── System settings ─────────────────────────────────────────────────
     getSettings: builder.query<any, void>({
       query: () => "admin/settings",
       transformResponse: unwrap,
@@ -235,7 +210,6 @@ export const adminApi = apiSlice.injectEndpoints({
       invalidatesTags: ["AdminSettings"],
     }),
 
-    // ── Audit log ───────────────────────────────────────────────────────
     getAuditLogs: builder.query<
       any,
       { page?: number; limit?: number; action?: string } | void
@@ -245,7 +219,6 @@ export const adminApi = apiSlice.injectEndpoints({
       providesTags: ["AdminAudit"],
     }),
 
-    // ── Kiosks (admin-kiosk routes) ─────────────────────────────────────
     getAdminKiosks: builder.query<
       any,
       { status?: string; campus?: string; location?: string } | void
@@ -256,8 +229,6 @@ export const adminApi = apiSlice.injectEndpoints({
     }),
     createKiosk: builder.mutation<any, Record<string, any>>({
       query: (body) => ({ url: "admin/kiosks", method: "POST", body }),
-      // Bust the customer-side Stations cache too — newly added kiosks
-      // appear on /find-a-station without a hard refresh.
       invalidatesTags: ["AdminKiosks", "Stations"],
     }),
     updateKiosk: builder.mutation<any, { id: string; [k: string]: any }>({
@@ -282,7 +253,6 @@ export const adminApi = apiSlice.injectEndpoints({
     }),
     testKioskConnection: builder.mutation<any, string>({
       query: (id) => ({ url: `admin/kiosks/${id}/test-connection`, method: "POST" }),
-      // Don't invalidate — this is a read-only probe.
     }),
     getAdminDisputes: builder.query<any, void>({
       query: () => "admin/disputes",

@@ -13,7 +13,6 @@ import {
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-/** On-disk store for uploaded documents the kiosk/printer must fetch. */
 export const UPLOAD_DIR = path.resolve(here, '..', 'data', 'uploads');
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
@@ -60,7 +59,6 @@ export interface StoredFile {
   key: string;
   fileName: string;
   absPath: string;
-  /** Absolute, fetchable URL served by the static /api/files route or Cloudinary. */
   url: string;
   sizeBytes: number;
 }
@@ -69,12 +67,10 @@ function sanitize(name: string): string {
   return (name || 'document').replace(/[^\w.-]+/g, '_').slice(0, 80);
 }
 
-/** Persist raw bytes to S3 (if configured), Cloudinary (if configured), or local disk, and return a real fetchable URL. */
 export async function saveBuffer(buf: Buffer, originalName: string): Promise<StoredFile> {
   const fileName = sanitize(originalName);
   const key = `${randomUUID()}__${fileName}`;
 
-  // S3 / R2 (preferred for production)
   if (hasS3 && s3Client) {
     try {
       await s3Client.send(
@@ -99,7 +95,6 @@ export async function saveBuffer(buf: Buffer, originalName: string): Promise<Sto
     }
   }
 
-  // Cloudinary (legacy fallback)
   if (hasCloudinary) {
     try {
       const uploadResult = await new Promise<any>((resolve, reject) => {
@@ -130,7 +125,6 @@ export async function saveBuffer(buf: Buffer, originalName: string): Promise<Sto
     }
   }
 
-  // Local fallback
   const absPath = path.join(UPLOAD_DIR, key);
   fs.writeFileSync(absPath, buf);
   return {
@@ -142,17 +136,9 @@ export async function saveBuffer(buf: Buffer, originalName: string): Promise<Sto
   };
 }
 
-/**
- * Load a document's bytes from any source we understand:
- *   - our own /api/files/<key>      -> read straight off local disk (fast)
- *   - file:// or absolute path      -> fs
- *   - http(s)://                    -> fetch
- *   - local:// / dev:// / unknown   -> null (caller degrades gracefully)
- */
 export async function loadDocumentBytes(src: string): Promise<Buffer | null> {
   if (!src) return null;
   try {
-    // Our own static store -- resolve to disk without a self-HTTP round trip.
     const m = src.match(/\/api\/files\/([^?#]+)/);
     if (m) {
       const p = path.join(UPLOAD_DIR, decodeURIComponent(m[1]));
@@ -169,5 +155,5 @@ export async function loadDocumentBytes(src: string): Promise<Buffer | null> {
   } catch {
     return null;
   }
-  return null; // local:// , dev:// , etc.
+  return null;
 }

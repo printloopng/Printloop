@@ -32,7 +32,6 @@ function loadConfig(): Config {
 
 function getDiff(prNumber?: string): string {
   if (prNumber) {
-    // Fetch PR diff from GitHub
     try {
       return execSync(`gh pr diff ${prNumber}`, { encoding: 'utf-8' });
     } catch {
@@ -40,7 +39,6 @@ function getDiff(prNumber?: string): string {
       process.exit(1);
     }
   } else {
-    // Use current working directory changes
     try {
       return execSync('git diff HEAD', { encoding: 'utf-8' });
     } catch {
@@ -65,18 +63,15 @@ function checkFile(filePath: string, diff: string, config: Config): { errors: st
     return { errors, warnings };
   }
   
-  // Only check TypeScript/TSX files
   if (!filePath.endsWith('.ts') && !filePath.endsWith('.tsx')) {
     return { errors, warnings };
   }
   
-  // Extract added lines from diff for this file
   const fileDiffRegex = new RegExp(`^\\+\\+\\+ b/${filePath.replace(/\//g, '\\/')}`, 'm');
   const fileDiffMatch = diff.match(fileDiffRegex);
   
   if (!fileDiffMatch) return { errors, warnings };
   
-  // Simple check: look for added lines with blocking patterns
   const lines = diff.split('\n');
   let inFile = false;
   
@@ -94,11 +89,9 @@ function checkFile(filePath: string, diff: string, config: Config): { errors: st
     
     const addedLine = line.slice(1);
     
-    // Check for blocking patterns
     for (const pattern of config.blockingPatterns) {
       const regex = new RegExp(pattern);
       if (regex.test(addedLine)) {
-        // Check if tenantId is in the same line or context
         const hasTenantFilter = /tenantId\s*[=:]\s*[:$\w]/.test(addedLine) ||
                                 /where\s*:\s*\{[^}]*tenantId/.test(addedLine) ||
                                 /\.andWhere\([^)]*tenantId/.test(addedLine);
@@ -111,10 +104,8 @@ function checkFile(filePath: string, diff: string, config: Config): { errors: st
       }
     }
     
-    // Check for migration creating tables without tenantId
     if (filePath.endsWith('.ts') && filePath.includes('migration')) {
       if (/createTable\(/.test(addedLine) || /CREATE TABLE/.test(addedLine)) {
-        // This is a table creation - we'd need more context to verify
         warnings.push(`${filePath}: Table creation detected - verify tenantId column added`);
         warnings.push(`  Line: ${addedLine.trim()}`);
       }
@@ -129,7 +120,6 @@ function main() {
   const config = loadConfig();
   const diff = getDiff(prNumber);
   
-  // Extract all file paths from diff
   const filePaths = Array.from(diff.matchAll(/^\+\+\+ b\/(.+)$/gm), m => m[1]);
   
   let totalErrors = 0;

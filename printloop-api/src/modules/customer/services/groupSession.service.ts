@@ -244,7 +244,7 @@ export class GroupSessionService {
     if (session.status === GroupSessionStatus.CLOSED) throw new Error('Session is already closed');
 
     const batchToken = crypto.randomBytes(32).toString('base64url');
-    const batchCode = makeCode(6); // group authentication code — 6 chars
+    const batchCode = makeCode(6);
 
     session.status = GroupSessionStatus.CLOSED;
     session.batchToken = batchToken;

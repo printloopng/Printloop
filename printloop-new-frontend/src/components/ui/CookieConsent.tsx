@@ -2,12 +2,6 @@
 
 import { useEffect, useState } from "react";
 
-/**
- * Cookie consent banner (GDPR/NDPR/CCPA).
- * Only strictly necessary cookies are used (auth tokens, tenant context).
- * Banner appears once per device; "Accept" dismisses, "Reject" blocks
- * non-essential (currently none). Consent stored in localStorage.
- */
 export function CookieConsent() {
   const [show, setShow] = useState(false);
 

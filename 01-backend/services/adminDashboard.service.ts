@@ -63,15 +63,6 @@ export class AdminDashboardService {
     this.sessionRepo = AppDataSource.getRepository(GroupSession);
   }
 
-  /**
-   * Aggregate stats for a single tenant's admin dashboard.
-   *
-   * **Tenant-scoped as of V2-11.** Every query in here used to return
-   * cross-tenant counts (every user, every job, every kiosk). Now
-   * each clause is filtered by `tenant.id`. SUPER_ADMIN platform
-   * stats (cross-tenant aggregates) belong on a separate
-   * platform-console method later in Dimension 11.
-   */
   async getStats(tenant: Tenant): Promise<DashboardStats> {
     const tid = tenant.id;
     const startOfDay = new Date();

@@ -4,8 +4,8 @@ import { AppDataSource } from '@/config/data-source';
 import { AuditLog } from '@/database/entities/auditLog.entity';
 
 const MAX_ATTEMPTS = 5;
-const WINDOW_SECONDS = 10 * 60; // 10 minutes
-const LOCKOUT_SECONDS = 30 * 60; // 30 minute lockout after exceeding
+const WINDOW_SECONDS = 10 * 60;
+const LOCKOUT_SECONDS = 30 * 60;
 
 const ATTEMPT_KEY_PREFIX = 'brute:code-attempt:';
 const LOCKOUT_KEY_PREFIX = 'brute:code-lockout:';

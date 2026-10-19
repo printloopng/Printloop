@@ -7,20 +7,11 @@ declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
     interface Request {
-      /**
-       * Tenant memberships from the JWT (Phase A — Dimension 6).
-       * Empty array for users with no memberships (platform admins,
-       * pure customers). Populated by `authenticate` / `optionalAuth`.
-       */
       tenantMemberships?: JwtTenantMembership[];
     }
   }
 }
 
-/**
- * Verifies the Bearer JWT, loads the user, and attaches it to req.user.
- * Downstream RBAC middleware (requirePermission) reads req.user.
- */
 export const authenticate = async (
   req: Request,
   res: Response,
@@ -57,15 +48,9 @@ export const authenticate = async (
     }
 
     (req as any).user = user;
-    // Decode tenant memberships from the JWT claim and attach to req.
-    // Used by requireTenantMembership / requirePermission to verify
-    // the authed user is actually a member of req.tenant.
     req.tenantMemberships = Array.isArray(payload.memberships)
       ? payload.memberships
       : [];
-    // Impersonation marker (Dimension 11 — V2-15). When the token was
-    // minted via the platform-admin impersonate route, expose the
-    // real actor's id so writeAudit can tag the trail.
     if (payload.impersonating?.actorUserId) {
       (req as any).impersonatingActorUserId =
         payload.impersonating.actorUserId;
@@ -77,13 +62,6 @@ export const authenticate = async (
   }
 };
 
-
-
-/**
- * Attaches req.user when a valid Bearer token is present, but never blocks.
- * Used by endpoints that work for both guests and signed-in users
- * (e.g. joining a group session).
- */
 export const optionalAuth = async (
   req: Request,
   _res: Response,

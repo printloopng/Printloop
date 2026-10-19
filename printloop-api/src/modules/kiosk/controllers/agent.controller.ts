@@ -55,16 +55,10 @@ function publicBaseUrl(req: Request): string {
   return `${proto}://${host}`;
 }
 
-// Poll cadence the API hands back to the kiosk: drain fast while jobs are
-// queued, otherwise relax to the normal 10s tick.
 const POLL_IDLE_MS = 10_000;
 const POLL_BUSY_MS = 2_000;
-// A claimed job the kiosk stops reporting as in-flight for this long is
-// treated as lost (kiosk restarted, or the poll response never arrived)
-// and goes back to the queue.
 const CLAIM_GRACE_MS = 60_000;
 
-// RELEASING jobs this kiosk may take: bound to it, or unbound in its tenant.
 function releasableWhere(kiosk: Kiosk) {
   const tenantId = kiosk.tenantId as string;
   return [
@@ -141,16 +135,6 @@ export class KioskAgentController {
     }
   };
 
-  /**
-   * The kiosk's single 10s tick. In one round-trip it:
-   *   1. reconciles its claims — jobs it holds in PRINTING but no longer
-   *      reports in `inFlight` are requeued; `inFlight` ids the server no
-   *      longer considers this kiosk's (refunded, cancelled) come back as
-   *      `revoked` so the kiosk stops printing them;
-   *   2. claims up to `max` RELEASING jobs (RELEASING → PRINTING, atomic
-   *      per job so two kiosks never take the same one);
-   *   3. returns queue counts and the delay before the next poll.
-   */
   poll = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const kiosk = req.kiosk as Kiosk;
@@ -425,7 +409,6 @@ export class KioskAgentController {
         res.status(403).json({ success: false, message: 'Job belongs to another kiosk' });
         return;
       }
-      // Kiosks retry this call until it lands, so a repeat is a no-op.
       if (job.status === PrintJobStatus.DONE) {
         res.json({ success: true, data: { jobId: job.id, completedAt: job.completedAt } });
         return;
@@ -507,9 +490,6 @@ export class KioskAgentController {
       const result = await repo
         .createQueryBuilder()
         .update(PrintJob)
-        // Retryable = the printer was unreachable / busy before anything
-        // printed: hand the job back to the tenant's queue instead of
-        // failing the customer's order.
         .set(
           retryable
             ? { status: PrintJobStatus.RELEASING, kioskId: null as any, pagesCompleted: 0 }

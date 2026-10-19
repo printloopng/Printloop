@@ -12,27 +12,6 @@ import { Kiosk, KioskStatus } from '../entities/kiosk.entity';
 import { LEGACY_TENANT_SLUG } from '../middleware/tenant.middleware';
 import { EmailService } from './email.service';
 
-/**
- * SaaS sign-up + tenant provisioning (Dimension 5).
- *
- * One call creates everything a new printing business needs to start:
- *   - Tenant row (status=trial; commission defaults from env).
- *   - First Owner user.
- *   - TenantMember linking them.
- *   - Wallet for the owner.
- *   - PayoutSchedule (weekly Fri, ₦5k min) — default cadence.
- *   - Seeded 24-cell pricing matrix copied from the legacy defaults.
- *
- * The owner still needs to (after signup):
- *   - Verify their email (handled separately — out of scope here).
- *   - Create a Paystack subaccount via /api/saas/setup/paystack-subaccount.
- *   - Add a bank account via /api/saas/setup/bank-account.
- *
- * Until the subaccount + bank account are set, charges still work
- * (commission accumulates on Transactions) but payouts can't fire.
- */
-
-/** Reserved slugs that no tenant may claim. */
 const RESERVED_SLUGS = new Set<string>([
   LEGACY_TENANT_SLUG,
   'admin',
@@ -55,20 +34,8 @@ const RESERVED_SLUGS = new Set<string>([
   'dashboard',
 ]);
 
-const SLUG_RE = /^[a-z][a-z0-9-]{1,28}[a-z0-9]$/; // 3–30 chars, lowercase, no leading/trailing dash.
+const SLUG_RE = /^[a-z][a-z0-9-]{1,28}[a-z0-9]$/;
 
-/**
- * The privilege bundle the FIRST owner of a brand-new tenant receives
- * (V2-33). Every Permission except the platform-only SUPER_ADMIN
- * sentinel — owners can run their entire shop (kiosks, pricing,
- * jobs, refunds, reports, settings, audit) but cannot touch the
- * platform-wide super-admin surface.
- *
- * Owners typically delegate down to staff with narrower grants via
- * `manage_roles` — but the tenant-membership guard in
- * rbac.middleware ensures the grant is scoped to this tenant's
- * resources, not anyone else's.
- */
 const OWNER_PRIVILEGES: string[] = Object.values(Permission).filter(
   (p) => p !== Permission.SUPER_ADMIN,
 );
@@ -100,14 +67,6 @@ export interface SignupInput {
   ownerEmail: string;
   ownerPhone: string;
   ownerPassword: string;
-  /**
-   * Shop address (V2-30 — marketplace discovery). Optional during
-   * signup; if supplied we geocode and stamp lat/lng so the tenant
-   * appears in /find once they flip isDiscoverable on. The tenant
-   * stays out of the marketplace until that flag flips, so leaving
-   * address blank here is fine — they can fill it in later from
-   * /saas/settings.
-   */
   address?: string;
 }
 
@@ -116,7 +75,6 @@ export interface SignupResult {
   tenantSlug: string;
   ownerUserId: string;
   ownerEmail: string;
-  /** URL the owner should land on after signup. */
   loginUrl: string;
 }
 
@@ -129,22 +87,12 @@ export async function signupTenant(input: SignupInput): Promise<SignupResult> {
   }
 
   return AppDataSource.transaction(async (em) => {
-    // Race-safe slug claim: a UNIQUE on tenants.slug means a concurrent
-    // signup with the same slug will fail the INSERT, which surfaces
-    // as a friendlier 409 in the route handler.
     const existingSlug = await em.findOne(Tenant, { where: { slug } });
     if (existingSlug) {
       throw new SlugUnavailableError(`'${slug}' is already taken`);
     }
 
     const email = input.ownerEmail.toLowerCase().trim();
-    // Email is unique per-tenant now (after TightenTenantUniqueness),
-    // but for the FIRST owner of a brand-new tenant we have to check
-    // against the global universe of owners — same email twice across
-    // two new tenants would be confusing UX. We check by NULL tenantId
-    // OR matching this tenant's email; if the user already exists as
-    // a member of another tenant, they'd reuse that account in a
-    // future "join existing" flow (out of scope here).
     const existingOwnerByEmail = await em
       .createQueryBuilder(User, 'u')
       .where('LOWER(u.email) = :email', { email })
@@ -158,10 +106,6 @@ export async function signupTenant(input: SignupInput): Promise<SignupResult> {
       );
     }
 
-    // Best-effort geocoding (V2-30). If the caller supplied an address
-    // we try once at signup so the tenant is map-ready. A geocoder
-    // failure (provider down, address unparseable) MUST NOT block
-    // signup — the tenant can fix it later from /saas/settings.
     let initialAddress: string | null = null;
     let initialLat: number | null = null;
     let initialLng: number | null = null;
@@ -194,8 +138,6 @@ export async function signupTenant(input: SignupInput): Promise<SignupResult> {
         address: initialAddress,
         lat: initialLat,
         lng: initialLng,
-        // Always false at signup. Tenant flips this from settings
-        // once they're ready to take customers.
         isDiscoverable: false,
       }),
     );
@@ -214,12 +156,6 @@ export async function signupTenant(input: SignupInput): Promise<SignupResult> {
         isEmailVerified: false,
         verificationToken,
         role: UserRole.ADMIN,
-        // V2-33 fix: the previous empty array left owners unable to
-        // manage their own kiosks / pricing / staff. The RBAC layer
-        // is tenant-scoped (rbac.middleware verifies TenantMember on
-        // top of the privilege check), so granting the full bundle
-        // is safe — owners can only ever act on resources tagged with
-        // their own tenantId.
         adminPrivileges: OWNER_PRIVILEGES as any,
       }),
     );
@@ -251,8 +187,6 @@ export async function signupTenant(input: SignupInput): Promise<SignupResult> {
 
     await seedDefaultPricing(em, tenant.id);
 
-    // Seed a demo kiosk so the operator console isn't empty (V2-30).
-    // The owner can rename / reconfigure it from /saas/operator/printers.
     await em.save(
       em.create(Kiosk, {
         tenantId: tenant.id,
@@ -266,9 +200,6 @@ export async function signupTenant(input: SignupInput): Promise<SignupResult> {
     const loginUrl = buildLoginUrl(tenant.slug);
     const verifyUrl = buildVerifyUrl(tenant.slug, verificationToken);
 
-    // Fire the verification email and SMS after the transaction commits — we
-    // schedule it inside `process.nextTick` so a failed delivery
-    // doesn't roll back the signup. The user can request a resend.
     process.nextTick(() => {
       const mailer = new EmailService();
       mailer
@@ -311,10 +242,6 @@ export async function signupTenant(input: SignupInput): Promise<SignupResult> {
   });
 }
 
-/**
- * Verify an owner's email by token. Idempotent — verifying an
- * already-verified user returns success without re-issuing.
- */
 export async function verifyOwnerEmail(opts: {
   token: string;
   email?: string;
@@ -346,11 +273,6 @@ export async function verifyOwnerEmail(opts: {
   return { verified: true, userId: user.id, tenantSlug };
 }
 
-/**
- * Resend the verification email. Re-issues the token so a leaked
- * email doesn't leave an old token still active. Rate-limit the
- * route that calls this (see saas.routes.ts).
- */
 export async function resendOwnerVerification(opts: {
   email: string;
   tenantSlug?: string;
@@ -409,9 +331,6 @@ export async function resendOwnerVerification(opts: {
 }
 
 function generateVerificationToken(): string {
-  // 6-digit code: high enough entropy when combined with the email
-  // address (which the verify route requires) to resist brute force,
-  // low enough for a user to type from a phone.
   return String(randomInt(100_000, 1_000_000));
 }
 
@@ -457,8 +376,6 @@ async function seedDefaultPricing(
   em: import('typeorm').EntityManager,
   tenantId: string,
 ): Promise<void> {
-  // Mirrors the legacy 24-cell matrix from config/database.ts → runPostInitMigrations.
-  // New tenants get the same starting prices; they tweak from there.
   const DEFAULT_CELLS: Array<{
     paper: PaperSize;
     color: ColorType;

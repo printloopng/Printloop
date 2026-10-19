@@ -1,26 +1,5 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-/**
- * SaaS multi-tenant foundation (Phase A of SAAS-ROADMAP.md).
- *
- * Adds:
- *   - tenants               — one row per printing business.
- *   - tenant_members        — User ↔ Tenant join with role.
- *   - payouts               — Dimension 15: outgoing transfers ledger.
- *   - payout_schedules      — per-tenant payout cadence + bank account.
- *   - transactions.tenantId — tag every transaction to a tenant.
- *   - transactions.commissionAmount — Bolt-style commission slice (₦).
- *
- * Every statement is idempotent (CREATE TABLE IF NOT EXISTS, ALTER TABLE
- * guarded by a PRAGMA check) so the migration is safe to run against a
- * fresh DB or a DB that's already been partially migrated by an older
- * synchronize run.
- *
- * Backfill: a 'legacy' tenant row is created in config/seed.ts (not
- * here) because seeding is data, not schema. Existing transactions get
- * their tenantId backfilled by the same seed once the legacy tenant
- * exists.
- */
 export class CreateSaasFoundation1717100000000 implements MigrationInterface {
   name = 'CreateSaasFoundation1717100000000';
 
@@ -97,11 +76,6 @@ export class CreateSaasFoundation1717100000000 implements MigrationInterface {
       await queryRunner.query(sql);
     }
 
-    // SQLite has no `ALTER TABLE … ADD COLUMN IF NOT EXISTS`, so we
-    // check PRAGMA table_info first. The columns are added nullable
-    // (tenantId) and with default 0 (commissionAmount) so existing
-    // rows are valid without a backfill — the seed step will populate
-    // tenantId on legacy rows once the 'legacy' tenant exists.
     await this.addColumnIfMissing(
       queryRunner,
       'transactions',
@@ -121,10 +95,6 @@ export class CreateSaasFoundation1717100000000 implements MigrationInterface {
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    // Reversal drops in dependency order. The ALTERs on `transactions`
-    // are NOT undone — SQLite doesn't support DROP COLUMN without a
-    // table rewrite, and the legacy rows depend on those columns
-    // continuing to exist if we roll back the rest. Safe to leave.
     await queryRunner.query(`DROP INDEX IF EXISTS "idx_transaction_tenant"`);
     await queryRunner.query(`DROP INDEX IF EXISTS "idx_payout_schedule_tenant"`);
     await queryRunner.query(`DROP INDEX IF EXISTS "idx_payout_paystack_ref"`);

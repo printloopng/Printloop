@@ -5,14 +5,6 @@ import {
   useResendVerificationMutation,
 } from "@/store/services/saasApi";
 
-/**
- * `/saas/verify-email` — landing page for the verification link
- * the backend emails to new tenant owners.
- *
- * Auto-attempts verification if `?token=` is present; otherwise
- * shows a manual code-entry form. A resend button is always shown
- * as a fallback.
- */
 export default function VerifyEmailPage() {
   const [params] = useSearchParams();
   const navigate = useNavigate();

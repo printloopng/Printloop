@@ -334,9 +334,6 @@ function requireAuth(req: AuthedRequest, res: Response, next: NextFunction) {
     }
   }
 
-  // Bridge: accept a real customer JWT (issued by /api/customer/auth) so the
-  // remaining mock endpoints (wallet, stations, options) keep working once a
-  // customer is authenticated against the real backend.
   if (token) {
     try {
       const payload = verifyToken(token) as { userId?: string; role?: string };
@@ -357,14 +354,12 @@ function requireAuth(req: AuthedRequest, res: Response, next: NextFunction) {
         return;
       }
     } catch {
-      /* fall through to 401 */
     }
   }
 
   res.status(401).json({ success: false, message: "Authentication required" });
 }
 
-/** Blocks anyone who isn't admin or super_admin — use on all /admin/* routes */
 function requireAdmin(req: AuthedRequest, res: Response, next: NextFunction) {
   requireAuth(req, res, () => {
     const role = req.user?.role;
@@ -376,7 +371,6 @@ function requireAdmin(req: AuthedRequest, res: Response, next: NextFunction) {
   });
 }
 
-/** Require a specific privilege (super_admin always passes) */
 function requirePrivilege(privilege: string) {
   return (req: AuthedRequest, res: Response, next: NextFunction) => {
     requireAdmin(req, res, () => {
@@ -534,14 +528,6 @@ router.post("/auth/refresh", (req, res) => {
   });
 });
 
-// NOTE (V2-29): the /auth/forgot-password and /auth/reset-password
-// mocks that used to live here were security-broken (the forgot
-// route returned the reset token in the response body, enabling
-// arbitrary takeover). The real implementations are now in
-// routes/passwordReset.routes.ts and mounted at /api/auth in app.ts
-// BEFORE this router, so they win the path match. Mocks deleted to
-// avoid future confusion.
-
 router.get("/auth/me", requireAuth, (req: AuthedRequest, res) => {
   res.json({ success: true, data: publicUser(req.user!) });
 });
@@ -632,8 +618,6 @@ router.post("/files/upload", requireAuth, upload.single("file"), async (req, res
       fileName: file.originalname,
       mimeType: file.mimetype,
       size: file.size,
-      // Real, fetchable URL (served by GET /api/files/:key) so the
-      // kiosk/IPP service can actually retrieve the document bytes.
       fileURL: stored.url,
     },
   });
@@ -642,8 +626,6 @@ router.post("/files/upload", requireAuth, upload.single("file"), async (req, res
 router.get("/stations", requireAuth, (_req, res) => {
   res.json({ success: true, data: { stations: db.stations } });
 });
-
-
 
 router.post("/kiosk/release", async (req, res) => {
   refreshExpiredJobs();
@@ -662,7 +644,6 @@ router.post("/kiosk/release", async (req, res) => {
 
   const cfg: any = job.printConfiguration || {};
 
-  // ── Print-script policy: evaluate BEFORE anything is dispatched ────────
   const policy = await evaluatePrintPolicy({
     totalPages: Number(job.pageCount) || 1,
     copies: Number(cfg.copies) || 1,
@@ -688,7 +669,6 @@ router.post("/kiosk/release", async (req, res) => {
   if (station && station.ipAddress) {
     try {
       const ipp = new IppService();
-      // Expand a "2-3,10-20" style range to a page list for IPP page-ranges
       let pages: number[] | null = null;
       if (cfg.pages === "range" && cfg.pageRange) {
         pages = [];
@@ -700,12 +680,11 @@ router.post("/kiosk/release", async (req, res) => {
       }
       const prefs = await ippConnectionPrefs();
       const opts = {
-        // policy may have forced mono / duplex / clamped copies
         copies: policy.mutated.copies,
         sided: policy.mutated.sided,
         color: policy.mutated.color,
         paper: policy.mutated.paper || "A4",
-        collate: cfg.collate !== false, // batches collate by default
+        collate: cfg.collate !== false,
         pages,
         requestingUser: "PrintLoop-Kiosk",
         secure: prefs.secure,
@@ -791,13 +770,6 @@ router.post("/group-sessions/:id/close", requireAuth, (req: AuthedRequest, res) 
   res.json({ success: true, data: { session } });
 });
 
-// ─── Admin Auth ───────────────────────────────────────────────────────────────
-
-/**
- * POST /admin/auth/login
- * Separate admin login — rejects users without admin/super_admin role.
- * Credentials: admin@printloop.test / Admin1234!
- */
 router.post("/admin/auth/login", (req, res) => {
   const { email, password } = req.body || {};
   const user = email ? findUserByEmail(email) : null;
@@ -828,12 +800,9 @@ router.post("/admin/auth/login", (req, res) => {
   });
 });
 
-/** GET /admin/auth/me — returns the currently authenticated admin profile */
 router.get("/admin/auth/me", requireAdmin, (req: AuthedRequest, res) => {
   res.json({ success: true, data: publicUser(req.user!) });
 });
-
-// ─── Admin API routes (all require admin role) ───────────────────────────────
 
 router.get("/admin/overview", requireAdmin, (req: AuthedRequest, res) => {
   refreshExpiredJobs();
@@ -904,7 +873,6 @@ router.get("/admin/overview", requireAdmin, (req: AuthedRequest, res) => {
 });
 
 router.put("/admin/pricing", requirePrivilege('manage_pricing'), (req: AuthedRequest, res) => {
-  // Update mock database pricing
   db.pricing = req.body;
   saveDb();
   res.json({ success: true, data: db.pricing });
@@ -928,7 +896,6 @@ router.post("/admin/users/:id/promote", requireAdmin, (req: AuthedRequest, res) 
 
 router.put("/admin/users/:id/privileges", requirePrivilege('manage_admins'), (req: AuthedRequest, res) => {
 
-
   const targetUser = db.users.find(u => u.id === req.params.id);
   if (!targetUser) return res.status(404).json({ success: false, message: "User not found" });
 
@@ -937,8 +904,6 @@ router.put("/admin/users/:id/privileges", requirePrivilege('manage_admins'), (re
   
   res.json({ success: true, data: publicUser(targetUser) });
 });
-
-// ─── Admin: Kiosk / Printer Management ─────────────────────────────────────
 
 router.get("/admin/kiosks", requireAdmin, (req: AuthedRequest, res) => {
   const { status, search } = req.query as Record<string, string>;
@@ -996,8 +961,6 @@ router.delete("/admin/kiosks/:id", requirePrivilege('manage_kiosks'), (req: Auth
   res.json({ success: true, message: "Kiosk removed" });
 });
 
-// ─── Admin: Print Jobs Search & Management ─────────────────────────────────
-
 router.get("/admin/jobs", requireAdmin, (req: AuthedRequest, res) => {
   refreshExpiredJobs();
   const { status, userId, search, page = '1', limit = '25' } = req.query as Record<string, string>;
@@ -1052,8 +1015,6 @@ router.patch("/admin/jobs/:id/status", requireAdmin, (req: AuthedRequest, res) =
   saveDb();
   res.json({ success: true, data: formatJob(job) });
 });
-
-// ─── Admin: Reports ─────────────────────────────────────────────────────────
 
 router.get("/admin/reports/revenue", requireAdmin, (req: AuthedRequest, res) => {
   const { format = 'json', days = '30' } = req.query as Record<string, string>;
@@ -1111,8 +1072,6 @@ router.get("/admin/reports/kiosks", requireAdmin, (_req, res) => {
   });
   res.json({ success: true, data: { kiosks } });
 });
-
-// ─── Admin: System Options / Settings ───────────────────────────────────────
 
 const DEFAULT_SETTINGS = [
   { key: 'documentRetentionHours', label: 'Document Retention', value: '24', type: 'number', unit: 'hours', category: 'Storage', description: 'How long files are kept after a job ends.', readOnly: false },

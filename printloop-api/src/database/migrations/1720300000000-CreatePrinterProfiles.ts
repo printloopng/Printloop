@@ -1,8 +1,5 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-/**
- * V2-56 — printer profiles + job pinning column.
- */
 export class CreatePrinterProfiles1720300000000 implements MigrationInterface {
   name = 'CreatePrinterProfiles1720300000000';
 

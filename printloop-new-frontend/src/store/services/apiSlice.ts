@@ -9,10 +9,6 @@ const rawBase = fetchBaseQuery({
     const token = (getState() as RootState).auth.accessToken;
     if (token) headers.set("Authorization", `Bearer ${token}`);
 
-    // Resolve tenant slug from URL or sessionStorage for local development.
-    // V2-57: the OPERATOR surfaces (/saas/*, /admin/*) resolve their
-    // tenant from the signed-in user — a leftover slug from the student
-    // app's shop pick must never leak into them.
     const url = endpoint as string;
     const isOperatorRoute =
       typeof url === "string" && (url.startsWith("saas/") || url.startsWith("admin/"));
@@ -68,23 +64,13 @@ export const apiSlice = createApi({
     "AdminStats", "AdminJobs", "AdminUsers", "AdminKiosks", "AdminPricing",
     "AdminPromotions", "AdminTransactions", "AdminReports", "AdminSettings",
     "AdminAudit", "AdminDisputes", "AdminBlog", "AdminPrinterProfiles",
-    // Marketing blog (V2-54)
     "Blog",
-    // SaaS tenant admin surface (Phase A — Dimension 15)
     "TenantMe", "TenantBalance", "TenantPayouts", "TenantTransactions",
-    // Settings surfaces (V2-17): branding, custom domains, webhooks.
     "TenantBranding", "TenantDomains", "TenantWebhooks",
-    // Operator console (V2-39): kiosk fleet + live ops snapshot.
     "TenantKiosks", "TenantOps",
-    // Platform admin console (V2-18).
     "PlatformTenants", "ShopDetail",
-    // Document Editing Service (V2-XX — Edit & Print feature)
     "TenantEditPricing", "TenantEditQueue", "TenantEditJob",
   ],
-  // The pricing matrix is the obvious user-visible reason to enable
-  // these: an admin saves a price change → any customer returning to a
-  // print page (window focus / network reconnect) refetches and sees
-  // the new number, no hard reload required.
   refetchOnFocus: true,
   refetchOnReconnect: true,
   endpoints: () => ({}),

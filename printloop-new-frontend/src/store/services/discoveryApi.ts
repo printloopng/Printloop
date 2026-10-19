@@ -1,15 +1,5 @@
 import { apiSlice } from "./apiSlice";
 
-/**
- * Marketplace discovery (V2-30) — the customer-facing surface that
- * lets a student walk into `/find`, give us their location, and see
- * the nearest print shops. Backend: routes/discovery.routes.ts.
- *
- * All three endpoints are anonymous — no Authorization header. The
- * apiSlice's prepareHeaders adds Authorization only when a token
- * exists, so anonymous use is a no-op.
- */
-
 export interface PublicShop {
   id: string;
   slug: string;
@@ -18,7 +8,6 @@ export interface PublicShop {
   address: string | null;
   lat: number | null;
   lng: number | null;
-  /** Only present when origin lat/lng supplied to the query. */
   distanceKm?: number;
   agentOnline: boolean;
   brand: {
@@ -83,10 +72,6 @@ export interface HandoffVerifyResponse {
 
 export const discoveryApi = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
-    /**
-     * Nearby — requires lat + lng. radius (km) and limit are
-     * server-clamped (max 50 / 50).
-     */
     listNearbyShops: builder.query<
       NearbyResponse,
       { lat: number; lng: number; radius?: number; limit?: number }
@@ -96,11 +81,6 @@ export const discoveryApi = apiSlice.injectEndpoints({
       transformResponse: (r: { data: NearbyResponse }) => r.data,
     }),
 
-    /**
-     * No-location fallback — alphabetical list of discoverable shops.
-     * Renders while the geolocation prompt is pending or denied so
-     * the page never sits empty.
-     */
     listAllShops: builder.query<{ count: number; shops: PublicShop[] }, void>({
       query: () => `discovery/shops`,
       transformResponse: (
@@ -108,11 +88,6 @@ export const discoveryApi = apiSlice.injectEndpoints({
       ) => r.data,
     }),
 
-    /**
-     * Mint a short-lived handoff token (V2-32) so the customer can
-     * jump from /find/:slug into the tenant's portal without
-     * re-entering their email.
-     */
     mintHandoff: builder.mutation<
       HandoffMintResponse,
       { slug: string; email?: string }
@@ -124,11 +99,6 @@ export const discoveryApi = apiSlice.injectEndpoints({
       }),
       transformResponse: (r: { data: HandoffMintResponse }) => r.data,
     }),
-    /**
-     * Verify a handoff token on landing in the tenant portal. The
-     * tenant frontend reads ?handoff= from the URL and calls this
-     * to pre-fill the login form.
-     */
     verifyHandoff: builder.query<HandoffVerifyResponse, { token: string }>({
       query: ({ token }) =>
         `discovery/handoff/verify?token=${encodeURIComponent(token)}`,

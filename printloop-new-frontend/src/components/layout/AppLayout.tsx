@@ -9,11 +9,6 @@ import { useDispatch, useSelector } from "react-redux";
 import { logOut } from "@/store/features/auth/authSlice";
 import type { RootState } from "@/store";
 
-/**
- * Full nav set — appears on desktop and in the mobile drawer.
- * `BOTTOM_TABS` is a 4-item subset (the most-used pages) that
- * surfaces as the phone's persistent bottom-tab bar.
- */
 const NAV_ITEMS: MobileNavItem[] = [
   { label: "Dashboard", to: ROUTES.APP.DASHBOARD },
   { label: "My jobs", to: ROUTES.APP.PRINT_JOBS },
@@ -53,9 +48,7 @@ export function AppLayout() {
         ]}
       />
 
-      {/* ── Header ────────────────────────────────────────────────── */}
       <div className="pl-anim-header bg-paper border-b-2 border-ink px-4 sm:px-6 lg:px-8 py-3 sm:py-4 flex items-center justify-between gap-4">
-        {/* Logo + (desktop) horizontal nav */}
         <div className="flex items-center gap-4 lg:gap-8 min-w-0">
           <Link
             to={ROUTES.APP.DASHBOARD}
@@ -84,9 +77,7 @@ export function AppLayout() {
           </nav>
         </div>
 
-        {/* Right rail: desktop account chip + sign-out, mobile menu button */}
         <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
-          {/* Desktop only */}
           <span className="hidden lg:inline text-[10px] tracking-editorial font-bold truncate max-w-[140px]">
             {firstName}
           </span>
@@ -97,7 +88,6 @@ export function AppLayout() {
             SIGN OUT
           </button>
 
-          {/* Mobile / tablet menu button */}
           <button
             onClick={() => setMenuOpen(true)}
             aria-label="Open menu"
@@ -109,7 +99,6 @@ export function AppLayout() {
         </div>
       </div>
 
-      {/* ── Mobile drawer ─────────────────────────────────────────── */}
       <MobileNav
         open={menuOpen}
         onClose={() => setMenuOpen(false)}
@@ -118,18 +107,14 @@ export function AppLayout() {
         footerAction={{ label: "Sign out", onClick: handleLogout }}
       />
 
-      {/* ── Main content ──────────────────────────────────────────── */}
       <main className="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 pb-[88px] md:pb-8">
         <Outlet />
       </main>
 
-      {/* Footer only shown above the tab bar on phones via reserved padding;
-          on desktop it sits below the content directly. */}
       <div className="hidden md:block">
         <EditorialFooter inverse />
       </div>
 
-      {/* ── Bottom tab bar (phone only) ───────────────────────────── */}
       <BottomTabBar tabs={BOTTOM_TABS} />
     </div>
   );

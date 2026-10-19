@@ -1,16 +1,5 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-/**
- * Create the `tenant_balances` table — the denormalised per-tenant
- * running balance that powers dashboard reads in O(1) instead of
- * SUM-over-transactions.
- *
- * No backfill performed here: `recomputeFromScratch(tenantId)` runs
- * lazily on the first read for a tenant whose row doesn't exist
- * yet (see tenantBalance.service.ts → getTenantBalance). For a
- * proper backfill before the SUM-based path is removed, run
- * `recomputeFromScratch` for every tenant via an ops script.
- */
 export class CreateTenantBalances1717600000000
   implements MigrationInterface
 {

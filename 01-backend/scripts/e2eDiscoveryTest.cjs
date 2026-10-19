@@ -1,39 +1,7 @@
-/**
- * Marketplace discovery end-to-end (V2-30).
- *
- * Self-contained: spawns own backend on :4196 with the FIXTURE
- * geocoder so the test is independent of Nominatim reachability,
- * SEED_DEMO=1 so an admin exists for the platform calls, and a
- * fresh SQLite. Then:
- *
- *   1. Sign up two tenants with fixture addresses (Yaba + UNILAG).
- *      Both seed with default pricing.
- *   2. Verify both tenants have coords (geocoder succeeded).
- *   3. Manually promote both to status=active + isDiscoverable=true
- *      (the production signup leaves them trial+private — we drive
- *      the DB directly via the platform admin route so the test
- *      doesn't depend on Paystack onboarding).
- *   4. GET /api/discovery/shops/nearby from a third point (Lekki,
- *      south of both shops). Assert:
- *        - both shops are returned
- *        - sorted by distance
- *        - distance values are reasonable (within 5 km of expected)
- *        - the legacy tenant is NOT in the list
- *   5. GET /api/discovery/shops/:slug returns the detail incl. the
- *      pricing matrix.
- *   6. GET /api/discovery/shops/:slug for a known-NON-discoverable
- *      slug returns 404.
- *
- * No Redis required.
- */
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 
-// Random high port per run — on Windows the shell:true spawn we need
-// for tsx doesn't propagate SIGKILL through the cmd.exe wrapper, so a
-// previously-aborted e2e can leave a server squatting on a fixed port
-// and silently poison the next run. Random port = no collisions.
 const PORT = 5000 + Math.floor(Math.random() * 4000);
 const B = `http://localhost:${PORT}/api`;
 const DB_FILE = path.resolve(
@@ -68,7 +36,6 @@ async function jr(method, url, body, headers) {
   try {
     d = await r.json();
   } catch {
-    /* ignore */
   }
   return { status: r.status, data: d };
 }
@@ -80,7 +47,6 @@ async function waitFor(url, timeoutMs = 25_000) {
       const r = await fetch(url);
       if (r.ok) return true;
     } catch {
-      /* not up */
     }
     await new Promise((r) => setTimeout(r, 400));
   }
@@ -91,7 +57,6 @@ async function main() {
   try {
     fs.unlinkSync(DB_FILE);
   } catch {
-    /* ok */
   }
 
   const env = {
@@ -117,13 +82,11 @@ async function main() {
     try {
       server.kill('SIGKILL');
     } catch {
-      /* ignore */
     }
     setTimeout(() => {
       try {
         fs.unlinkSync(DB_FILE);
       } catch {
-        /* ignore */
       }
     }, 500);
   };
@@ -136,7 +99,6 @@ async function main() {
     }
     ok('server up on test port');
 
-    // 1) Sign up two tenants with fixture addresses.
     const yabaSignup = await jr('POST', '/saas/signup', {
       businessName: 'Yaba Print Hub',
       slug: 'yaba-print-hub',
@@ -167,13 +129,6 @@ async function main() {
       `unilag signup → 201 (got ${unilagSignup.status})`,
     );
 
-    // 2) Log in as super admin and call platform API to (a) check the
-    //    tenants got coords (we'll verify via discovery/shops/:slug
-    //    after activating) and (b) activate + flip isDiscoverable on.
-    //    We drive the activation by talking directly to the DB via
-    //    the platform route — production would do this through the
-    //    tenant's own settings UI, but we don't have that wired yet
-    //    in this test.
     const adminLogin = await jr('POST', '/admin/auth/login', {
       email: 'admin@printloop.test',
       password: 'Admin1234!',
@@ -183,38 +138,7 @@ async function main() {
       Authorization: `Bearer ${adminLogin.data.data.tokens.accessToken}`,
     };
 
-    // 3) Activate + flip isDiscoverable on both. We'll do it via a
-    //    direct SQL-ish path: log in as each tenant owner, hit the
-    //    new PATCH /me/location with isDiscoverable=true. But they
-    //    need verified email + tenant status != trial first.
-    //
-    //    Production: tenant verifies email + admin activates them.
-    //    Test: we shortcut both via the SUPER_ADMIN-only routes.
-    //    Easiest: poke the DB directly via the dev backdoor — but we
-    //    don't have one. So: open a second sqlite handle, flip the
-    //    rows. The test owns the DB file path; we use better-sqlite3
-    //    via node's built-in node:sqlite? Not available in 22.
-    //
-    //    Simpler: the platform admin route has PATCH /tenants/:id for
-    //    status. We use it to activate, then use a direct query via a
-    //    new endpoint? We don't have one — but the platform admin
-    //    DOES have one: PATCH /platform/tenants/:id supports status.
-    //    For isDiscoverable, we hit PATCH /saas/me/location as the
-    //    tenant owner; that route ALSO requires verified email.
-    //
-    //    Verified-email shortcut: we just call PATCH on the User row
-    //    via the admin route. Or simpler: the verify-email saas route
-    //    accepts the token directly. The signup result doesn't return
-    //    the token — but the dev console logs it when SMTP is unset.
-    //
-    //    For this test the cleanest path is: scrape verify tokens
-    //    from the server log (same trick as the password-reset e2e),
-    //    verify, then log in, then PATCH /me/location.
-
-    // Scrape the two verify tokens from the server log. The
-    // onboarding service logs them as part of sendTenantOwnerVerification's
-    // disabled-email path: "[email:disabled] to=… subject=Verify your email — code XXXXXX".
-    await new Promise((r) => setTimeout(r, 400)); // log flush
+    await new Promise((r) => setTimeout(r, 400));
     const tokenRe = /\[email:disabled\] to=([^ ]+) subject="?Verify your email — code (\d{6})"?/g;
     const tokensByEmail = new Map();
     let m;
@@ -241,8 +165,6 @@ async function main() {
     });
     assert(verifyUnilag.status === 200, `verify unilag → 200`);
 
-    // Log in as each tenant owner; the JWT picks up their membership.
-    // We pass X-Tenant-Slug since they don't have a subdomain here.
     const yabaLogin = await jr('POST', '/admin/auth/login', {
       email: 'yaba-owner@example.test',
       password: 'TenantOwner2026!',
@@ -262,9 +184,6 @@ async function main() {
       'X-Tenant-Slug': 'unilag-print-hub',
     };
 
-    // Tenants start as trial. Promote both to active via platform
-    // admin so they can be discoverable. PATCH /platform/tenants/:id
-    // updates status.
     const yabaTenantId = yabaSignup.data.data.tenantId;
     const unilagTenantId = unilagSignup.data.data.tenantId;
     const actY = await jr(
@@ -282,10 +201,6 @@ async function main() {
     );
     assert(actU.status === 200, `unilag activate → 200`);
 
-    // V2-32 live gate now requires: at least one kiosk with
-    // testPrintPassedAt + a recent heartbeat. Create one per tenant,
-    // mark it, heartbeat with its API key. As of V2-33 the owner
-    // can do this themselves, so use the owner tokens.
     async function provisionKiosk(authHdrs, label) {
       const create = await jr(
         'POST',
@@ -314,7 +229,6 @@ async function main() {
     await provisionKiosk(yabaAuth, 'yaba');
     await provisionKiosk(unilagAuth, 'unilag');
 
-    // Now flip isDiscoverable on as each owner.
     const discYaba = await jr(
       'PATCH',
       '/saas/me/location',
@@ -341,11 +255,6 @@ async function main() {
       `unilag isDiscoverable=true`,
     );
 
-    // 4) Query nearby from a Lekki-Phase-1 origin (south of both
-    //    shops). Yaba ≈ 6.51N, 3.37E. UNILAG ≈ 6.52N, 3.39E. Lekki ≈ 6.45N, 3.47E.
-    //    UNILAG is slightly east of Yaba but the Haversine to Lekki
-    //    puts both within ~12 km. Assert both surface and ordering
-    //    is consistent.
     const nearby = await jr(
       'GET',
       '/discovery/shops/nearby?lat=6.4488&lng=3.4724&radius=20',
@@ -365,8 +274,6 @@ async function main() {
       !slugs.includes('legacy'),
       'legacy tenant NOT in nearby (isDiscoverable=false)',
     );
-    // Distance ordering: each entry must have a distanceKm; the list
-    // must be sorted ascending.
     for (const s of shops) {
       assert(
         typeof s.distanceKm === 'number' && s.distanceKm < 20,
@@ -378,7 +285,6 @@ async function main() {
       `shops sorted ASC by distance (${shops[0].slug}=${shops[0].distanceKm.toFixed(2)} ≤ ${shops[1].slug}=${shops[1].distanceKm.toFixed(2)})`,
     );
 
-    // Capability rollup sanity.
     for (const s of shops) {
       assert(
         typeof s.cheapestPerPage === 'number' && s.cheapestPerPage > 0,
@@ -390,7 +296,6 @@ async function main() {
       );
     }
 
-    // 5) Detail endpoint with pricing matrix.
     const detail = await jr('GET', '/discovery/shops/yaba-print-hub?lat=6.4488&lng=3.4724');
     assert(detail.status === 200, `detail → 200 (got ${detail.status})`);
     assert(
@@ -407,7 +312,6 @@ async function main() {
       `detail includes pricing matrix (got ${detail.data.data.pricing?.length} rows)`,
     );
 
-    // 6) Detail for a non-discoverable slug → 404.
     const detailLegacy = await jr('GET', '/discovery/shops/legacy');
     assert(
       detailLegacy.status === 404 && detailLegacy.data.code === 'SHOP_NOT_FOUND',

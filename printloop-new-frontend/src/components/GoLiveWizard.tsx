@@ -6,15 +6,6 @@ import {
   useSetDiscoverableMutation,
 } from "@/store/services/saasApi";
 
-/**
- * Guided "go live" wizard (V2-41) for the operator console.
- *
- * Three gated steps — Payments → Branding → Printer & test print —
- * each lit from REAL backend flags (no hard-coded `false`). The final
- * "Go live" action flips marketplace discoverability; the backend
- * enforces the live gate, so this can only succeed once everything
- * actually passes. Replaces the passive checklist.
- */
 export default function GoLiveWizard() {
   const me = useGetTenantMeQuery();
   const ops = useGetOpsSummaryQuery();
@@ -101,7 +92,6 @@ export default function GoLiveWizard() {
         })}
       </ol>
 
-      {/* Go-live control */}
       <div className="mt-5 pt-4 border-t-2 border-paper-deep">
         {isLive ? (
           <div className="flex items-center justify-between gap-3 flex-wrap">

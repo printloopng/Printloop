@@ -4,8 +4,6 @@ export class CreateEditorSessionsTable1721100000000 implements MigrationInterfac
     name = 'CreateEditorSessionsTable1721100000000';
 
     public async up(queryRunner: QueryRunner): Promise<void> {
-        // Create editor_sessions table for tracking collaborative editing sessions
-        // SQLite-compatible schema with inline foreign keys
         await queryRunner.query(`
             CREATE TABLE "editor_sessions" (
                 "id" TEXT NOT NULL PRIMARY KEY,
@@ -29,7 +27,6 @@ export class CreateEditorSessionsTable1721100000000 implements MigrationInterfac
             )
         `);
 
-        // Indexes
         await queryRunner.query(`CREATE INDEX "IDX_editor_sessions_document_edit" ON "editor_sessions" ("document_edit_id")`);
         await queryRunner.query(`CREATE INDEX "IDX_editor_sessions_status" ON "editor_sessions" ("status")`);
         await queryRunner.query(`CREATE INDEX "IDX_editor_sessions_expires_at" ON "editor_sessions" ("expires_at")`);

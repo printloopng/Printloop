@@ -5,15 +5,6 @@ import {
   useListTransactionsQuery,
 } from "@/store/services/saasApi";
 
-/**
- * `/saas/dashboard` — printshop owner home.
- *
- * Restyled (V2-38) to the editorial-brutalist system the customer app
- * uses: Fraunces headlines, Ink/Paper/Persimmon palette, hard-shadow
- * buttons (`pl-btn-*`), `border-2 border-ink` cards. The balance card
- * still honours the tenant's brand primary colour (`--pl-brand-primary`)
- * with an Ink fallback instead of the old navy.
- */
 export default function DashboardHomePage() {
   const me = useGetTenantMeQuery();
   const balance = useGetTenantBalanceQuery();
@@ -38,7 +29,6 @@ export default function DashboardHomePage() {
 
   return (
     <div className="max-w-5xl mx-auto p-4 sm:p-6 space-y-6">
-      {/* Masthead */}
       <div>
         <div className="editorial-label text-persimmon mb-1">▸ YOUR SHOP</div>
         <h1 className="pl-serif font-extrabold text-3xl sm:text-4xl leading-none tracking-tight">
@@ -54,7 +44,6 @@ export default function DashboardHomePage() {
         </p>
       </div>
 
-      {/* Balance card — brand-primary with Ink fallback. */}
       <div
         className="text-paper rounded-pl-lg p-6 border-2 border-ink"
         style={{ backgroundColor: "var(--pl-brand-primary, #1A1410)" }}
@@ -90,7 +79,6 @@ export default function DashboardHomePage() {
         </div>
       </div>
 
-      {/* Onboarding checklist */}
       <Card>
         <SectionHeading>Setup checklist</SectionHeading>
         <ChecklistItem
@@ -129,7 +117,6 @@ export default function DashboardHomePage() {
         )}
       </Card>
 
-      {/* Recent revenue */}
       <Card>
         <div className="flex items-center justify-between mb-3">
           <SectionHeading className="mb-0">Recent revenue</SectionHeading>
@@ -179,8 +166,6 @@ export default function DashboardHomePage() {
     </div>
   );
 }
-
-/* ── Shared editorial primitives (local to the SaaS surface) ──────── */
 
 function Card({ children }: { children: React.ReactNode }) {
   return (

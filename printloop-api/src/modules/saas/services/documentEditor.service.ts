@@ -36,7 +36,6 @@ export class DocumentEditorService {
       'socket,host=libreoffice,port=2002;urp;StarOffice.ComponentContext';
   }
 
-  
   async convertToUniver(
     sourceUrl: string,
     mimeType: string,
@@ -56,7 +55,7 @@ export class DocumentEditorService {
       const response = await axios.get(sourceUrl, {
         responseType: 'arraybuffer',
         timeout: 60000,
-        maxContentLength: 50 * 1024 * 1024, // 50MB max
+        maxContentLength: 50 * 1024 * 1024,
       });
 
       const fileBuffer = Buffer.from(response.data);
@@ -81,7 +80,6 @@ export class DocumentEditorService {
     }
   }
 
-  
   private async convertViaLibreOffice(
     fileBuffer: Buffer,
     extension: string,
@@ -89,14 +87,14 @@ export class DocumentEditorService {
   ): Promise<any> {
     const formData = new FormData();
     formData.append('file', fileBuffer, { filename: `document${extension}`, contentType: 'application/octet-stream' });
-    formData.append('format', 'univer'); // Custom format for Univer JSON
+    formData.append('format', 'univer');
 
     try {
       const response = await axios.post(`${this.libreofficeUrl}/convert`, formData, {
         headers: {
           ...formData.getHeaders(),
         },
-        timeout: 120000, // 2 minutes for conversion
+        timeout: 120000,
         maxContentLength: 100 * 1024 * 1024,
       });
 
@@ -107,7 +105,6 @@ export class DocumentEditorService {
     }
   }
 
-  
   async createSession(
     editId: string,
     shopUserId: string,
@@ -145,7 +142,7 @@ export class DocumentEditorService {
       tokenHash,
       status: EditorSessionStatus.ACTIVE,
       conversionStatus: ConversionStatus.PENDING,
-      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
       lastActivityAt: new Date(),
     });
 
@@ -169,7 +166,6 @@ export class DocumentEditorService {
     };
   }
 
-  
   async getSession(
     sessionId: string,
     userId: string,
@@ -218,7 +214,6 @@ export class DocumentEditorService {
     };
   }
 
-  
   async saveSnapshot(
     sessionId: string,
     snapshot: any,
@@ -244,7 +239,6 @@ export class DocumentEditorService {
     await sessionRepo.save(session);
   }
 
-  
   async exportDocument(
     sessionId: string,
     format: 'pdf' | 'pwg',
@@ -302,7 +296,6 @@ export class DocumentEditorService {
     };
   }
 
-  
   async cleanupExpired(): Promise<number> {
     return repos.editorSession().expireActivePast();
   }
@@ -335,7 +328,7 @@ export class DocumentEditorService {
       eid: editId,
       uid: userId,
       iat: Math.floor(Date.now() / 1000),
-      exp: Math.floor(Date.now() / 1000) + 24 * 60 * 60, // 24 hours
+      exp: Math.floor(Date.now() / 1000) + 24 * 60 * 60,
     };
     return Buffer.from(JSON.stringify(payload)).toString('base64url');
   }

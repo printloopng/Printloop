@@ -41,10 +41,6 @@ function printedPages(d: Doc) {
   }
   return d.pageCount || 1;
 }
-// Cost preview for a single document in the batch. Consults the live
-// pricing matrix (same data the admin edits) instead of hardcoded rates.
-// Server-side `computeCost` in `customerPrint.routes.ts /batch` remains
-// the authoritative number at job creation.
 function costOf(d: Doc, rows: PricingRow[] | undefined) {
   return priceFromMatrix(printedPages(d), d.cfg, rows);
 }
@@ -123,7 +119,6 @@ export default function BatchPrintPage() {
   const addFiles = (list: FileList | null) => {
     let newFiles = Array.from(list || []);
     if (!newFiles.length) return;
-    // Reject Office files when this shop's server has no converter (V2-48).
     if (!officeEnabled) {
       const blocked = newFiles.filter((f) => isOfficeName(f.name));
       if (blocked.length) {
@@ -132,10 +127,6 @@ export default function BatchPrintPage() {
       }
     }
     if (!newFiles.length) return;
-    // Insert with a placeholder pageCount of 1 so cost appears immediately;
-    // then asynchronously upgrade each row to the authoritative count.
-    // This stops the bug where the batch summary read ₦210 (3 × 1 page)
-    // and then bumped to ₦3,990 (3 × 19 pages) at receipt time.
     const start = docs.length;
     setDocs((d) => [
       ...d,
@@ -157,8 +148,6 @@ export default function BatchPrintPage() {
                 officeEnabled ? "PDF, images, Word, PowerPoint or Excel" : "PDF, JPG, or PNG"
               }.`,
             );
-            // Drop unsupported file from the list so the user isn't billed
-            // on a placeholder page count.
             setDocs((list) => list.filter((d) => d.file !== file));
             return;
           }
@@ -167,9 +156,6 @@ export default function BatchPrintPage() {
               idx === start + i
                 ? {
                     ...d,
-                    // Office files can't be counted in the browser — keep the
-                    // estimate (default 1, user-editable); the server counts
-                    // the real pages after converting to PDF.
                     pageCount: res.source === "office" ? Math.max(1, d.pageCount) : res.pageCount,
                     rangeable: res.rangeable,
                     office: res.source === "office",
@@ -187,12 +173,10 @@ export default function BatchPrintPage() {
 
   const removeDoc = (idx: number) => {
     setDocs((list) => list.filter((_, i) => i !== idx));
-    // If the user was customizing this doc, drop back to the list.
     if (editing !== null && editing === idx) setEditing(null);
     if (editing !== null && editing > idx) setEditing(editing - 1);
   };
 
-  // Editing default settings re-applies to every not-yet-customized doc
   const updateDefault = (patch: Partial<Cfg>) => {
     const merged = { ...def, ...patch };
     setDef(merged);
@@ -208,10 +192,6 @@ export default function BatchPrintPage() {
   const pay = async () => {
     if (!docs.length) return toast.error("Attach at least one document.");
     try {
-      // Real multi-file / ONE-code job: every document is uploaded; each
-      // keeps its own settings; the kiosk releases them all with one code.
-      // The job is created PENDING — the release code is minted by the
-      // Paystack webhook after payment (V2-53: no wallet).
       const fd = new FormData();
       const items = docs.map((d) => ({
         fileName: d.file.name,
@@ -226,8 +206,6 @@ export default function BatchPrintPage() {
       const job = payload?.job || payload;
       if (!job?.id) throw new Error("Batch was not created.");
 
-      // Open the Paystack hosted checkout; the payment poll below
-      // picks up the release code once the webhook lands.
       const init = await initJobPayment({ jobId: job.id }).unwrap();
       const initData = init?.data || init;
       const url = initData?.authorizationUrl;
@@ -240,8 +218,6 @@ export default function BatchPrintPage() {
     }
   };
 
-  // While the Paystack checkout tab is open, poll the job list every 3s
-  // until the release code appears (minted by the webhook after payment).
   const { data: jobsData } = useListJobsQuery(undefined, {
     pollingInterval: awaitingPayment ? 3000 : 0,
     skip: !awaitingPayment,
@@ -265,7 +241,6 @@ export default function BatchPrintPage() {
     }
   }, [awaitingPayment, jobsData]);
 
-  // ── Customize one document ───────────────────────────────
   if (editing !== null && docs[editing]) {
     const d = docs[editing];
     const sel =
@@ -352,7 +327,6 @@ export default function BatchPrintPage() {
     );
   }
 
-  // ── Receipt: ONE code for the whole batch ────────────────
   if (receipt) {
     return (
       <div className="animate-fadein">
@@ -399,7 +373,6 @@ export default function BatchPrintPage() {
     );
   }
 
-  // ── Batch list ───────────────────────────────────────────
   return (
     <div className="animate-fadein">
       <div className="editorial-label text-persimmon mb-1">PERSONAL BATCH PRINTING</div>
@@ -483,7 +456,6 @@ export default function BatchPrintPage() {
             </div>
           )}
 
-          {/* Default settings */}
           <div className="mt-6 border-2 border-ink bg-paper-light p-5">
             <div className="editorial-label text-persimmon mb-3">DEFAULT SETTINGS — applied to non-customized files</div>
             <div className="flex flex-wrap gap-2">

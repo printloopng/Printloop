@@ -13,8 +13,6 @@ export class File {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  /** Owning tenant. Used by the storage-quota abuse limit + per-tenant
-   *  retention sweeps. */
   @Column({ type: 'uuid', nullable: true })
   tenantId: string | null;
 
@@ -36,7 +34,6 @@ export class File {
   @Column({ type: 'int', default: 1 })
   pageCount: number;
 
-  // Set when this file belongs to a group-session participant upload
   @Column({ type: 'uuid', nullable: true })
   participantId: string | null;
 

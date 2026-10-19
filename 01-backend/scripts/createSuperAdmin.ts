@@ -1,42 +1,3 @@
-/**
- * createSuperAdmin — production bootstrap CLI.
- *
- * Mints the first SUPER_ADMIN row directly against the configured
- * database (SQLite or Postgres — driver auto-selects from
- * DATABASE_URL exactly like the API does). Used to onboard the
- * platform operator on a fresh production DB where the demo seed
- * is OFF (SEED_DEMO !== "1") — otherwise there'd be no way to log
- * into the platform console at all.
- *
- * Usage
- * ─────
- *   tsx scripts/createSuperAdmin.ts <email> <password> \
- *       [--first-name=<First>] [--last-name=<Last>] \
- *       [--reset-password]
- *
- * Or via env (handy for Docker `docker compose run`):
- *   SUPER_ADMIN_EMAIL=ops@you.com \
- *   SUPER_ADMIN_PASSWORD='S3cret!' \
- *   tsx scripts/createSuperAdmin.ts
- *
- * Idempotency
- * ───────────
- *   - new email → inserts a new SUPER_ADMIN, links them as OWNER of
- *     the legacy tenant, exits 0.
- *   - existing email + already SUPER_ADMIN + no --reset-password →
- *     exits 0 with "already exists" (safe to re-run).
- *   - existing email + not SUPER_ADMIN + no --reset-password →
- *     exits non-zero (refuses to silently promote).
- *   - --reset-password → promotes role to SUPER_ADMIN and rotates
- *     the password.
- *
- * Why TS, not .cjs
- * ────────────────
- *   The script reuses the same AppDataSource + entities the API
- *   uses, so the schema/migration set stays single-source-of-truth.
- *   The backend runs via `tsx` everywhere (no build step) — the CLI
- *   follows the same pattern.
- */
 import 'reflect-metadata';
 import bcrypt from 'bcryptjs';
 import { AppDataSource } from '../config/database.js';
@@ -96,9 +57,6 @@ function parseArgs(argv: string[]): ParsedArgs {
     );
     process.exit(1);
   }
-  // Minimal hygiene — the auth route enforces stricter rules at login,
-  // but we should refuse obviously bad inputs at the CLI boundary too
-  // so deploy scripts fail loudly instead of writing junk.
   if (!/.+@.+\..+/.test(email)) {
     console.error(`Invalid email: ${email}`);
     process.exit(1);
@@ -119,9 +77,6 @@ async function main(): Promise<void> {
   if (!AppDataSource.isInitialized) {
     await AppDataSource.initialize();
   }
-  // The CLI may be the first ever boot — run migrations so the
-  // schema exists before we try to insert. Idempotent on subsequent
-  // runs (TypeORM skips already-applied migrations).
   await AppDataSource.runMigrations();
 
   const tenantId = await getOrCreateLegacyTenantId();
@@ -185,10 +140,6 @@ async function main(): Promise<void> {
     );
   }
 
-  // Link as OWNER of the legacy tenant so the tenant-aware admin
-  // surfaces work too. Mirrors what ensureLegacyTenant does on every
-  // boot, but doing it here means the operator doesn't have to start
-  // the server first to gain access.
   const alreadyMember = await memberRepo.findOne({
     where: { tenantId, userId: user.id },
   });
@@ -212,7 +163,6 @@ main().catch(async (err) => {
   try {
     if (AppDataSource.isInitialized) await AppDataSource.destroy();
   } catch {
-    /* ignore */
   }
   process.exit(3);
 });

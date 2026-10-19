@@ -3,7 +3,6 @@ import React, { useState, useEffect } from 'react';
 interface SettingsScreenProps {
   onSave: () => void;
   settings: {
-    apiUrl: string;
     apiKey: string;
     printerUri: string;
     pollInterval: number;
@@ -69,17 +68,6 @@ export function SettingsScreen({
         <div className="card">
           <section className="settings-section">
             <h2>Cloud Connection</h2>
-            <div className="form-group">
-              <label htmlFor="apiUrl">Server address</label>
-              <input
-                id="apiUrl"
-                type="url"
-                value={formData.apiUrl}
-                onChange={(e) => handleChange('apiUrl', e.target.value.trim())}
-                placeholder="https://api.printloop.app"
-              />
-              <p className="form-hint">The PrintLoop API this kiosk talks to (from your PrintLoop admin).</p>
-            </div>
             <div className="form-group">
               <label htmlFor="apiKey">API Key</label>
               <input

@@ -22,17 +22,6 @@ import {
 } from "@/store/services/discoveryApi";
 import { Reveal } from "@/components/ui/scrollFx";
 
-/**
- * `/find` — Bolt-style marketplace home (V2-31).
- *
- * Layout (top → bottom on every viewport, since the map is the
- * dominant cue): location chip + filters → map (55vh) → result list.
- * Map and list are bound to the SAME filtered shops state so search
- * and toggles update both at once.
- *
- * Anonymous — no login required. Backend: GET /api/discovery/shops*.
- */
-
 type GeoState =
   | { kind: "idle" }
   | { kind: "asking" }
@@ -40,9 +29,6 @@ type GeoState =
   | { kind: "denied"; reason: string }
   | { kind: "unsupported" };
 
-// Fallback origin (Lagos centre) used purely to anchor the map when
-// the user hasn't granted location yet — pins still appear if any
-// shops have coords; otherwise the map shows OSM tiles only.
 const FALLBACK_CENTER: [number, number] = [6.5244, 3.3792];
 
 export default function FindPage() {
@@ -106,7 +92,6 @@ export default function FindPage() {
   const isLoading = origin ? nearby.isLoading : fallback.isLoading;
   const isError = origin ? nearby.isError : fallback.isError;
 
-  // Apply client-side search + filters to BOTH the map pins and list.
   const shops = useMemo(() => {
     const q = query.trim().toLowerCase();
     return rawShops.filter((s) => {
@@ -119,8 +104,6 @@ export default function FindPage() {
     });
   }, [rawShops, query, filterColor, filterA3, filterOnline]);
 
-  // Pick the map centre: granted origin → first shop with coords →
-  // fallback Lagos centre.
   const mapCenter: [number, number] = origin
     ? [origin.lat, origin.lng]
     : shops.find((s) => s.lat != null && s.lng != null)
@@ -136,7 +119,6 @@ export default function FindPage() {
         </p>
       </header>
 
-      {/* Compact location + filter bar */}
       <div className="mb-3 flex flex-col gap-2">
         <LocationChip
           geo={geo}
@@ -180,7 +162,6 @@ export default function FindPage() {
         </div>
       </div>
 
-      {/* MAP — the dominant element, Bolt-style */}
       <div className="rounded-lg overflow-hidden border mb-4 h-[45vh] sm:h-[55vh]">
         <MapContainer
           center={mapCenter}
@@ -211,7 +192,6 @@ export default function FindPage() {
         </MapContainer>
       </div>
 
-      {/* Result list under the map */}
       {isLoading && (
         <p className="text-gray-500 text-sm">Loading shops…</p>
       )}
@@ -412,10 +392,6 @@ function ShopCard({ shop }: { shop: PublicShop }) {
   );
 }
 
-/**
- * Recenter the map imperatively when the center prop changes. React-Leaflet
- * doesn't re-anchor MapContainer once mounted; this hook does it.
- */
 function RecenterOnChange({ center }: { center: [number, number] }) {
   const map = useMap();
   useEffect(() => {
@@ -424,19 +400,9 @@ function RecenterOnChange({ center }: { center: [number, number] }) {
   return null;
 }
 
-/**
- * Cluster layer (V2-34). Wraps leaflet.markercluster in a React-leaflet-
- * compatible component: builds an L.markerClusterGroup, adds it to the
- * map on mount, replaces its marker set when `shops` changes, removes
- * it on unmount. The popup HTML is hand-rendered (not React) because
- * each leaflet marker owns its own DOM subtree — small and worth the
- * boundary so we don't pay for a hidden React root per pin.
- */
 function ShopClusterLayer({ shops }: { shops: PublicShop[] }) {
   const map = useMap();
   useEffect(() => {
-    // Cast — @types/leaflet.markercluster augments L but TS sometimes
-    // doesn't pick up the side-effect import in strict module mode.
     const cluster = (L as any).markerClusterGroup({
       showCoverageOnHover: false,
       maxClusterRadius: 50,
@@ -497,10 +463,6 @@ function buildPopupHtml(shop: PublicShop): string {
   `;
 }
 
-/**
- * Custom SVG pin coloured per shop brand. Beats Leaflet's default
- * (which 404s on the asset paths in vite builds anyway).
- */
 function shopPinIcon(color: string): L.DivIcon {
   const svg = `
 <svg xmlns="http://www.w3.org/2000/svg" width="28" height="38" viewBox="0 0 28 38">

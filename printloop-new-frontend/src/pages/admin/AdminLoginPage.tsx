@@ -34,7 +34,6 @@ export default function AdminLoginPage() {
 
   return (
     <div className="min-h-screen bg-ink flex items-stretch">
-      {/* Left brand strip */}
       <div className="hidden md:flex w-72 bg-sage flex-col justify-between p-10">
         <div>
           <div className="editorial-label text-paper/50 mb-1">PRINTLOOP</div>
@@ -49,10 +48,8 @@ export default function AdminLoginPage() {
         <div className="editorial-label text-paper/30">VOL I · ISSUE 09</div>
       </div>
 
-      {/* Right form panel */}
       <div className="flex-1 flex items-center justify-center p-4 sm:p-6 lg:p-8 bg-paper">
         <div className="w-full max-w-md">
-          {/* Mobile logo */}
           <div className="md:hidden mb-6">
             <div className="editorial-label text-persimmon mb-1">PRINTLOOP ADMIN</div>
           </div>
@@ -106,7 +103,6 @@ export default function AdminLoginPage() {
             </Button>
           </form>
 
-          {/* Dev hint */}
           <div className="mt-8 border-2 border-ink/10 bg-ink/5 p-4">
             <div className="editorial-label text-ink/40 mb-2">DEV CREDENTIALS</div>
             <div className="pl-mono text-xs text-ink/60 space-y-1">

@@ -61,7 +61,6 @@ The kiosk stores settings in `kiosk-settings.json` in the app data directory:
 
 ```json
 {
-  "apiUrl": "https://api.printloop.app",
   "apiKey": "kiosk_...",
   "printerUri": "ipp://localhost:60000/ipp/print",
   "pollInterval": 10000,
@@ -69,15 +68,16 @@ The kiosk stores settings in `kiosk-settings.json` in the app data directory:
 }
 ```
 
-The server address, kiosk key and printer are entered on the settings screen.
+The kiosk key and printer are entered on the settings screen. The PrintLoop
+server address is built in (`https://api.printloop.app`).
 The tenant is resolved by the backend from the kiosk API key (`X-Kiosk-Key`).
 
 First run will show the settings screen for configuration.
 
 ## Environment Variables
 
-See `.env.example`. `API_URL` there only pre-fills the server address during
-development. Files are downloaded through
+See `.env.example`. `API_URL` there overrides the built-in server address for
+development and staging only. Files are downloaded through
 short-lived signed URLs from the API, so the kiosk holds no storage credentials.
 
 ## Building Installers

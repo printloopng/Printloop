@@ -4,7 +4,6 @@ export class CreateDocumentEditsTable1720900000000 implements MigrationInterface
     name = 'CreateDocumentEditsTable1720900000000';
 
     public async up(queryRunner: QueryRunner): Promise<void> {
-        // SQLite-compatible schema
         await queryRunner.query(`
             CREATE TABLE "document_edits" (
                 "id" TEXT NOT NULL PRIMARY KEY,

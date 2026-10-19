@@ -8,26 +8,6 @@ import { File } from '../entities/file.entity';
 import { SystemSetting } from '../entities/systemSetting.entity';
 import { UPLOAD_DIR } from '../utils/fileStore';
 
-/**
- * Local-disk document retention.
- *
- * The Cloudinary/BullMQ cleanup worker is dead code (never started, and there
- * is no Redis in this deployment), so without this sweep the files written to
- * data/uploads/ would accumulate forever. This is a plain setInterval — no
- * Redis, no queue.
- *
- * Policy: once a job is in a terminal state (done/failed/expired/refunded) and
- * has sat there longer than `documentRetentionHours`, its source bytes are no
- * longer needed and are removed from disk. A job still awaiting release (READY)
- * keeps its file regardless of age — that file is exactly what the customer is
- * about to print.
- *
- * We only touch the filesystem, never the DB row: `files.fileURL` is NOT NULL
- * so it can't be cleared, and `loadDocumentBytes()` already degrades gracefully
- * when the bytes are gone. Touching only disk also makes the sweep idempotent —
- * a re-run just re-confirms the files are already absent.
- */
-
 const TERMINAL_STATUSES = [
   PrintJobStatus.DONE,
   PrintJobStatus.FAILED,
@@ -45,13 +25,11 @@ async function getRetentionHours(): Promise<number> {
     const n = Number(row?.value);
     if (Number.isFinite(n) && n > 0) return n;
   } catch {
-    /* fall through to env / default */
   }
   const envN = Number(process.env.DOCUMENT_RETENTION_HOURS);
   return Number.isFinite(envN) && envN > 0 ? envN : DEFAULT_RETENTION_HOURS;
 }
 
-/** Resolve a stored fileURL to its on-disk path, or null if it isn't one of ours. */
 function diskPathFor(url: string | null | undefined): string | null {
   if (!url) return null;
   const m = url.match(/\/api\/files\/([^/?#]+)/);
@@ -59,7 +37,6 @@ function diskPathFor(url: string | null | undefined): string | null {
   return path.join(UPLOAD_DIR, decodeURIComponent(m[1]));
 }
 
-/** Delete a file if present. Returns true when a file was actually removed. */
 function unlinkIfExists(p: string): boolean {
   try {
     if (fs.existsSync(p)) {
@@ -72,7 +49,6 @@ function unlinkIfExists(p: string): boolean {
   return false;
 }
 
-/** One pass: delete on-disk bytes for expired terminal jobs. Never throws. */
 export async function runRetentionSweep(): Promise<void> {
   try {
     const hours = await getRetentionHours();
@@ -88,7 +64,6 @@ export async function runRetentionSweep(): Promise<void> {
     const fileIds = new Set<string>();
     for (const j of jobs) if (j.fileId) fileIds.add(j.fileId);
 
-    // Batch jobs keep their documents in print_job_items, not on the job row.
     const items = await AppDataSource.getRepository(PrintJobItem).find({
       where: { printJobId: In(jobIds) },
       select: ['fileId'],
@@ -119,11 +94,6 @@ export async function runRetentionSweep(): Promise<void> {
   }
 }
 
-/**
- * Start the periodic sweep. The first pass is deferred so it never competes
- * with boot; thereafter it runs hourly. `.unref()` keeps the timers from
- * holding the process open on shutdown.
- */
 export function startRetentionSweep(): void {
   const HOUR = 60 * 60 * 1000;
   setTimeout(() => {

@@ -1,11 +1,5 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-/**
- * V2-53 — saved-card support. payments.authorizationCode stores the
- * Paystack card authorization (from charge.success) so the kiosk
- * release gate can charge the delta on underpaid jobs without the
- * customer re-entering card details.
- */
 export class AddPaymentAuthorizationCode1720100000000 implements MigrationInterface {
   name = 'AddPaymentAuthorizationCode1720100000000';
 

@@ -1,25 +1,3 @@
-/**
- * Marketplace discovery (V2-30) — the customer-facing "find a shop
- * near me" surface that the SaaS subdomain model didn't cover.
- *
- * All three routes are anonymous and cross-tenant — they're mounted
- * BEFORE the tenant-resolution middleware in app.ts. They never read
- * req.tenant. They return only the public projection of a tenant
- * (name, slug, brand colour, address, distance, capabilities) —
- * never anything that would let an unauthenticated caller learn
- * about another tenant's customers or money.
- *
- *   GET /api/discovery/shops/nearby?lat&lng&radius=10&limit=20
- *     Haversine sort, default 10 km radius, default 20 results.
- *
- *   GET /api/discovery/shops?limit=20
- *     No-location fallback (returns top N alphabetically). Useful
- *     while the geolocation prompt is pending or denied.
- *
- *   GET /api/discovery/shops/:slug?lat&lng
- *     Detail view: full pricing matrix, address, agent_online,
- *     distance from caller (if lat/lng supplied).
- */
 import { Router, type Request, type Response } from 'express';
 import { In, LessThanOrEqual } from 'typeorm';
 import jwt from 'jsonwebtoken';
@@ -45,7 +23,7 @@ const DEFAULT_RADIUS_KM = 10;
 const MAX_RADIUS_KM = 50;
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 50;
-const ONLINE_WINDOW_MS = 5 * 60 * 1000; // 5 min
+const ONLINE_WINDOW_MS = 5 * 60 * 1000;
 
 interface PublicShop {
   id: string;
@@ -55,23 +33,16 @@ interface PublicShop {
   address: string | null;
   lat: number | null;
   lng: number | null;
-  /** km from caller, only when lat/lng supplied. */
   distanceKm?: number;
-  /** True if at least one kiosk has heartbeated in the last 5 min. */
   agentOnline: boolean;
-  /** Operator-controlled (V2-57): open | busy | closed. */
   availability: 'open' | 'busy' | 'closed';
-  /** Brand surface from TenantBranding for the marketplace card. */
   brand: {
     wordmark: string | null;
     primaryColor: string | null;
     logoUrl: string | null;
   };
-  /** Cheapest A4 B&W per-page price across all DPI/sided combos. */
   cheapestPerPage: number | null;
-  /** Whether the shop offers colour. Lets us badge the cards. */
   hasColor: boolean;
-  /** Available paper sizes (A3 / A4) the shop has pricing for. */
   paperSizes: PaperSize[];
   queueLength: number;
   estimatedWaitMin: number;
@@ -80,11 +51,6 @@ interface PublicShop {
   photos: string[];
 }
 
-/**
- * Build the cross-tenant rollup once per request so we avoid N+1
- * queries against pricing/kiosks/branding. Three queries total
- * regardless of how many tenants survive the filter.
- */
 async function buildPublicShops(
   tenants: Tenant[],
   origin: { lat: number; lng: number } | null,
@@ -115,11 +81,6 @@ async function buildPublicShops(
     }),
   ]);
 
-  // Index everything by tenantId for O(1) lookup in the result map.
-  // PricingConfig.tenantId and Kiosk.tenantId are declared `string | null`
-  // in their entities (legacy from pre-V2-8) but DB-enforced NOT NULL
-  // since V2-8 — the `!` assertions are safe and lighter than a
-  // runtime filter.
   const pricingByTenant = new Map<string, PricingConfig[]>();
   for (const p of pricing) {
     const tid = p.tenantId!;
@@ -156,8 +117,6 @@ async function buildPublicShops(
       (p) =>
         p.paperSize === PaperSize.A4 && p.colorType === ColorType.BLACK_WHITE,
     );
-    // Filter out null prices (legacy rows pre-pricing-matrix may have
-    // them); fall back to null when nothing valid remains.
     const a4Prices = a4bw
       .flatMap((p) => [p.price100Simplex, p.price300Simplex, p.price600Simplex])
       .filter((n): n is number => typeof n === 'number' && Number.isFinite(n));
@@ -166,12 +125,6 @@ async function buildPublicShops(
     const b = brandByTenant.get(t.id);
     const tKiosks = kiosksByTenant.get(t.id) || [];
 
-    // V2-44 (P2): capability truth. Pricing says what the shop SELLS;
-    // the agent-reported hardware caps say what the printers can DO.
-    // When at least one kiosk has reported (capX non-null), the rollup
-    // only claims a capability if pricing AND hardware agree. When no
-    // kiosk has reported (manual era / spooler / raw transports), the
-    // pricing-derived behaviour is unchanged — unknown is not false.
     const colorKnown = tKiosks.some((k) => k.capColor !== null && k.capColor !== undefined);
     const hwColor = colorKnown ? tKiosks.some((k) => k.capColor === true) : true;
     const hasColor = tPricing.some((p) => p.colorType === ColorType.COLOR) && hwColor;
@@ -226,14 +179,12 @@ async function buildPublicShops(
   });
 }
 
-/** Parse + clamp a numeric query param. */
 function num(raw: unknown, def: number, max: number): number {
   const n = Number(raw);
   if (!Number.isFinite(n) || n <= 0) return def;
   return Math.min(n, max);
 }
 
-/** GET /api/discovery/shops/nearby */
 router.get('/shops/nearby', async (req: Request, res: Response) => {
   const lat = Number(req.query.lat);
   const lng = Number(req.query.lng);
@@ -248,15 +199,12 @@ router.get('/shops/nearby', async (req: Request, res: Response) => {
   const radiusKm = num(req.query.radius, DEFAULT_RADIUS_KM, MAX_RADIUS_KM);
   const limit = num(req.query.limit, DEFAULT_LIMIT, MAX_LIMIT);
 
-  // Bounding-box prefilter trims the N before we Haversine-sort. At
-  // Lagos latitudes 1° lat ≈ 111 km and 1° lng ≈ 110 km, close enough.
   const dLat = radiusKm / 111;
   const dLng = radiusKm / 110;
   const candidates = await AppDataSource.getRepository(Tenant)
     .createQueryBuilder('t')
     .where('t.isDiscoverable = :d', { d: true })
     .andWhere('t.status = :s', { s: TenantStatus.ACTIVE })
-    // Closed shops (V2-57) don't appear in the map list at all.
     .andWhere("t.availability != 'closed'")
     .andWhere('t.lat IS NOT NULL AND t.lng IS NOT NULL')
     .andWhere('t.lat BETWEEN :latMin AND :latMax', {
@@ -286,7 +234,6 @@ router.get('/shops/nearby', async (req: Request, res: Response) => {
   });
 });
 
-/** GET /api/discovery/shops — alphabetical fallback for the no-location path. */
 router.get('/shops', async (req: Request, res: Response) => {
   const limit = num(req.query.limit, DEFAULT_LIMIT, MAX_LIMIT);
   const tenants = await AppDataSource.getRepository(Tenant)
@@ -304,7 +251,6 @@ router.get('/shops', async (req: Request, res: Response) => {
   });
 });
 
-/** GET /api/discovery/shops/:slug — detail. */
 router.get('/shops/:slug', async (req: Request, res: Response) => {
   const slug = String(req.params.slug || '').trim().toLowerCase();
   if (!slug) {
@@ -329,8 +275,6 @@ router.get('/shops/:slug', async (req: Request, res: Response) => {
       : null;
   const [pub] = await buildPublicShops([tenant], origin);
 
-  // Detail responses also include the full per-cell pricing matrix
-  // so the shop page can render a price table without a second hop.
   const pricing = await AppDataSource.getRepository(PricingConfig).find({
     where: { tenantId: tenant.id },
   });
@@ -371,7 +315,6 @@ router.get('/shops/:slug', async (req: Request, res: Response) => {
   });
 });
 
-/** GET /api/discovery/shops/:slug/reviews — public reviews list */
 router.get('/shops/:slug/reviews', async (req: Request, res: Response) => {
   try {
     const slug = String(req.params.slug || '').trim().toLowerCase();
@@ -404,38 +347,14 @@ router.get('/shops/:slug/reviews', async (req: Request, res: Response) => {
   }
 });
 
-// ── Session handoff (V2-32) ──────────────────────────────────────────────
-//
-// A signed JWT the marketplace mints when a customer taps "Print here →"
-// on /find/:slug. The shop's tenant subdomain consumes it on landing and
-// pre-fills the customer's email + slug so the customer doesn't have to
-// re-enter anything.
-//
-// Stateless: nothing stored server-side. Token TTL is 5 minutes so a
-// shared URL can't be reused indefinitely; secret is JWT_SECRET (the
-// only signing key the API has). The payload only carries the tenantSlug
-// and an optional email — never wallet, password, or anything sensitive.
-
 const HANDOFF_TTL_SECONDS = 5 * 60;
 
 interface HandoffPayload {
   tenantSlug: string;
   email?: string;
-  // Marker so a stray access token can't be replayed against /verify.
   kind: 'handoff';
 }
 
-/**
- * POST /api/discovery/handoff
- *
- * Body: { slug: string, email?: string }
- * Returns: { token, expiresIn }
- *
- * Validates that the slug refers to a discoverable, active tenant
- * (so we don't mint tokens pointing at suspended or non-existent
- * shops). Anonymous; rate-limited by the existing apiLimiter mount
- * if enabled.
- */
 router.post('/handoff', async (req: Request, res: Response) => {
   try {
     const slug = String(req.body?.slug || '').trim().toLowerCase();
@@ -491,15 +410,6 @@ router.post('/handoff', async (req: Request, res: Response) => {
   }
 });
 
-/**
- * GET /api/discovery/handoff/verify?token=…
- *
- * The tenant subdomain calls this on landing. Returns the decoded
- * payload (tenantSlug + email) so the SPA can pre-fill the login
- * form. Distinguishes expired vs. malformed so the UI can render
- * the right message ("link expired — request a new one" vs. "bad
- * link").
- */
 router.get('/handoff/verify', async (req: Request, res: Response) => {
   const token = String(req.query.token || '');
   if (!token) {
@@ -521,9 +431,6 @@ router.get('/handoff/verify', async (req: Request, res: Response) => {
       });
       return;
     }
-    // V2-44: LMS-minted handoffs carry a jti and are single-use — the
-    // first verify consumes it, replays get 401. Marketplace handoffs
-    // (no jti) keep their stateless V2-32 behaviour.
     if (decoded.jti && !consumeJtiOnce(decoded.jti, decoded.exp)) {
       res.status(401).json({
         success: false,
@@ -554,7 +461,6 @@ router.get('/handoff/verify', async (req: Request, res: Response) => {
   }
 });
 
-/** POST /api/discovery/shops/seed-demo-nearby */
 router.post('/shops/seed-demo-nearby', async (req: Request, res: Response) => {
   try {
     const lat = Number(req.body.lat);
@@ -572,7 +478,6 @@ router.post('/shops/seed-demo-nearby', async (req: Request, res: Response) => {
       .getCount();
 
     if (count > 0) {
-      // Already has shops close to this location
       res.json({ success: true, seeded: false, message: 'Shops already exist near this location' });
       return;
     }
@@ -727,4 +632,4 @@ router.post('/shops/seed-demo-nearby', async (req: Request, res: Response) => {
 export default router;
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-const _typeOnly = LessThanOrEqual; // silence unused-import warning if TS prunes it
+const _typeOnly = LessThanOrEqual;

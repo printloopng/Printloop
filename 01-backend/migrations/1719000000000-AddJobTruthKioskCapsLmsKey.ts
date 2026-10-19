@@ -1,24 +1,5 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-/**
- * V2-44 — the SavaPage-study adoptions:
- *
- *   kiosks.capColor / capDuplex / capA3 / capMedia / capUpdatedAt
- *     Hardware capabilities the agent auto-discovers via IPP
- *     Get-Printer-Attributes on pairing/startup. NULL = unknown
- *     (manual era / non-IPP transports) — the discovery rollup
- *     treats unknown as "trust pricing", known as ground truth.
- *
- *   print_jobs.agentConfirmation
- *     "<method>:<state>" recorded when the agent reports complete,
- *     e.g. "ipp-job-state:confirmed", "queue-drain:confirmed",
- *     "none:unconfirmed". NULL on legacy rows and cloud-push jobs.
- *
- *   tenants.lmsKey
- *     Per-tenant shared key for the campus LMS trusted-link handoff
- *     (GET /api/integrations/lms/handoff). NULL until the operator
- *     generates one.
- */
 export class AddJobTruthKioskCapsLmsKey1719000000000 implements MigrationInterface {
   name = 'AddJobTruthKioskCapsLmsKey1719000000000';
 
@@ -74,7 +55,6 @@ export class AddJobTruthKioskCapsLmsKey1719000000000 implements MigrationInterfa
 
   public async down(queryRunner: QueryRunner): Promise<void> {
     if (queryRunner.connection.options.type === 'sqlite') {
-      // SQLite DROP COLUMN unsupported — dev-only rollback, acceptable.
     } else {
       await queryRunner.query(`ALTER TABLE "kiosks" DROP COLUMN IF EXISTS "capColor"`);
       await queryRunner.query(`ALTER TABLE "kiosks" DROP COLUMN IF EXISTS "capDuplex"`);

@@ -12,7 +12,6 @@ const CATEGORY_ORDER = [
   "System",
 ];
 
-/** documentRetentionHours → "Document Retention Hours" */
 function labelFromKey(key: string) {
   return key
     .replace(/([A-Z])/g, " $1")

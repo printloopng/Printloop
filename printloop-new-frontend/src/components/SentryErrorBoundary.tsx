@@ -1,17 +1,6 @@
 import * as Sentry from "@sentry/react";
 import type { ReactNode } from "react";
 
-/**
- * Whole-app error boundary wrapping <App /> (V2-36).
- *
- * Catches render exceptions, reports them to Sentry (when configured),
- * and shows a recoverable fallback UI so the customer isn't left
- * staring at a white screen.
- *
- * Resets when the user clicks "Reload" — which forces a hard
- * navigation, the cleanest way to recover from a corrupted store /
- * route state in production.
- */
 export function SentryErrorBoundary({ children }: { children: ReactNode }) {
   return (
     <Sentry.ErrorBoundary

@@ -4,19 +4,6 @@ import { AppDataSource } from '../config/database';
 import { Tenant } from '../entities/tenant.entity';
 import { TenantDomain, DomainStatus } from '../entities/tenantDomain.entity';
 
-/**
- * Custom-domain ownership proof (Dimension 8 — V2-16).
- *
- * We prove the tenant controls the domain via a DNS TXT record at
- * `_printloop-verify.<domain>` carrying a per-claim random token.
- * Once verified we set `tenant.customDomain` so the tenant-
- * resolution middleware routes the hostname to this tenant.
- *
- * TLS / edge routing (Cloudflare for SaaS custom hostnames, or a
- * self-hosted Caddy with on-demand-TLS) is configured out-of-band;
- * this service owns the ownership-proof + DB linkage only.
- */
-
 const TXT_PREFIX = '_printloop-verify';
 const DOMAIN_RE =
   /^(?!-)[a-z0-9-]{1,63}(?<!-)(\.(?!-)[a-z0-9-]{1,63}(?<!-))+$/;
@@ -41,11 +28,6 @@ function normalizeDomain(input: string): string {
     .replace(/\.$/, '');
 }
 
-/**
- * Claim a domain for a tenant. Returns the row + the exact TXT record
- * the tenant must publish. Idempotent on (tenant, domain): re-claiming
- * a PENDING/FAILED domain you already own re-issues the token.
- */
 export async function claimDomain(
   tenantId: string,
   rawDomain: string,
@@ -57,8 +39,6 @@ export async function claimDomain(
       'INVALID_DOMAIN',
     );
   }
-  // Block claiming an apex we own — those resolve to subdomains, not
-  // custom domains.
   const ourApexes = (process.env.PRINTLOOP_APEX_DOMAINS || 'printloop.app,printloop.test')
     .split(',')
     .map((s) => s.trim().toLowerCase());
@@ -84,7 +64,6 @@ export async function claimDomain(
     row = repo.create({ tenantId, domain });
   }
   if (row.status !== DomainStatus.VERIFIED) {
-    // Re-issue a fresh token on every (re)claim of an unverified row.
     row.verificationToken = crypto.randomBytes(24).toString('base64url');
     row.status = DomainStatus.PENDING;
     row.lastCheckError = null;
@@ -101,10 +80,6 @@ export async function claimDomain(
   };
 }
 
-/**
- * Verify a claimed domain by resolving its TXT record. On success
- * flips status → VERIFIED and sets `tenant.customDomain`.
- */
 export async function verifyDomain(
   tenantId: string,
   domainId: string,
@@ -120,7 +95,6 @@ export async function verifyDomain(
   let txtValues: string[] = [];
   try {
     const records = await dns.resolveTxt(fqdn);
-    // resolveTxt returns string[][]; flatten chunked records.
     txtValues = records.map((chunks) => chunks.join(''));
   } catch (err: any) {
     row.status = DomainStatus.FAILED;
@@ -139,7 +113,6 @@ export async function verifyDomain(
     return { verified: false, reason: row.lastCheckError };
   }
 
-  // Verified. Flip the row + set the tenant's active custom domain.
   row.status = DomainStatus.VERIFIED;
   row.verifiedAt = new Date();
   row.lastCheckError = null;
@@ -161,10 +134,6 @@ export async function listDomains(tenantId: string): Promise<TenantDomain[]> {
   });
 }
 
-/**
- * Remove a domain claim. If it was the tenant's active customDomain,
- * clear that too so the middleware stops routing it.
- */
 export async function removeDomain(
   tenantId: string,
   domainId: string,

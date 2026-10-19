@@ -148,7 +148,6 @@ export async function runDatabaseBackup(): Promise<BackupResult> {
   const stat = await fs.stat(out);
   const kept = await prune(path.dirname(out), keepCount());
 
-  // Upload to S3 if configured
   const s3Key = `backups/${path.basename(out)}`;
   const s3Url = await uploadToS3(out, s3Key);
 

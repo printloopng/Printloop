@@ -6,18 +6,6 @@ import {
 } from "@/store/services/saasApi";
 import { Reveal } from "@/components/ui/scrollFx";
 
-/**
- * `/saas/signup` — anonymous tenant sign-up.
- *
- * Captures the minimum for `POST /api/saas/signup`: business name +
- * slug + owner identity. On success, the backend returns the
- * tenant's login URL on its own subdomain — we route the browser
- * there.
- *
- * Slug availability is checked live as the owner types, debounced
- * 400ms. The reserved-slug list lives server-side; this page just
- * surfaces the response.
- */
 export default function SignupPage() {
   const navigate = useNavigate();
   const [signup, signupState] = useSignupTenantMutation();
@@ -62,23 +50,15 @@ export default function SignupPage() {
     e.preventDefault();
     try {
       const r = await signup(form).unwrap();
-      // Redirect to the tenant's subdomain login. In dev (no real
-      // wildcard DNS), navigate to the shop sign-in page.
       if (window.location.hostname.includes("printloop")) {
         window.location.href = r.loginUrl;
       } else {
         navigate(`/saas/verify-email?welcome=1&slug=${r.tenantSlug}`);
       }
     } catch (err) {
-      // Error surfaced via signupState.error below.
       console.error(err);
     }
   };
-
-  // After verification, the verify-email page redirects to /saas/login
-  // with welcome=1&slug=... which shows a welcome banner. After login,
-  // the SaasShell loads and the dashboard shows the onboarding checklist.
-  // The first step (subaccount) links with ?wizard=1 to chain the flow.
 
   const slugMsg: Record<typeof slugStatus, string | null> = {
     idle: null,

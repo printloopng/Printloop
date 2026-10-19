@@ -26,7 +26,6 @@ describe('Spec Gaps Integration Tests', () => {
       try {
         fs.unlinkSync(testDbFile);
       } catch (err) {
-        // ignore
       }
     }
     const dbModule = await import('../config/database');
@@ -36,19 +35,16 @@ describe('Spec Gaps Integration Tests', () => {
     await AppDataSource.runMigrations();
     await dbModule.runPostInitMigrations();
 
-    // Clear all tables for a completely clean slate
     await AppDataSource.query('PRAGMA foreign_keys = OFF;');
     const entities = AppDataSource.entityMetadatas;
     for (const entity of entities) {
       try {
         await AppDataSource.query(`DELETE FROM "${entity.tableName}";`);
       } catch (err) {
-        // ignore
       }
     }
     await AppDataSource.query('PRAGMA foreign_keys = ON;');
 
-    // Pre-create a tenant for tests to share
     const tenantRepo = AppDataSource.getRepository(Tenant);
     const tenant = tenantRepo.create({
       name: 'Test Tenant',
@@ -70,7 +66,6 @@ describe('Spec Gaps Integration Tests', () => {
       try {
         fs.unlinkSync(testDbFile);
       } catch (err) {
-        // ignore
       }
     }
   });
@@ -93,14 +88,12 @@ describe('Spec Gaps Integration Tests', () => {
     });
     await userRepo.save(user);
 
-    // 1. Validate old password
     const isOldMatch = await bcrypt.compare('OldPassword123!', user.passwordHash);
     expect(isOldMatch).toBe(true);
     
     const isWrongMatch = await bcrypt.compare('WrongPassword!', user.passwordHash);
     expect(isWrongMatch).toBe(false);
 
-    // 2. Hash new password with 12 rounds
     const newPasswordHash = await bcrypt.hash('NewPassword123!', 12);
     expect(newPasswordHash.startsWith('$2a$12$') || newPasswordHash.startsWith('$2b$12$')).toBe(true);
   });
@@ -204,7 +197,6 @@ describe('Spec Gaps Integration Tests', () => {
     });
     await disputeRepo.save(dispute);
 
-    // V2-53: resolving a dispute marks it closed; no refund is issued.
     const resolved = disputeRepo.create({
       tenantId: globalTenantId,
       userId: user.id,
@@ -216,7 +208,7 @@ describe('Spec Gaps Integration Tests', () => {
     await disputeRepo.save(resolved);
 
     const updatedWallet = await walletRepo.findOne({ where: { userId: user.id } });
-    expect(Number(updatedWallet!.balance)).toBe(0); // money untouched
+    expect(Number(updatedWallet!.balance)).toBe(0);
     expect(resolved.status).toBe(DisputeStatus.RESOLVED);
     expect(resolved.resolutionNotes).toBe('Resolved by admin');
   });

@@ -35,10 +35,8 @@ export function useInlineComments({
   const threadsRef = useRef(threads);
   threadsRef.current = threads;
 
-  // Generate unique IDs
   const generateId = () => `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-  // Get thread for specific anchor
   const getThreadForAnchor = useCallback((anchor: CommentThread['anchor']) => {
     return threadsRef.current.find(t => 
       t.anchor.startOffset === anchor.startOffset &&
@@ -47,17 +45,14 @@ export function useInlineComments({
     );
   }, []);
 
-  // Create new comment thread
   const createThread = useCallback(async (
     anchor: CommentThread['anchor'],
     initialComment: string
   ): Promise<CommentThread> => {
     setIsLoading(true);
     try {
-      // Check if thread already exists for this anchor
       const existing = getThreadForAnchor(anchor);
       if (existing) {
-        // Add comment to existing thread
         const newComment: Comment = {
           id: generateId(),
           threadId: existing.id,
@@ -79,12 +74,11 @@ export function useInlineComments({
         return updatedThread;
       }
 
-      // Create new thread
       const newThread: CommentThread = {
         id: generateId(),
         sessionId,
-        documentId: '', // Will be filled by backend
-        pageId: '', // Will be filled by backend
+        documentId: '',
+        pageId: '',
         anchor,
         comments: [{
           id: generateId(),
@@ -101,7 +95,6 @@ export function useInlineComments({
         updatedAt: new Date(),
       };
 
-      // Set threadId for comments
       newThread.comments[0].threadId = newThread.id;
 
       setThreads(prev => [...prev, newThread]);
@@ -113,7 +106,6 @@ export function useInlineComments({
     }
   }, [sessionId, role, userId, userName, getThreadForAnchor, onThreadChange]);
 
-  // Add comment to existing thread
   const addComment = useCallback(async (
     threadId: string,
     content: string
@@ -153,7 +145,6 @@ export function useInlineComments({
     }
   }, [onThreadChange]);
 
-  // Resolve thread
   const resolveThread = useCallback(async (threadId: string) => {
     setIsLoading(true);
     try {
@@ -172,7 +163,6 @@ export function useInlineComments({
     }
   }, [onThreadChange]);
 
-  // Reopen thread
   const reopenThread = useCallback(async (threadId: string) => {
     setIsLoading(true);
     try {
@@ -191,7 +181,6 @@ export function useInlineComments({
     }
   }, [onThreadChange]);
 
-  // Delete thread (shop only)
   const deleteThread = useCallback(async (threadId: string) => {
     if (role !== 'shop') {
       throw new Error('Only shop operators can delete comment threads');

@@ -79,7 +79,6 @@ export async function deliverWebhook(job: {
 
   const repo = repos.tenantWebhook();
   try {
-    // Re-checked at delivery: the host's DNS may now point somewhere internal.
     await assertPublicUrl(job.url);
     const res = await fetch(job.url, {
       method: 'POST',

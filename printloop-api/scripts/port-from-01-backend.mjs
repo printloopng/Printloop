@@ -1,7 +1,3 @@
-/**
- * One-shot: copy PrintLoop 01-backend domain files into printloop-api
- * neurapath-style layout, rewrite ESM `.js` imports → TS path aliases.
- */
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -22,11 +18,9 @@ function walk(dir, acc = []) {
 
 function rewrite(content, kind) {
   let s = content;
-  // Drop ESM .js suffixes in relative / alias imports
   s = s.replace(/(from\s+['"])([^'"]+)\.js(['"])/g, "$1$2$3");
   s = s.replace(/(import\s*\(\s*['"])([^'"]+)\.js(['"]\s*\))/g, "$1$2$3");
 
-  // Remap common PrintLoop paths → new layout
   const map = [
     [/from\s+['"]\.\.\/\.\.\/entities\//g, "from '@/database/entities/"],
     [/from\s+['"]\.\.\/entities\//g, "from '@/database/entities/"],
@@ -54,11 +48,10 @@ function rewrite(content, kind) {
     [/from\s+['"]\.\.\/workers\//g, "from '@/workers/"],
     [/from\s+['"]\.\.\/\.\.\/controllers\//g, "from '@/modules/_shared/controllers/"],
     [/from\s+['"]\.\.\/controllers\//g, "from '@/modules/_shared/controllers/"],
-    [/AppDataSource/g, "AppDataSource"], // keep name
+    [/AppDataSource/g, "AppDataSource"],
   ];
   for (const [re, to] of map) s = s.replace(re, to);
 
-  // Entity files often import siblings — keep relative within entities folder
   if (kind === "entity") {
     s = s.replace(/from\s+['"]\.\/([^'"]+)\.entity['"]/g, "from './$1.entity'");
   }
@@ -80,17 +73,14 @@ function copyDir(relFrom, relTo, kind) {
   console.log(`copied ${files.length} files → src/${relTo}`);
 }
 
-// Domain copies
 copyDir("entities", "database/entities", "entity");
 copyDir("migrations", "database/migrations", "migration");
 copyDir("services", "core/services", "service");
 copyDir("utils", "core/utils", "util");
 copyDir("workers", "workers", "worker");
 copyDir("controllers", "modules/_shared/controllers", "controller");
-// PrintLoop middleware keeps its original filenames alongside neurapath ones.
 copyDir("middleware", "common/middleware", "middleware");
 
-// Config helpers that aren't the neurapath-style ones
 for (const f of ["seed.ts", "settings.ts", "validateEnv.ts"]) {
   const src = path.join(oldRoot, "config", f);
   if (!fs.existsSync(src)) continue;
@@ -108,7 +98,6 @@ for (const f of ["seed.ts", "settings.ts", "validateEnv.ts"]) {
   console.log(`copied config/${f}`);
 }
 
-// Route files → modules (product only; skip legacy admin + devApi)
 const routeMap = {
   "discovery.routes.ts": "modules/public/routes/discovery.routes.ts",
   "publicBranding.routes.ts": "modules/public/routes/branding.routes.ts",

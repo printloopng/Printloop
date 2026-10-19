@@ -4,12 +4,6 @@ import { PublicHeader } from "@/components/layout/PublicHeader";
 import { EditorialFooter } from "@/components/layout/EditorialFooter";
 import { Reveal } from "@/components/ui/scrollFx";
 
-/**
- * Marketing Contact page (V2-54). No backend endpoint needed: the
- * form composes a mailto: message and the details list the real
- * channels. Swap in a contact API later if needed.
- */
-
 const CHANNELS = [
   { k: "EMAIL", v: "support@printloop.ng", href: "mailto:support@printloop.ng" },
   { k: "WHATSAPP", v: "+234 800 000 0000", href: "https://wa.me/2348000000000" },

@@ -8,8 +8,8 @@ interface CollaborationCursorsProps {
 }
 
 const ROLE_COLORS: Record<EditorRole, string> = {
-  shop: '#D14B2C', // persimmon
-  customer: '#6B7A5C', // sage
+  shop: '#D14B2C',
+  customer: '#6B7A5C',
 };
 
 const ROLE_LABELS: Record<EditorRole, string> = {
@@ -22,7 +22,6 @@ export function CollaborationCursors({
   currentUserId,
   role,
 }: CollaborationCursorsProps) {
-  // Filter out current user and get other participants
   const otherUsers = useMemo(() => 
     awarenessStates.filter(state => state.userId !== currentUserId),
     [awarenessStates, currentUserId]
@@ -54,7 +53,6 @@ function UserCursor({ user }: UserCursorProps) {
   const color = ROLE_COLORS[user.role] || '#888888';
   const label = `${ROLE_LABELS[user.role]}: ${user.userName}`;
   
-  // Cursor position (in viewport coordinates)
   const cursorStyle = user.cursor ? {
     position: 'absolute' as const,
     left: `${user.cursor.x}px`,
@@ -64,20 +62,18 @@ function UserCursor({ user }: UserCursorProps) {
     zIndex: 100,
   } : { display: 'none' as const };
 
-  // Selection highlight
   const selectionStyle = user.selection ? {
     position: 'absolute' as const,
-    left: `${user.selection.start}px`, // This would need to be converted to viewport coords
+    left: `${user.selection.start}px`,
     width: `${user.selection.end - user.selection.start}px`,
     height: '1.2em',
-    backgroundColor: `${color}40`, // 25% opacity
+    backgroundColor: `${color}40`,
     pointerEvents: 'none',
     zIndex: 10,
   } : { display: 'none' as const };
 
   return (
     <div className="pointer-events-none">
-      {/* Cursor */}
       <div style={cursorStyle}>
         <div 
           style={{
@@ -120,7 +116,6 @@ function UserCursor({ user }: UserCursorProps) {
         </div>
       </div>
 
-      {/* Presence indicator in toolbar area */}
       <PresenceBadge user={user} color={color} />
     </div>
   );

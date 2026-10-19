@@ -40,7 +40,6 @@ export class EditorCollaborationService {
   private rooms: Map<string, SessionRoom> = new Map();
   private userSockets: Map<string, { sessionId: string; role: 'shop' | 'customer' }> = new Map();
 
-  
   async initialize(httpServer: HttpServer): Promise<void> {
     const redisUrl = config.redis?.url || 'redis://localhost:6379';
     this.redisClient = createClient({ url: redisUrl });
@@ -82,7 +81,6 @@ export class EditorCollaborationService {
     console.log('[EditorCollab] Socket.io server initialized');
   }
 
-  
   private handleConnection(socket: Socket): void {
     const { userId, sessionId, role } = socket.data.user;
 
@@ -133,7 +131,6 @@ export class EditorCollaborationService {
     socket.on('disconnect', () => this.handleDisconnect(socket));
   }
 
-  
   private handleOffer(socket: Socket, data: { sessionId: string; offer: RtcSdp }): void {
     const room = this.rooms.get(data.sessionId);
     if (!room) return;
@@ -147,7 +144,6 @@ export class EditorCollaborationService {
     }
   }
 
-  
   private handleAnswer(socket: Socket, data: { sessionId: string; answer: RtcSdp }): void {
     const room = this.rooms.get(data.sessionId);
     if (!room) return;
@@ -161,7 +157,6 @@ export class EditorCollaborationService {
     }
   }
 
-  
   private handleIceCandidate(socket: Socket, data: { sessionId: string; candidate: RtcIce }): void {
     const room = this.rooms.get(data.sessionId);
     if (!room) return;
@@ -175,7 +170,6 @@ export class EditorCollaborationService {
     }
   }
 
-  
   private handleAwareness(socket: Socket, awareness: AwarenessState): void {
     const { sessionId, role } = socket.data.user;
     const room = this.rooms.get(sessionId);
@@ -193,7 +187,6 @@ export class EditorCollaborationService {
     }
   }
 
-  
   private handleSnapshot(socket: Socket, data: { sessionId: string; snapshot: any; version: number }): void {
     const room = this.rooms.get(data.sessionId);
     if (!room) return;
@@ -210,7 +203,6 @@ export class EditorCollaborationService {
     }
   }
 
-  
   private handleDocumentVersion(socket: Socket, data: { sessionId: string; version: number }): void {
     const room = this.rooms.get(data.sessionId);
     if (!room) return;
@@ -223,7 +215,6 @@ export class EditorCollaborationService {
     }
   }
 
-  
   private handleDisconnect(socket: Socket): void {
     const userData = this.userSockets.get(socket.id);
     if (!userData) return;
@@ -254,13 +245,12 @@ export class EditorCollaborationService {
           this.rooms.delete(sessionId);
           console.log(`[EditorCollab] Cleaned up empty room ${sessionId}`);
         }
-      }, 60000); // 1 minute grace period
+      }, 60000);
     }
 
     this.userSockets.delete(socket.id);
   }
 
-  
   private verifyToken(token: string): { userId: string; sessionId: string; role: 'shop' | 'customer' } {
     try {
       const payload = JSON.parse(Buffer.from(token, 'base64url').toString());
@@ -274,17 +264,14 @@ export class EditorCollaborationService {
     }
   }
 
-  
   getRoomInfo(sessionId: string): SessionRoom | null {
     return this.rooms.get(sessionId) || null;
   }
 
-  
   getActiveSessionsCount(): number {
     return this.rooms.size;
   }
 
-  
   async closeSession(sessionId: string): Promise<boolean> {
     const room = this.rooms.get(sessionId);
     if (!room) return false;
@@ -302,7 +289,6 @@ export class EditorCollaborationService {
     return true;
   }
 
-  
   async shutdown(): Promise<void> {
     if (this.io) {
       await this.io.close();

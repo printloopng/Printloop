@@ -1,14 +1,3 @@
-/* Paystack webhook end-to-end:
- *   - missing signature → 401
- *   - bad signature     → 401
- *   - good signature    → 200 + wallet credited
- *   - replay reference  → 200 idempotent (no double-credit)
- *   - charge.failed     → 200 reversed (wallet debited back, refund tx)
- *
- * Requires the backend to be running on :4000 with the same HMAC secret
- * (PAYSTACK_WEBHOOK_SECRET, or PAYSTACK_SECRET_KEY as fallback) that this
- * script signs with. Reads 01-backend/.env to keep that aligned.
- */
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
@@ -16,10 +5,6 @@ const crypto = require('node:crypto');
 const B = 'http://localhost:4000/api';
 const DB_PATH = path.resolve(__dirname, '..', 'data', 'printloop.sqlite');
 
-// Tiny SQLite reader — we only need the real Wallet.balance for assertions.
-// The /api/wallet endpoint is the legacy mock store, NOT the real Wallet
-// the Paystack webhook updates. Uses node-sqlite3 (already pulled in by
-// TypeORM) so this script needs zero extra deps.
 let sqlite3;
 try {
   sqlite3 = require('sqlite3');
@@ -86,7 +71,6 @@ async function postRaw(url, rawBody, headers) {
   }
   console.log(`0. HMAC secret loaded (${secret.slice(0, 6)}…, ${secret.length} chars)`);
 
-  // 1. Register a real customer + grab their wallet (post-signup balance).
   const email = `wh${Date.now()}@printloop.test`;
   const reg = await jr('POST', '/customer/auth/register', {
     firstName: 'Webhook', lastName: 'Tester', email,
@@ -112,34 +96,29 @@ async function postRaw(url, rawBody, headers) {
     event: 'charge.success',
     data: {
       reference,
-      amount: 150000, // ₦1500 in kobo
+      amount: 150000,
       metadata: { userId, tenantId, type: 'wallet_topup' },
     },
   };
   const rawSuccess = Buffer.from(JSON.stringify(success));
   const sigSuccess = crypto.createHmac('sha512', secret).update(rawSuccess).digest('hex');
 
-  // 2. No signature → 401
   const a = await postRaw('/payments/webhook', rawSuccess);
   console.log(`2. no signature → ${a.status} (expect 401) ${a.status === 401 ? 'PASS' : 'FAIL'}`);
 
-  // 3. Bad signature → 401
   const b = await postRaw('/payments/webhook', rawSuccess, { 'x-paystack-signature': 'deadbeef' });
   console.log(`3. bad signature → ${b.status} (expect 401) ${b.status === 401 ? 'PASS' : 'FAIL'}`);
 
-  // 4. Good signature → 200 + wallet credited
   const c = await postRaw('/payments/webhook', rawSuccess, { 'x-paystack-signature': sigSuccess });
   console.log(`4. good sig charge.success → ${c.status} action=${c.data?.action}`);
   const bal1 = await realWalletBalance(userId);
   const credited = bal1 - startBal;
   console.log(`   wallet ₦${startBal} → ₦${bal1} (Δ=₦${credited}, expect ₦1500) ${credited === 1500 ? 'PASS' : 'FAIL'}`);
 
-  // 5. Replay same payload → idempotent
   const d = await postRaw('/payments/webhook', rawSuccess, { 'x-paystack-signature': sigSuccess });
   const bal2 = await realWalletBalance(userId);
   console.log(`5. replay → ${d.status} action=${d.data?.action} bal=₦${bal2} (expect unchanged ₦${bal1}) ${bal2 === bal1 ? 'PASS' : 'FAIL'}`);
 
-  // 6. charge.failed on same reference → reversal
   const failed = {
     event: 'charge.failed',
     data: { reference, amount: 150000, metadata: { userId, tenantId, type: 'wallet_topup' } },
@@ -150,7 +129,6 @@ async function postRaw(url, rawBody, headers) {
   const bal3 = await realWalletBalance(userId);
   console.log(`6. charge.failed → ${e.status} action=${e.data?.action} bal=₦${bal3} (expect ₦${startBal}) ${bal3 === startBal ? 'PASS' : 'FAIL'}`);
 
-  // 7. Reversal idempotency
   const f = await postRaw('/payments/webhook', rawFailed, { 'x-paystack-signature': sigFailed });
   const bal4 = await realWalletBalance(userId);
   console.log(`7. failed-replay → ${f.status} action=${f.data?.action} bal=₦${bal4} (expect ₦${bal3}) ${bal4 === bal3 ? 'PASS' : 'FAIL'}`);

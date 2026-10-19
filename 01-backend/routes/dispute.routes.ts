@@ -7,11 +7,6 @@ import { requirePermission, Permission } from '../middleware/rbac.middleware';
 
 const router = Router();
 
-/**
- * GET /api/admin/disputes
- *
- * List all disputes for the resolved tenant.
- */
 router.get(
   '/',
   authenticate,
@@ -34,14 +29,6 @@ router.get(
   }
 );
 
-/**
- * POST /api/admin/disputes/:id/resolve
- *
- * Resolve a dispute as resolved or rejected. V2-53: refunds are
- * eliminated — resolving marks the dispute closed with the notes; no
- * money movement happens here.
- * Body: { status: 'resolved' | 'rejected', resolutionNotes: string }
- */
 router.post(
   '/:id/resolve',
   authenticate,

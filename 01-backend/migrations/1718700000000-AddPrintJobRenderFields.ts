@@ -4,7 +4,6 @@ export class AddPrintJobRenderFields1718700000000 implements MigrationInterface 
   name = 'AddPrintJobRenderFields1718700000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
-    // 1. SQLite execution:
     if (queryRunner.connection.options.type === 'sqlite') {
       const rows: Array<{ name: string }> = await queryRunner.query(
         `PRAGMA table_info("print_jobs")`,
@@ -32,7 +31,6 @@ export class AddPrintJobRenderFields1718700000000 implements MigrationInterface 
       }
     }
 
-    // 2. Postgres execution:
     if (queryRunner.connection.options.type === 'postgres') {
       const checkCol = await queryRunner.query(`
         SELECT column_name 

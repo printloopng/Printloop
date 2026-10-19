@@ -22,39 +22,9 @@ function code(len = 6) {
   return Array.from({ length: len }, () => a[Math.floor(Math.random() * a.length)]).join('');
 }
 
-/**
- * Idempotent boot seed.
- *
- * Two paths:
- *
- * 1. **Demo mode** (`SEED_DEMO=1`, dev default) — when the users table
- *    is empty, inserts the full demo dataset (3 users, 4 kiosks, 30
- *    days of jobs/payments, promotions, group session) so the admin
- *    console has real data to play with on first launch. Default super
- *    admin: admin@printloop.test / Admin1234!.
- *
- * 2. **Production mode** (`SEED_DEMO` unset or != "1") — no demo
- *    accounts ever land in the DB. Infrastructure that the schema
- *    needs (the legacy tenant row + system settings catalog) still
- *    materialises so the API can boot, but the operator mints the
- *    first SUPER_ADMIN by hand via `scripts/createSuperAdmin.ts`. The
- *    seeded `admin@printloop.test / Admin1234!` was a real security
- *    hole in production deployments — V2-27 closed it.
- */
 export async function runSeed(): Promise<void> {
   const userRepo = AppDataSource.getRepository(User);
 
-  // Legacy tenant + system settings are infrastructure, not demo data.
-  // They must materialise on every fresh DB regardless of SEED_DEMO:
-  // every customer-facing row hangs off the legacy tenant on
-  // single-tenant deployments, and the app reads system settings on
-  // every job. Both helpers are idempotent.
-  //
-  // tenantId is NOT NULL on every customer-facing table (V2-8). On a
-  // FRESH database, migrations have already created those NOT-NULL
-  // columns by the time runSeed fires — so we must materialise the
-  // legacy tenant FIRST and stamp its id on every seeded row, or the
-  // very first insert throws a NOT NULL violation.
   const legacyId = await getOrCreateLegacyTenantId();
   await ensureSystemSettings();
 
@@ -63,11 +33,6 @@ export async function runSeed(): Promise<void> {
     return;
   }
 
-  // Production gate. The demo accounts (admin@printloop.test /
-  // Admin1234! etc.) are a development convenience that would be a
-  // security hole if they ever boot in production. SEED_DEMO=1 keeps
-  // them; anything else gets a clean empty database and the operator
-  // bootstraps with scripts/createSuperAdmin.ts (see DEPLOY-SAAS.md).
   if (process.env.SEED_DEMO !== '1') {
     console.log(
       'Seed: empty DB but SEED_DEMO != "1" — production mode, no ' +
@@ -81,7 +46,6 @@ export async function runSeed(): Promise<void> {
 
   const hash = (pw: string) => bcrypt.hashSync(pw, 12);
 
-  // ── Users ──────────────────────────────────────────────────────────────
   const admin = await userRepo.save(
     userRepo.create({
       tenantId: legacyId,
@@ -128,11 +92,9 @@ export async function runSeed(): Promise<void> {
   );
 
   const walletRepo = AppDataSource.getRepository(Wallet);
-  // Zero-balance ledger buckets (V2-53) — the wallet product is gone.
   await walletRepo.save(walletRepo.create({ tenantId: legacyId, userId: demo.id, balance: 0 }));
   await walletRepo.save(walletRepo.create({ tenantId: legacyId, userId: opsAdmin.id, balance: 0 }));
 
-  // ── Kiosks ─────────────────────────────────────────────────────────────
   const kioskRepo = AppDataSource.getRepository(Kiosk);
   const kioskSeed = [
     { name: 'Yaba Central', location: 'Yaba, Lagos', campus: 'Yaba', status: KioskStatus.ACTIVE },
@@ -158,11 +120,6 @@ export async function runSeed(): Promise<void> {
     );
   }
 
-  // ── Pricing configs ────────────────────────────────────────────────────
-  // Per-cell pricing matrix (₦ per page). One row per (paper, colour);
-  // six cells per row covering {100, 300, 600}dpi × {simplex, duplex}.
-  // `pricePerPage` mirrors the 300dpi-simplex cell for clients that still
-  // read the legacy field.
   const pricingRepo = AppDataSource.getRepository(PricingConfig);
   await pricingRepo.save([
     pricingRepo.create({
@@ -195,10 +152,6 @@ export async function runSeed(): Promise<void> {
     }),
   ]);
 
-  // (System settings now seed unconditionally at the top of runSeed
-  //  so they materialise on production boots too — see V2-27.)
-
-  // ── Payments + print jobs spread across the last 30 days ───────────────
   const paymentRepo = AppDataSource.getRepository(Payment);
   const jobRepo = AppDataSource.getRepository(PrintJob);
   const statuses = [PrintJobStatus.DONE, PrintJobStatus.DONE, PrintJobStatus.READY, PrintJobStatus.FAILED];
@@ -255,14 +208,12 @@ export async function runSeed(): Promise<void> {
     }
   }
 
-  // ── Promotions ─────────────────────────────────────────────────────────
   const promoRepo = AppDataSource.getRepository(Promotion);
   await promoRepo.save([
     promoRepo.create({ tenantId: legacyId, code: 'EXAMWEEK', name: 'Exam week boost', description: '20 free pages after 100', discountType: 'free_pages', discountValue: 20, status: 'active', usageCount: 44 }),
     promoRepo.create({ tenantId: legacyId, code: 'FIRST2FREE', name: 'First two pages free', description: 'First print credit', discountType: 'free_pages', discountValue: 2, status: 'inactive', usageCount: 128 }),
   ]);
 
-  // ── Group session ──────────────────────────────────────────────────────
   const sessionRepo = AppDataSource.getRepository(GroupSession);
   await sessionRepo.save(
     sessionRepo.create({
@@ -276,7 +227,6 @@ export async function runSeed(): Promise<void> {
     })
   );
 
-  // ── Blog (V2-54) ──────────────────────────────────────────────────────
   const blogRepo = AppDataSource.getRepository(BlogPost);
   const now = new Date();
   const blogSeed = [
@@ -319,7 +269,6 @@ export async function runSeed(): Promise<void> {
   ];
   await blogRepo.save(blogSeed.map((p) => blogRepo.create({ tenantId: legacyId, ...p })));
 
-  // ── Audit log seed ─────────────────────────────────────────────────────
   const auditRepo = AppDataSource.getRepository(AuditLog);
   await auditRepo.save([
     auditRepo.create({ actorId: admin.id, actorName: 'Print Admin', action: 'system.seeded', target: 'system', detail: { note: 'Initial demo data' }, ipAddress: '127.0.0.1' }),
@@ -329,15 +278,6 @@ export async function runSeed(): Promise<void> {
   console.log('Seed: done. Admin login → admin@printloop.test / Admin1234!');
 }
 
-/**
- * Ensure the 'legacy' tenant row exists and return its id. Idempotent.
- *
- * Extracted so BOTH runSeed (which must stamp tenantId on demo rows
- * before ensureLegacyTenant runs) and ensureLegacyTenant share one
- * creation path. Creates ONLY the tenant row — no member linking, no
- * payout schedule, no backfill (those stay in ensureLegacyTenant,
- * which runs after runSeed on every boot).
- */
 export async function getOrCreateLegacyTenantId(): Promise<string> {
   const tenantRepo = AppDataSource.getRepository(Tenant);
   let legacy = await tenantRepo.findOne({
@@ -361,25 +301,11 @@ export async function getOrCreateLegacyTenantId(): Promise<string> {
   return legacy.id;
 }
 
-/**
- * Idempotent on every boot. Creates the 'legacy' tenant (slug = "legacy")
- * that owns every pre-multi-tenancy row, links existing admin/super_admin
- * users as its owners, seeds a default weekly payout schedule, and
- * backfills `transactions.tenantId` so downstream tenant filters return
- * the right historical data.
- *
- * Why this is separate from runSeed: runSeed only runs when the users
- * table is empty (first boot). The legacy tenant must be created against
- * an EXISTING populated DB too — that's the entire point of a "legacy"
- * row. So this function runs on every boot, skips itself if the tenant
- * already exists, and otherwise stitches the old world into the new one.
- */
 export async function ensureLegacyTenant(): Promise<void> {
   const tenantRepo = AppDataSource.getRepository(Tenant);
   const legacyId = await getOrCreateLegacyTenantId();
   const legacy = await tenantRepo.findOneOrFail({ where: { id: legacyId } });
 
-  // Default payout schedule for the legacy tenant — weekly on Friday.
   const scheduleRepo = AppDataSource.getRepository(PayoutSchedule);
   const existingSchedule = await scheduleRepo.findOne({
     where: { tenantId: legacy.id },
@@ -395,9 +321,6 @@ export async function ensureLegacyTenant(): Promise<void> {
     );
   }
 
-  // Backfill tenantId for every customer-facing table. Each UPDATE is
-  // a no-op once the rows are tagged, so this is safe on every boot.
-  // Order doesn't matter because the columns are independent.
   const BACKFILL_TABLES = [
     'transactions',
     'users',
@@ -418,22 +341,10 @@ export async function ensureLegacyTenant(): Promise<void> {
         [legacy.id],
       );
     } catch (err) {
-      // Tolerate missing tables in case a migration is mid-flight on
-      // a non-canonical DB. Log and continue so a partial DB still boots.
       console.warn(`[seed] tenantId backfill skipped for ${table}:`, err);
     }
   }
 
-  // Link existing admin/super_admin users as owners of the legacy
-  // tenant so they can administer it through the tenant-aware routes
-  // once those land. Customers (UserRole.USER) get linked at
-  // print-job creation time via Dimension 6.
-  //
-  // V2-57: only link admins that actually BELONG to the legacy tenant
-  // (tenantId null = legacy-era rows, or tenantId === legacy.id).
-  // Shop owners (tenantId = their own shop) must never be auto-linked
-  // to legacy — it made a stale student-app X-Tenant-Slug resolve the
-  // legacy console (or 403) instead of their own shop.
   const userRepo = AppDataSource.getRepository(User);
   const memberRepo = AppDataSource.getRepository(TenantMember);
   const admins = await userRepo.find({

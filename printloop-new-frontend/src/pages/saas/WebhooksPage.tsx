@@ -15,11 +15,6 @@ const ALL_EVENTS: WebhookEventName[] = [
   "payout.paid",
 ];
 
-/**
- * `/saas/settings/webhooks` — outbound webhook config (Dimension 14).
- * Create shows the signing secret ONCE; list masks it. Toggle active,
- * edit events, delete. Last success/failure surfaced per row.
- */
 export default function WebhooksPage() {
   const { data: hooks, isLoading } = useListWebhooksQuery();
   const [create, createState] = useCreateWebhookMutation();
@@ -47,7 +42,6 @@ export default function WebhooksPage() {
       setName("");
       setUrl("");
     } catch {
-      /* surfaced below */
     }
   };
 

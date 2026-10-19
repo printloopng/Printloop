@@ -1,10 +1,5 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-/**
- * V2-57 — operator-controlled shop availability ('open'|'busy'|'closed').
- * Students see only open/busy shops on the map; closed shops reject new
- * uploads at checkout time.
- */
 export class AddTenantAvailability1720400000000 implements MigrationInterface {
   name = 'AddTenantAvailability1720400000000';
 

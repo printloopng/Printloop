@@ -5,16 +5,6 @@ import {
   useRequestInstantPayoutMutation,
 } from "@/store/services/saasApi";
 
-/**
- * `/saas/payouts` — payout history + instant payout button.
- *
- * Restyled (V2-38) to the editorial-brutalist system.
- *
- * Instant payout deducts a flat ₦100 fee from the available balance;
- * the backend enforces a minimum (minPayoutAmount + fee) before
- * accepting. The button is disabled when the balance is below the
- * minimum or when the tenant hasn't added a bank account yet.
- */
 export default function PayoutsPage() {
   const me = useGetTenantMeQuery();
   const balance = useGetTenantBalanceQuery();

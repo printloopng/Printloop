@@ -136,8 +136,6 @@ export class PrintJobRepository extends BaseRepository<PrintJob> {
         };
       }
 
-      // The charge must actually cover this job: anyone can start a Paystack
-      // transaction with the public key and arbitrary metadata.jobId.
       const dueKobo = Math.round(Number(job.cost) * 100);
       if (!(Number(opts.paidKobo) >= dueKobo) || (opts.currency && opts.currency !== "NGN")) {
         console.error(

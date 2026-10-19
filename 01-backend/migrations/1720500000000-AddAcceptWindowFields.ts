@@ -1,26 +1,5 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-/**
- * V2-58 — Bolt-style accept window.
- *
- * Two changes:
- *  1. `print_jobs.requiresAccept` (bool) — paid jobs for marketplace
- *     shops (isDiscoverable) pause in the new `awaiting_accept` state;
- *     the shop has a 2-minute window to accept before the job
- *     auto-reroutes to the next nearest open shop (or auto-accepts).
- *  2. `print_jobs.reroutedFromTenantId` (uuid) — the shop the job was
- *     rerouted FROM, so the accepting shop gets the ledger credit.
- *
- * SQLite enforces `status` via a CHECK baked into the table definition,
- * so adding `'awaiting_accept'` requires the standard table-rewrite
- * pattern (create new → copy → drop → rename) — same as
- * AddRenderingStatus / AllowNullablePrintJobCode. Foreign-key blast
- * radius (group_participants.printJobId) is handled by disabling FK
- * checks around the rewrite.
- *
- * Postgres has no CHECK constraint on `status` (varchar(20) in the
- * PostgresBaseline), so only the columns are added there.
- */
 export class AddAcceptWindowFields1720500000000 implements MigrationInterface {
   name = 'AddAcceptWindowFields1720500000000';
 
@@ -35,9 +14,6 @@ export class AddAcceptWindowFields1720500000000 implements MigrationInterface {
       return;
     }
 
-    // SQLite: rewrite print_jobs with the widened status CHECK and the
-    // two new columns. Column list mirrors the entity + every previous
-    // migration so no data is dropped.
     await queryRunner.query(`PRAGMA foreign_keys = OFF`);
     try {
       await queryRunner.query(`
@@ -114,7 +90,6 @@ export class AddAcceptWindowFields1720500000000 implements MigrationInterface {
         `ALTER TABLE "print_jobs_new" RENAME TO "print_jobs"`,
       );
 
-      // Recreate indexes that were dropped with the old table.
       await queryRunner.query(
         `CREATE UNIQUE INDEX IF NOT EXISTS "print_jobs_user_idem_uniq" ON "print_jobs" ("userId", "idempotencyKey") WHERE "idempotencyKey" IS NOT NULL`,
       );

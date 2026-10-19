@@ -1,11 +1,4 @@
-/**
- * Editor Types — shared between backend, frontend, and kiosk app
- * V2-XX — Collaborative document editing for print shops
- */
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Core Document Types
-// ─────────────────────────────────────────────────────────────────────────────
 
 export type EditorRole = 'shop' | 'customer';
 
@@ -19,15 +12,11 @@ export interface EditorPermissions {
 export interface UniverDocument {
   id: string;
   type: 'doc' | 'sheet' | 'slide';
-  data: any; // Univer snapshot format
+  data: any;
   version: number;
   name?: string;
   lastModified: number;
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Session Types
-// ─────────────────────────────────────────────────────────────────────────────
 
 export type EditorSessionStatus = 'active' | 'expired' | 'completed' | 'abandoned';
 
@@ -66,12 +55,12 @@ export interface CreateSessionRequest {
 
 export interface CreateSessionResponse {
   sessionId: string;
-  token: string; // JWT for client auth
-  editorUrl: string; // Frontend URL with token param
+  token: string;
+  editorUrl: string;
   univerDocument: UniverDocument;
   permissions: EditorPermissions;
   expiresAt: Date;
-  iceServers: RTCIceServer[]; // STUN/TURN servers for WebRTC
+  iceServers: RTCIceServer[];
 }
 
 export interface GetSessionResponse {
@@ -83,7 +72,7 @@ export interface GetSessionResponse {
 }
 
 export interface SaveSnapshotRequest {
-  snapshot: any; // Univer snapshot
+  snapshot: any;
   version: number;
 }
 
@@ -99,12 +88,11 @@ export interface ExportResponse {
 }
 
 export interface ApproveEditRequest {
-  // No body needed - uses session auth
 }
 
 export interface ApproveEditResponse {
-  paymentUrl: string; // Paystack checkout URL
-  amount: number; // Amount in kobo
+  paymentUrl: string;
+  amount: number;
   reference: string;
 }
 
@@ -114,13 +102,9 @@ export interface RejectEditRequest {
 
 export interface ConversionStatusResponse {
   status: ConversionStatus;
-  progress?: number; // 0-100
+  progress?: number;
   error?: string;
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// WebRTC / Collaboration Types
-// ─────────────────────────────────────────────────────────────────────────────
 
 export interface SignalingMessage {
   type: 'offer' | 'answer' | 'ice-candidate' | 'join' | 'leave' | 'awareness';
@@ -150,24 +134,19 @@ export interface Participant {
   lastSeen: number;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Comment / Annotation Types (Inline Comments)
-// ─────────────────────────────────────────────────────────────────────────────
-
 export interface CommentThread {
   id: string;
   sessionId: string;
   documentId: string;
   pageId: string;
   anchor: {
-    // Position in document (Univer-specific)
     startOffset: number;
     endOffset: number;
     segmentId: string;
   };
   comments: Comment[];
   status: 'open' | 'resolved';
-  createdBy: string; // userId
+  createdBy: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -183,24 +162,16 @@ export interface Comment {
   updatedAt?: Date;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Version History Types
-// ─────────────────────────────────────────────────────────────────────────────
-
 export interface DocumentVersion {
   id: string;
   sessionId: string;
   version: number;
-  snapshot: any; // Univer snapshot
-  label?: string; // e.g., "Before customer review", "v1.0"
+  snapshot: any;
+  label?: string;
   createdBy: string;
   createdAt: Date;
-  size: number; // snapshot size in bytes
+  size: number;
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Fee Calculation Types
-// ─────────────────────────────────────────────────────────────────────────────
 
 export type EditComplexityTier = 'simple' | 'moderate' | 'complex';
 
@@ -212,13 +183,9 @@ export interface EditFeeCalculation {
   complexityFee: number;
   shopAdjustment: number;
   shopAdjustmentPct: number;
-  total: number; // in kobo (NGN)
+  total: number;
   currency: 'NGN';
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// API Error Types
-// ─────────────────────────────────────────────────────────────────────────────
 
 export type EditorErrorCode =
   | 'SESSION_NOT_FOUND'

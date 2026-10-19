@@ -1,14 +1,5 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-/**
- * Add 2FA (TOTP) columns to users (V2-22).
- *   totpSecret  — Base32 secret, NULL until setup begins.
- *   totpEnabled — boolean, login requires a code once true.
- *
- * SQLite has no ADD COLUMN IF NOT EXISTS, so PRAGMA-guard. On
- * Postgres the columns are already in PostgresBaseline (this
- * migration is in the SQLite-only chain), so it no-ops there.
- */
 export class AddUserTotp1718200000000 implements MigrationInterface {
   name = 'AddUserTotp1718200000000';
 
@@ -29,8 +20,6 @@ export class AddUserTotp1718200000000 implements MigrationInterface {
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    // SQLite can't drop columns without a table rewrite; harmless to
-    // leave. No-op.
     void queryRunner;
   }
 

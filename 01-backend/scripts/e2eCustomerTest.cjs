@@ -1,4 +1,3 @@
-/* Real CUSTOMER flow: register → JWT → multipart upload → kiosk → byte-exact. */
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
@@ -45,7 +44,6 @@ async function j(method, url, body, headers) {
   const srcHash = sha(bytes);
   console.log(`1. PDF ${bytes.length}B sha ${srcHash.slice(0, 12)}…`);
 
-  // 2. Real customer registration → JWT
   const email = `cust${Date.now()}@printloop.test`;
   const reg = await j('POST', '/customer/auth/register', {
     firstName: 'Real', lastName: 'Customer', email, phoneNumber: '+2348000000123', password: 'Passw0rd!',
@@ -59,7 +57,6 @@ async function j(method, url, body, headers) {
     console.log(`   Topped up wallet for user ${userId} with ₦1000`);
   }
 
-  // 3. Multipart upload to the REAL customer endpoint
   const fd = new FormData();
   fd.append('file', new Blob([bytes], { type: 'application/pdf' }), 'customer.pdf');
   fd.append('fileName', 'customer.pdf');
@@ -74,12 +71,10 @@ async function j(method, url, body, headers) {
   const code = cj?.data?.job?.code;
   console.log(`3. Real PrintJob created — code=${code} cost=₦${cj?.data?.job?.cost} (${cr.status})`);
 
-  // 4. Confirm it shows in the customer's real job list
   const list = await j('GET', '/customer/print-jobs', null, { Authorization: `Bearer ${tok}` });
   const mine = (list.data?.data?.jobs || []).some((x) => x.code === code);
   console.log(`4. GET /customer/print-jobs contains it: ${mine}`);
 
-  // 5. Admin: aim a kiosk at the virtual printer
   const al = await j('POST', '/admin/auth/login', { email: 'admin@printloop.test', password: 'Admin1234!' });
   const AH = { Authorization: `Bearer ${al.data?.data?.tokens?.accessToken}` };
   const ks = await j('GET', '/admin/kiosks', null, AH);
@@ -91,7 +86,6 @@ async function j(method, url, body, headers) {
   await j('PATCH', '/admin/settings/ippSecure', { value: 'false' }, AH);
   console.log(`5. Kiosk "${k.name}" → 127.0.0.1, key ${kioskKey ? kioskKey.slice(0, 10) + '…' : 'NONE'}`);
 
-  // 6. Release at the kiosk
   const before = new Set(fs.existsSync(PRINTED) ? fs.readdirSync(PRINTED) : []);
   const rel = await j('POST', '/printer/complete', { code }, { 'X-Kiosk-Key': kioskKey });
   console.log(`6. /printer/complete → ${rel.status} transport=${rel.data?.data?.transport} mock=${rel.data?.data?.mock}`);

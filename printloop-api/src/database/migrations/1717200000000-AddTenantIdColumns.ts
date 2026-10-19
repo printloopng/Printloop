@@ -1,35 +1,5 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-/**
- * Phase A — Dimension 1: add `tenantId` to every customer-facing
- * table. transactions already got it in
- * CreateSaasFoundation1717100000000; this migration covers the
- * remaining ten:
- *
- *   users, wallets, kiosks, print_jobs, payments, files,
- *   pricing_configs, promotions, group_sessions, audit_logs
- *
- * Every column is added NULLABLE so existing rows stay valid; the
- * `ensureLegacyTenant` step in config/seed.ts backfills them all to
- * the legacy tenant id on next boot.
- *
- * Indexes: every table gets `idx_<table>_tenant ON (tenantId)`. A
- * few hot tables also get a compound index suited to their primary
- * query shape (print_jobs is read by tenant+status, audit_logs by
- * tenant+action).
- *
- * SQLite has no `ALTER TABLE … ADD COLUMN IF NOT EXISTS`, so each
- * column is gated on a PRAGMA table_info check (same pattern as
- * CreateSaasFoundation). Safe to re-run.
- *
- * NOT in scope (deferred):
- *   - Tightening users.email from globally-unique to (email, tenantId).
- *   - Tightening promotions.code from globally-unique to (tenantId, code).
- *   - Tightening pricing_configs(paperSize,colorType) to include tenantId.
- *
- *   Those need a SQLite table-rewrite (no `ALTER TABLE DROP CONSTRAINT`),
- *   so they ride together once the v2 cutover is verified.
- */
 export class AddTenantIdColumns1717200000000 implements MigrationInterface {
   name = 'AddTenantIdColumns1717200000000';
 
@@ -68,10 +38,6 @@ export class AddTenantIdColumns1717200000000 implements MigrationInterface {
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    // As with CreateSaasFoundation: SQLite can't DROP COLUMN without a
-    // table rewrite, and the column being there is harmless on rollback,
-    // so we only drop the indexes. The tenantId data stays — re-running
-    // up() is a no-op.
     for (const idx of AddTenantIdColumns1717200000000.EXTRA_INDEXES) {
       await queryRunner.query(`DROP INDEX IF EXISTS "${idx.name}"`);
     }
@@ -106,8 +72,6 @@ export class AddTenantIdColumns1717200000000 implements MigrationInterface {
     );
   }
 
-  /** users → user, group_sessions → group_session, etc. — matches the
-   *  index names used in the entity decorators so they stay aligned. */
   private entityNameFromTable(table: string): string {
     const map: Record<string, string> = {
       users: 'user',

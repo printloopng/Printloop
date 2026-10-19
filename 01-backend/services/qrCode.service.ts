@@ -9,9 +9,6 @@ export interface QRCodeOptions {
 }
 
 export class QRCodeService {
-  /**
-   * Generate QR code as base64 data URL (for embedding in HTML/email)
-   */
   async generateDataUrl(
     text: string,
     options: QRCodeOptions = {}
@@ -27,9 +24,6 @@ export class QRCodeService {
     });
   }
 
-  /**
-   * Generate QR code as SVG string (scalable, smaller file size)
-   */
   async generateSvg(text: string, options: QRCodeOptions = {}): Promise<string> {
     return QRCode.toString(text, {
       type: 'svg',
@@ -43,9 +37,6 @@ export class QRCodeService {
     });
   }
 
-  /**
-   * Generate QR code as Buffer (for saving to file or uploading to Cloudinary)
-   */
   async generateBuffer(
     text: string,
     options: QRCodeOptions = {}
@@ -61,16 +52,11 @@ export class QRCodeService {
     });
   }
 
-  /**
-   * Generate QR code for a print job code
-   * Returns both data URL and the encoded payload
-   */
   async generatePrintJobQR(jobCode: string): Promise<{
     dataUrl: string;
     svg: string;
     payload: string;
   }> {
-    // The kiosk scans this and POSTs the code to /printer/validate-code
     const payload = JSON.stringify({
       type: 'print_job',
       code: jobCode,
@@ -85,9 +71,6 @@ export class QRCodeService {
     return { dataUrl, svg, payload };
   }
 
-  /**
-   * Generate QR code for a group batch token
-   */
   async generateGroupBatchQR(batchToken: string): Promise<{
     dataUrl: string;
     svg: string;

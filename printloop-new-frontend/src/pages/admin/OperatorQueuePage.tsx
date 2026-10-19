@@ -22,7 +22,7 @@ const KIOSK_STATUS_BADGES: Record<string, string> = {
 };
 
 export default function OperatorQueuePage() {
-  const [pollingInterval, setPollingInterval] = useState(10000); // 10s default polling
+  const [pollingInterval, setPollingInterval] = useState(10000);
   const { data: jobsData, isLoading: jobsLoading, refetch: refetchJobs } = useGetAdminJobsQuery(
     { page: 1, limit: 50 },
     { pollingInterval }
@@ -38,12 +38,10 @@ export default function OperatorQueuePage() {
   const kiosks = kiosksData?.kiosks || [];
   const jobs = jobsData?.jobs || [];
 
-  // Filter queue to active jobs only: ready or printing
   const activeQueue = jobs.filter((j: any) => j.status === "ready" || j.status === "printing");
 
-  // Calculate stats
   const totalPagesInQueue = activeQueue.reduce((acc: number, j: any) => acc + (j.totalPages || 0), 0);
-  const estimatedQueueTimeMin = Math.ceil(totalPagesInQueue * 0.2 + activeQueue.length * 0.5); // ~12s per page + 30s prep time
+  const estimatedQueueTimeMin = Math.ceil(totalPagesInQueue * 0.2 + activeQueue.length * 0.5);
 
   const handleRefresh = () => {
     refetchJobs();
@@ -73,7 +71,6 @@ export default function OperatorQueuePage() {
 
   return (
     <div className="max-w-6xl space-y-6">
-      {/* Page Header */}
       <div className="flex justify-between items-end gap-4 flex-wrap">
         <div>
           <div className="editorial-label text-persimmon mb-1">OPERATOR DASHBOARD</div>
@@ -105,7 +102,6 @@ export default function OperatorQueuePage() {
         </div>
       </div>
 
-      {/* Overview Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 border-2 border-ink">
         <div className="p-4 bg-paper-light">
           <div className="editorial-label text-fog mb-1">JOBS IN QUEUE</div>
@@ -131,7 +127,6 @@ export default function OperatorQueuePage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Active Queue Section */}
         <div className="lg:col-span-2 space-y-4">
           <div className="editorial-label text-ink/50">ACTIVE PRINT QUEUE</div>
           
@@ -228,7 +223,6 @@ export default function OperatorQueuePage() {
           </div>
         </div>
 
-        {/* Kiosks & Hardware Section */}
         <div className="space-y-4">
           <div className="editorial-label text-ink/50">KIOSK FLEET STATUS</div>
 

@@ -1,10 +1,5 @@
 import { Link } from "react-router-dom";
 
-/**
- * `/terms` — PrintLoop Terms of Service (public).
- * Covers: platform rules, tenant obligations, customer terms,
- * payments, refunds, liability, termination, governing law.
- */
 export default function TermsPage() {
   const lastUpdated = "2026-08-30";
 

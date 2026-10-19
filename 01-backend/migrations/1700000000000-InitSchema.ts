@@ -1,22 +1,5 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-/**
- * Baseline schema for the SQLite database.
- *
- * This captures the exact end-state that `synchronize: true` used to build,
- * generated from the entity metadata (see scripts/_genInitSchema was used
- * once to author it). Every statement is `IF NOT EXISTS`, which makes this
- * migration safe to run against BOTH:
- *   - a brand-new database  → creates all tables + indexes, and
- *   - the existing prod database that synchronize already built → every
- *     statement no-ops, and TypeORM simply records the baseline so future
- *     schema changes go through reviewed migration files instead of an
- *     auto-derived (and potentially destructive) diff on boot.
- *
- * SQLite does not validate foreign-key targets at CREATE TABLE time, so the
- * table order below (referenced tables may appear after their referrers) is
- * intentionally the synchronize order and is safe.
- */
 export class InitSchema1700000000000 implements MigrationInterface {
   name = 'InitSchema1700000000000';
 
@@ -50,9 +33,6 @@ export class InitSchema1700000000000 implements MigrationInterface {
   }
 
   public async down(): Promise<void> {
-    // Refuse to revert the baseline: a down() that dropped these tables would
-    // destroy the entire production database. If you genuinely need to tear
-    // the schema down, do it deliberately by hand.
     throw new Error(
       'InitSchema is a baseline migration and cannot be reverted (it would drop every table).',
     );

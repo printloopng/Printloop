@@ -10,7 +10,6 @@ import { pathToFileURL } from 'node:url';
 
 const execFileAsync = promisify(execFile);
 
-/** Thrown when an upload/job is not a PDF or supported image. */
 export class UnsupportedDocumentError extends Error {
   code = 'UNSUPPORTED_DOCUMENT';
   constructor(msg: string) {
@@ -28,16 +27,6 @@ export function isPdf(buf: Buffer): boolean {
   return buf.subarray(0, 5).toString('latin1') === '%PDF-';
 }
 
-/**
- * AUTHORITATIVE page count from the actual bytes — never trust a
- * client-supplied count (it drives pricing/policy). Images = 1 page;
- * PDFs are parsed. Encrypted/garbled PDFs throw UnsupportedDocumentError.
- *
- * Office formats (DOCX/PPTX/etc.) are not supported. Their page counts
- * can't be derived deterministically without rendering through Word /
- * PowerPoint (which we don't run), so accepting them would mean trusting
- * a number we can't verify. Users export to PDF first.
- */
 export async function countPages(input: Buffer, fileName: string): Promise<number> {
   const ext = extOf(fileName);
   if (IMAGE_EXT.includes(ext) && !isPdf(input)) return 1;
@@ -56,7 +45,6 @@ export async function countPages(input: Buffer, fileName: string): Promise<numbe
   }
 }
 
-/** Upload-gate: is this a printable document (PDF or JPG/PNG)? */
 export function isPrintableDocument(fileName: string, mime?: string): boolean {
   const ext = extOf(fileName || '');
   if (ext === 'pdf' || IMAGE_EXT.includes(ext)) return true;
@@ -67,7 +55,6 @@ export function isPrintableDocument(fileName: string, mime?: string): boolean {
 async function imageToPdf(buf: Buffer, ext: string): Promise<Buffer> {
   const pdf = await PDFDocument.create();
   const img = ext === 'png' ? await pdf.embedPng(buf) : await pdf.embedJpg(buf);
-  // Fit the image inside an A4 page, preserving aspect ratio.
   const A4 = { w: 595.28, h: 841.89 };
   const scale = Math.min(A4.w / img.width, A4.h / img.height, 1);
   const w = img.width * scale;
@@ -77,13 +64,6 @@ async function imageToPdf(buf: Buffer, ext: string): Promise<Buffer> {
   return Buffer.from(await pdf.save());
 }
 
-/**
- * Guarantee a print-ready PDF. PrintLoop accepts ONLY PDF and images:
- *   - PDF      → passthrough (byte-exact, untouched)
- *   - PNG/JPG  → wrapped to an A4 PDF (pdf-lib, no external deps)
- * Anything else throws UnsupportedDocumentError so callers can return a
- * clear kiosk/API message.
- */
 export async function ensurePdf(
   input: Buffer,
   fileName: string
@@ -100,20 +80,6 @@ export async function ensurePdf(
   );
 }
 
-/**
- * Parse a user-supplied page-range expression into a sorted, deduped
- * 1-based page index list, clipped to the document's actual page
- * count. Examples (totalPages = 10):
- *   "1"        → [1]
- *   "1-3"      → [1, 2, 3]
- *   "1,3,5"    → [1, 3, 5]
- *   "2-4,7,9-" → [2, 3, 4, 7] + [9, 10]   (open-ended right side)
- *   "0,15,1-3" → [1, 2, 3]                 (clips zero + over-range)
- *   ""         → []                        (caller treats as "no range")
- *
- * Returns an empty array when the input is empty / unparseable so the
- * caller can fall back to "print every page."
- */
 export function parsePageRange(rangeStr: string | undefined | null, totalPages: number): number[] {
   if (!rangeStr || typeof rangeStr !== 'string') return [];
   const cap = Math.max(0, Math.floor(totalPages) || 0);
@@ -122,7 +88,6 @@ export function parsePageRange(rangeStr: string | undefined | null, totalPages: 
   for (const chunk of rangeStr.split(',')) {
     const piece = chunk.trim();
     if (!piece) continue;
-    // Open-ended right side: "9-" → 9..totalPages
     const openEnd = piece.match(/^(\d+)\s*-\s*$/);
     if (openEnd) {
       for (let p = +openEnd[1]; p <= cap; p++) {
@@ -130,7 +95,6 @@ export function parsePageRange(rangeStr: string | undefined | null, totalPages: 
       }
       continue;
     }
-    // Closed range: "2-4"
     const closed = piece.match(/^(\d+)\s*-\s*(\d+)$/);
     if (closed) {
       const lo = Math.max(1, +closed[1]);
@@ -138,7 +102,6 @@ export function parsePageRange(rangeStr: string | undefined | null, totalPages: 
       for (let p = lo; p <= hi; p++) seen.add(p);
       continue;
     }
-    // Single page: "5"
     if (/^\d+$/.test(piece)) {
       const p = +piece;
       if (p >= 1 && p <= cap) seen.add(p);
@@ -147,25 +110,11 @@ export function parsePageRange(rangeStr: string | undefined | null, totalPages: 
   return Array.from(seen).sort((a, b) => a - b);
 }
 
-/**
- * Build a new PDF containing only the requested pages (1-based) from
- * the source PDF, in the order given. Returns the original buffer
- * unchanged if `pageNumbers` is empty, contains every page in order,
- * or is invalid — so callers can pass it the customer's selection
- * without pre-checking.
- *
- * Used by the agent-pull download endpoint to honor
- * `printConfiguration.pages === 'range'` server-side — the printer
- * receives only the pages the customer paid for.
- */
 export async function extractPages(input: Buffer, pageNumbers: number[]): Promise<Buffer> {
   if (!pageNumbers || pageNumbers.length === 0) return input;
   const source = await PDFDocument.load(input, { updateMetadata: false }).catch(() => null);
   if (!source) return input;
   const total = source.getPageCount();
-  // Clamp + 0-index. If the result would be the full document in order,
-  // skip the copy — saves CPU + keeps the original byte stream which
-  // is the format the printer's seen working with.
   const indices = pageNumbers
     .filter((p) => Number.isFinite(p) && p >= 1 && p <= total)
     .map((p) => Math.floor(p) - 1);
@@ -179,43 +128,11 @@ export async function extractPages(input: Buffer, pageNumbers: number[]): Promis
   return Buffer.from(await out.save());
 }
 
-// ── Annotation flattening (rasterize annotated pages) ──────────────────
-//
-// Why this exists: signatures and form fills created by Preview, Adobe,
-// or phone apps are stored as /Ink, /FreeText, /Stamp, or /Widget
-// annotations layered ON TOP of the page — they live in the page's
-// /Annots array, NOT in its content stream. Many office-printer RIPs
-// (the Sharp MX-5112N among them) mis-place or silently drop these
-// annotations on paper even though they sit correctly on screen — a
-// signature jumps out of its box, or vanishes entirely.
-//
-// We first tried a pure-vector fix (re-inline each appearance's operators
-// into the page content with the transform baked into a `cm`). It was
-// verified pixel-perfect in a spec-compliant renderer (PDF.js) yet STILL
-// mangled by the real print paths: the Sharp moved it, and Edge's print
-// engine dropped it. The one representation a broken RIP physically
-// cannot misplace is a flat raster, so that is what we ship.
-//
-// Strategy: any page that carries a visible annotation is rendered with
-// its annotations baked in (pdfjs-dist + @napi-rs/canvas, both prebuilt
-// for Railway's Linux) to a RASTER_DPI image and rebuilt as an image-only
-// page. Pages with no visible annotation are copied through untouched, so
-// ordinary text pages stay crisp vector. A document with NO annotations
-// anywhere is returned BYTE-EXACT — the common case pays nothing.
-//
-// Graceful by design (mirrors toGrayscale): a non-PDF, an unreadable /
-// encrypted PDF, or ANY error during rendering returns the ORIGINAL bytes.
-
-/** Render resolution for flattened pages. 200 DPI keeps form text crisp
- *  to the eye while holding an A4 colour page near ~240 KB. */
 const RASTER_DPI = 200;
 
-/** pdfjs-dist is a heavy ESM module; import it once, lazily, on first use. */
 let pdfjsModule: any;
 async function loadPdfjs(): Promise<any> {
   if (pdfjsModule) return pdfjsModule;
-  // pdfjs-dist v4 calls Promise.withResolvers (Node 22+); the backend runs
-  // Node 20, so polyfill it before the module's top-level code touches it.
   if (typeof (Promise as any).withResolvers !== 'function') {
     (Promise as any).withResolvers = function <T>() {
       let resolve!: (value: T | PromiseLike<T>) => void;
@@ -231,9 +148,6 @@ async function loadPdfjs(): Promise<any> {
   return pdfjsModule;
 }
 
-/** file:// URL to pdfjs-dist's bundled standard_fonts dir, resolved off the
- *  package location (NOT process.cwd) so it works regardless of the launch
- *  directory on Windows or Railway. */
 let cachedFontUrl: string | undefined;
 function standardFontDataUrl(): string {
   if (cachedFontUrl) return cachedFontUrl;
@@ -243,10 +157,6 @@ function standardFontDataUrl(): string {
   return cachedFontUrl;
 }
 
-/** 0-based indices of pages carrying a visible annotation. /Link and /Popup
- *  never paint on the page, so a page bearing only those is treated as clean
- *  and left as crisp vector. (pdf-lib's typed `lookup(name, Type)` THROWS on a
- *  missing or mistyped key, so every lookup is wrapped.) */
 function annotatedPageIndices(pdf: PDFDocument): Set<number> {
   const result = new Set<number>();
   const pages = pdf.getPages();
@@ -275,14 +185,6 @@ function annotatedPageIndices(pdf: PDFDocument): Set<number> {
   return result;
 }
 
-/**
- * Render every annotated page (annotations baked in) to a RASTER_DPI PNG and
- * rebuild it as an image-only page at the original page's point size; copy the
- * remaining pages through as untouched vector. Returns the new PDF bytes.
- *
- * Page count and physical page geometry are preserved exactly, so the SNMP
- * page-count math and per-page pricing downstream are unaffected.
- */
 async function rasterizeAnnotatedPages(
   input: Buffer,
   src: PDFDocument,
@@ -293,7 +195,7 @@ async function rasterizeAnnotatedPages(
   const doc = await pdfjs.getDocument({
     data: new Uint8Array(input),
     standardFontDataUrl: standardFontDataUrl(),
-    isEvalSupported: false, // keep it sandbox-safe; fine for our forms
+    isEvalSupported: false,
   }).promise;
 
   try {
@@ -301,8 +203,6 @@ async function rasterizeAnnotatedPages(
     const count = src.getPageCount();
     const scale = RASTER_DPI / 72;
 
-    // Deep-copy every vector (un-annotated) page in ONE batch so pdf-lib
-    // de-duplicates shared resources, then slot them back at their indices.
     const vectorIdx: number[] = [];
     for (let i = 0; i < count; i++) if (!annotated.has(i)) vectorIdx.push(i);
     const copied = vectorIdx.length ? await out.copyPages(src, vectorIdx) : [];
@@ -316,8 +216,8 @@ async function rasterizeAnnotatedPages(
         continue;
       }
       const page = await doc.getPage(i + 1);
-      const ptsViewport = page.getViewport({ scale: 1 }); // page size in PDF points
-      const pxViewport = page.getViewport({ scale }); // render size in pixels
+      const ptsViewport = page.getViewport({ scale: 1 });
+      const pxViewport = page.getViewport({ scale });
       const canvas = createCanvas(Math.ceil(pxViewport.width), Math.ceil(pxViewport.height));
       const cctx = canvas.getContext('2d');
       cctx.fillStyle = 'white';
@@ -325,7 +225,7 @@ async function rasterizeAnnotatedPages(
       await page.render({
         canvasContext: cctx as any,
         viewport: pxViewport,
-        annotationMode: pdfjs.AnnotationMode.ENABLE, // bake annotations into pixels
+        annotationMode: pdfjs.AnnotationMode.ENABLE,
       }).promise;
       page.cleanup();
       const img = await out.embedPng(canvas.toBuffer('image/png'));
@@ -340,16 +240,6 @@ async function rasterizeAnnotatedPages(
   }
 }
 
-/**
- * Bake annotations (signatures, form fills) into the pages that carry them so
- * a broken print RIP can't move or drop them, and return the rewritten PDF.
- *
- * Graceful by design (mirrors {@link toGrayscale}): a non-PDF input, an
- * encrypted/unreadable PDF, a PDF with NO visible annotations, or ANY error
- * during rendering returns the ORIGINAL bytes — the no-annotation common case
- * is handed back BYTE-EXACT (never re-serialized), so it pays nothing and
- * can't be altered. Uploads never break on account of this step.
- */
 export async function flattenAnnotations(input: Buffer): Promise<Buffer> {
   if (!isPdf(input)) return input;
 
@@ -357,12 +247,11 @@ export async function flattenAnnotations(input: Buffer): Promise<Buffer> {
   try {
     src = await PDFDocument.load(input, { updateMetadata: false });
   } catch {
-    // Encrypted or malformed — leave it for the downstream pipeline.
     return input;
   }
 
   const annotated = annotatedPageIndices(src);
-  if (annotated.size === 0) return input; // nothing to bake → byte-exact
+  if (annotated.size === 0) return input;
 
   try {
     return await rasterizeAnnotatedPages(input, src, annotated);
@@ -372,23 +261,6 @@ export async function flattenAnnotations(input: Buffer): Promise<Buffer> {
   }
 }
 
-// ── Ghostscript grayscale enforcement ─────────────────────────────────
-//
-// Why this exists: the Sharp MX-5112N (like many office MFPs) ignores
-// the PJL color directives the agent emits (@PJL SET RENDERMODE=GRAYSCALE
-// and 5 sibling hints) for PDF input — it prints whatever color space
-// the PDF carries. The ONLY firmware-proof way to honor a customer's
-// "black & white" choice is to strip the color from the bytes before
-// they ever reach the printer. Ghostscript's pdfwrite device with
-// `-sColorConversionStrategy=Gray` remaps every color object to
-// DeviceGray in a single pass, vector and raster alike.
-
-/**
- * Candidate Ghostscript executables by platform. Linux/macOS expose the
- * binary as `gs`; Windows ships `gswin64c` / `gswin32c` (the `c` suffix
- * is the console build — the non-`c` ones pop a GUI window). An explicit
- * GHOSTSCRIPT_BIN env var wins so a deploy can pin an absolute path.
- */
 function gsCandidates(): string[] {
   const override = process.env.GHOSTSCRIPT_BIN;
   if (override) return [override];
@@ -396,8 +268,6 @@ function gsCandidates(): string[] {
   return ['gs'];
 }
 
-// Probe result is cached for the life of the process: undefined = not
-// yet probed, string = the working binary, null = none found.
 let cachedGsBin: string | null | undefined;
 
 async function resolveGsBinary(): Promise<string | null> {
@@ -408,30 +278,16 @@ async function resolveGsBinary(): Promise<string | null> {
       cachedGsBin = bin;
       return bin;
     } catch {
-      // Try the next candidate name.
     }
   }
   cachedGsBin = null;
   return null;
 }
 
-/** True iff a Ghostscript binary is callable on this host. */
 export async function ghostscriptAvailable(): Promise<boolean> {
   return (await resolveGsBinary()) !== null;
 }
 
-/**
- * Force a PDF to grayscale via Ghostscript, returning the converted
- * bytes. Page count and dimensions are preserved (so the SNMP
- * physical-print confirmation's expected-page math is unchanged).
- *
- * Graceful by design: if Ghostscript isn't installed, or the conversion
- * errors for ANY reason, we return the ORIGINAL bytes and log a warning.
- * A color print is a far better failure mode than a failed print — the
- * customer still gets their document and the operator sees the warning
- * and installs gs. We run with `-dSAFER` because the input is an
- * untrusted user-supplied PDF.
- */
 export async function toGrayscale(pdfBytes: Buffer): Promise<Buffer> {
   const bin = await resolveGsBinary();
   if (!bin) {
@@ -475,30 +331,6 @@ export async function toGrayscale(pdfBytes: Buffer): Promise<Buffer> {
   }
 }
 
-// ── Orientation fit (scale-to-fit the chosen sheet, no content rotation) ─
-//
-// Why this exists: when a customer picks an orientation, the only thing the
-// agent does is send a PJL `SET ORIENTATION` hint — and the Sharp MX-5112N
-// ignores that hint for PDF input (the same firmware quirk that forced
-// grayscale and signature flattening into the bytes). The printer DOES obey
-// the PDF's own page geometry, so orientation has to be baked in there too.
-//
-// The customer's expectation (confirmed): the upright page is **scaled to
-// fit the chosen sheet, NOT turned on its side, and never cropped.** This
-// works in BOTH directions:
-//   • a PORTRAIT page on a LANDSCAPE sheet  → pillarboxed (margins L/R)
-//   • a LANDSCAPE page on a PORTRAIT sheet  → letterboxed (margins T/B)
-// For each page that doesn't already match the target orientation we build
-// a sheet of the page's own paper size in the target orientation (long/short
-// edges swapped) and draw the page into it, scaled to fit (contain) and
-// centred. Pages that already match the target (or are square) are left
-// exactly as they are, so the common "portrait doc, portrait sheet" case is
-// a no-op.
-//
-// Page COUNT is preserved (so the SNMP physical-print confirmation math is
-// unchanged). Graceful by design (mirrors toGrayscale): a non-PDF, an
-// unreadable PDF, a document already in the target orientation on every
-// page, or ANY error returns the ORIGINAL bytes — a print beats a no-print.
 export async function fitToOrientation(
   input: Buffer,
   target: 'portrait' | 'landscape',
@@ -516,8 +348,6 @@ export async function fitToOrientation(
 
   try {
     const pages = src.getPages();
-    // Nothing to do if every page already matches the target orientation
-    // (square pages count as a match — there's nothing to fit).
     const needsFit = pages.some((p) => {
       const { width, height } = p.getSize();
       return width !== height && width > height !== wantLandscape;
@@ -525,22 +355,15 @@ export async function fitToOrientation(
     if (!needsFit) return input;
 
     const out = await PDFDocument.create();
-    // Embed every source page once (batched so shared resources dedupe),
-    // then place each onto a fresh page.
     const embedded = await out.embedPages(pages);
     for (let i = 0; i < pages.length; i++) {
       const { width: w, height: h } = pages[i].getSize();
       const pageLandscape = w > h;
       if (w === h || pageLandscape === wantLandscape) {
-        // Already the target orientation (or square): copy 1:1.
         const p = out.addPage([w, h]);
         p.drawPage(embedded[i], { x: 0, y: 0, width: w, height: h });
         continue;
       }
-      // Mismatch → sheet of the same paper size in the target orientation
-      // (long edge becomes width for landscape, height for portrait), with
-      // the page contained inside it: scaled to fit, no rotation, no crop,
-      // centred — even margins on the two free sides.
       const long = Math.max(w, h);
       const short = Math.min(w, h);
       const sheetW = wantLandscape ? long : short;
@@ -563,34 +386,13 @@ export async function fitToOrientation(
   }
 }
 
-// ── Render to the printer's native language (Option A groundwork) ──────────
-//
-// docs/OPENPRINTING-INTEGRATION.md. The recurring Sharp problem is that it
-// ignores PJL for PDF input, so every print attribute has had to be baked
-// into the bytes by hand. The fix is to stop sending PDF + PJL and instead
-// render to a language the Sharp interprets natively and reliably — PostScript
-// or PCL — with colour / resolution / duplex / copies already applied.
-//
-// This is the reusable core of the future `renderNative` dispatch step. It is
-// NOT yet wired into the live print path: for now it is exercised only by the
-// super-admin spike endpoint (routes/spike.routes.ts) so we can print PCL vs
-// PostScript on real paper and pick a language before changing dispatch.
-//
-// Implemented with Ghostscript (already installed on Railway): PDF→PostScript
-// via the `ps2write` device, PDF→PCL-XL via `pxlmono` / `pxlcolor`. Returns
-// null if gs is missing or the render fails (the caller decides the fallback).
-
 export type PrinterLang = 'ps' | 'pcl';
 
 export interface RenderToPrinterOpts {
   lang: PrinterLang;
-  /** 'bw' converts to DeviceGray; 'color' keeps colour. Default 'bw'. */
   color?: 'bw' | 'color';
-  /** Rasterisation resolution; clamped to a printer-sane value. Default 600. */
   dpi?: number;
-  /** Bake long-edge duplex into the output. */
   duplex?: boolean;
-  /** Copies — applied to the PostScript path only (see note below). */
   copies?: number;
 }
 
@@ -612,8 +414,6 @@ export async function renderToPrinterLanguage(
 
   const args = ['-q', '-dNOPAUSE', '-dBATCH', '-dSAFER', `-r${dpi}`];
   if (opts.lang === 'pcl') {
-    // PCL-XL (a.k.a. PCL6). Copies on the pxl devices is unreliable via gs, so
-    // we leave copies to the dispatch layer for PCL and apply it only for PS.
     args.push(`-sDEVICE=${gray ? 'pxlmono' : 'pxlcolor'}`);
     if (opts.duplex) args.push('-dDuplex=true');
     args.push(`-sOutputFile=${outPath}`, inPath);
@@ -621,7 +421,6 @@ export async function renderToPrinterLanguage(
     args.push('-sDEVICE=ps2write');
     if (gray) args.push('-sColorConversionStrategy=Gray', '-dProcessColorModel=/DeviceGray');
     args.push(`-sOutputFile=${outPath}`);
-    // Duplex + copies baked into the PostScript via setpagedevice.
     const dev: string[] = [];
     if (opts.duplex) dev.push('/Duplex true', '/Tumble false');
     if (copies > 1) dev.push(`/NumCopies ${copies}`);
@@ -644,13 +443,6 @@ export async function renderToPrinterLanguage(
   }
 }
 
-/**
- * True iff the raster-flatten toolchain (pdfjs-dist + @napi-rs/canvas) actually
- * loads in this process. `flattenAnnotations` degrades gracefully when it
- * doesn't, but that failure is otherwise INVISIBLE until the first annotated
- * upload — this lets ops confirm a deploy can really flatten signatures
- * (surfaced via the super-admin /api/admin/spike/diag endpoint).
- */
 export async function rasterRenderAvailable(): Promise<boolean> {
   try {
     await loadPdfjs();

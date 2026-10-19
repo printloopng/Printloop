@@ -2,8 +2,6 @@ import { useInView } from "@/components/ui/scrollFx";
 
 export function EditorialFooter({ inverse = false }: { inverse?: boolean }) {
   const cls = inverse ? "bg-ink text-paper" : "bg-paper border-t-2 border-ink";
-  // Rises into place when scrolled to — same press-room reveal as the rest
-  // of the page (collapses to static under prefers-reduced-motion).
   const { ref, shown } = useInView();
   return (
     <div

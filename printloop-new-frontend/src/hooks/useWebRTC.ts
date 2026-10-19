@@ -42,9 +42,8 @@ export function useWebRTC({
   const [iceConnectionState, setIceConnectionState] = useState<RTCIceConnectionState>('new');
   const localStreamRef = useRef<MediaStream | null>(null);
   const remoteStreamRef = useRef<MediaStream | null>(null);
-  const isInitiator = role === 'shop'; // Shop initiates the connection
+  const isInitiator = role === 'shop';
 
-  // Initialize peer connection
   useEffect(() => {
     const pc = new RTCPeerConnection({
       iceServers,
@@ -55,7 +54,6 @@ export function useWebRTC({
 
     peerConnectionRef.current = pc;
 
-    // Connection state handlers
     pc.onconnectionstatechange = () => {
       setConnectionState(pc.connectionState);
       onConnectionStateChange?.(pc.connectionState);
@@ -69,18 +67,16 @@ export function useWebRTC({
       setIceConnectionState(pc.iceConnectionState);
     };
 
-    // ICE candidate handler
     pc.onicecandidate = (event) => {
       if (event.candidate) {
         onIceCandidate?.(event.candidate.toJSON());
       }
     };
 
-    // Data channel for Yjs sync
     if (isInitiator) {
       const dc = pc.createDataChannel('yjs-sync', {
         ordered: true,
-        maxRetransmits: 0, // unreliable for speed
+        maxRetransmits: 0,
       });
       setupDataChannel(dc);
     } else {
@@ -89,7 +85,6 @@ export function useWebRTC({
       };
     }
 
-    // Remote stream handler
     pc.ontrack = (event) => {
       if (!remoteStreamRef.current) {
         remoteStreamRef.current = new MediaStream();
@@ -99,7 +94,6 @@ export function useWebRTC({
       });
     };
 
-    // Cleanup
     return () => {
       pc.close();
     };

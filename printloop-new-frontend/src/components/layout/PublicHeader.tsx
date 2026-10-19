@@ -9,11 +9,6 @@ export const PUBLIC_LINKS = [
   { label: "Contact", to: "/contact" },
 ] as const;
 
-/**
- * Shared masthead for the marketing pages (V2-54): wordmark, page
- * links, and the auth CTAs — same editorial-brutalist language as the
- * landing page masthead.
- */
 export function PublicHeader({ onDark = false }: { onDark?: boolean }) {
   return (
     <div className={`border-b-2 ${onDark ? "border-paper/20" : "border-ink"}`}>

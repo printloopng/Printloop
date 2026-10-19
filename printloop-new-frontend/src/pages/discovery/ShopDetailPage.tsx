@@ -9,15 +9,6 @@ import {
   useSubmitShopReviewMutation,
 } from "@/store/services/discoveryApi";
 
-/**
- * `/find/:slug` — public shop profile.
- *
- * Shows the full pricing matrix, address, brand colour, online
- * status. The "Print here →" CTA sends the customer into the shop's
- * own tenant portal. In production that's `{slug}.printloop.app`;
- * in local dev we fall back to a path-prefixed route the
- * tenant-resolution middleware also honours via X-Tenant-Slug.
- */
 export default function ShopDetailPage() {
   const { slug = "" } = useParams<{ slug: string }>();
   const { data, isLoading, isError } = useGetShopDetailQuery({ slug });
@@ -62,22 +53,11 @@ export default function ShopDetailPage() {
 
   const { shop, pricing, reviews = [] } = data;
   const brand = shop.brand.primaryColor || "#225275";
-  // The "Print here" target. In production: shop's subdomain pointed
-  // straight at the upload page so customers don't bounce through a
-  // landing. In dev: same-origin with a tenant query param. We choose
-  // /print/new because that's the start of the upload flow; LoginPage
-  // will pre-fill the email from the handoff if auth is needed first.
   const apex = (import.meta.env.VITE_APEX_DOMAIN as string) || "";
   const baseHref = apex
     ? `https://${shop.slug}.${apex}/print/new`
     : `/print/new?tenantSlug=${encodeURIComponent(shop.slug)}`;
 
-  /**
-   * Mint a handoff token (V2-32) and append it to the CTA URL so
-   * the tenant portal can pre-fill the login form with the email
-   * the customer typed here. Email is optional — without it, the
-   * customer just lands at the tenant root with the slug pinned.
-   */
   const goPrint = async () => {
     let url = baseHref;
     try {
@@ -88,8 +68,6 @@ export default function ShopDetailPage() {
       const sep = url.includes("?") ? "&" : "?";
       url = `${url}${sep}handoff=${encodeURIComponent(res.token)}`;
     } catch {
-      // Best-effort: if minting fails (rate limit, network), still
-      // navigate so the user isn't stuck.
     }
     window.location.href = url;
   };
@@ -150,8 +128,6 @@ export default function ShopDetailPage() {
           ))}
         </div>
 
-        {/* Email + CTA — handoff carries the email so the tenant
-            portal can pre-fill it (V2-32). Disabled if offline. */}
         <div className="mt-5 flex flex-wrap gap-2 items-stretch max-w-md">
           <input
             type="email"
@@ -173,7 +149,6 @@ export default function ShopDetailPage() {
         </div>
       </div>
 
-      {/* Shop Photos Gallery */}
       {shop.photos && shop.photos.length > 0 && (
         <section className="mt-8">
           <h2 className="text-xl font-bold mb-3">Shop Gallery</h2>
@@ -190,7 +165,6 @@ export default function ShopDetailPage() {
         </section>
       )}
 
-      {/* Pricing matrix */}
       <section className="mt-8">
         <h2 className="text-xl font-bold mb-3">Prices</h2>
         {pricing.length === 0 ? (
@@ -238,7 +212,6 @@ export default function ShopDetailPage() {
         any promo discount the shop's running.
       </p>
 
-      {/* Reviews Section */}
       <section className="mt-10 border-t pt-8">
         <h2 className="text-xl font-bold mb-4">Customer Reviews</h2>
         {reviews.length === 0 ? (
@@ -264,7 +237,6 @@ export default function ShopDetailPage() {
           </div>
         )}
 
-        {/* Leave a Review Form */}
         <div className="mt-8 bg-gray-50/50 p-5 rounded-lg border border-dashed border-gray-300">
           <h3 className="font-bold text-lg mb-2">Leave a Review</h3>
           {user ? (

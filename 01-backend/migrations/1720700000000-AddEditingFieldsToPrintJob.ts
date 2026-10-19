@@ -4,7 +4,6 @@ export class AddEditingFieldsToPrintJob1720700000000 implements MigrationInterfa
     name = 'AddEditingFieldsToPrintJob1720700000000';
 
     public async up(queryRunner: QueryRunner): Promise<void> {
-        // Add editing fields to print_jobs table (SQLite requires separate statements)
         await queryRunner.query(`ALTER TABLE "print_jobs" ADD COLUMN "editingRequired" boolean NOT NULL DEFAULT false`);
         await queryRunner.query(`ALTER TABLE "print_jobs" ADD COLUMN "editingInstructions" text`);
         await queryRunner.query(`ALTER TABLE "print_jobs" ADD COLUMN "editedDocumentUrl" varchar(500)`);

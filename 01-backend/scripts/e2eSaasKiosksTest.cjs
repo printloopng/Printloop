@@ -1,20 +1,3 @@
-/**
- * Tenant-native kiosk management + cross-tenant isolation (V2-40).
- *
- * Proves the /api/saas/kiosks surface (separate from the SUPER_ADMIN
- * /api/admin/kiosks routes):
- *   1. A tenant owner can list / add / test-print / regenerate-key /
- *      status / delete their OWN printers.
- *   2. The apiKey is disclosed ONLY on create + regenerate, never on
- *      a plain list/read.
- *   3. A second tenant (B) is hard-blocked from acting on tenant A's
- *      printer by id — 404, not a silent success.
- *
- * Self-contained: spawns its own backend on a random high port with
- * SMTP_HOST='' so the email verification token is logged to stdout
- * (the disabled-mailer path) for the script to scrape — the same
- * trick the discovery / password-reset e2es use.
- */
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -40,21 +23,21 @@ async function jr(method, url, body, headers) {
     body: body ? JSON.stringify(body) : undefined,
   });
   let d = null;
-  try { d = await r.json(); } catch { /* ignore */ }
+  try { d = await r.json(); } catch { }
   return { status: r.status, data: d };
 }
 
 async function waitFor(url, timeoutMs = 25_000) {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
-    try { const r = await fetch(url); if (r.ok) return true; } catch { /* */ }
+    try { const r = await fetch(url); if (r.ok) return true; } catch { }
     await new Promise((r) => setTimeout(r, 400));
   }
   return false;
 }
 
 async function main() {
-  try { fs.unlinkSync(DB_FILE); } catch { /* */ }
+  try { fs.unlinkSync(DB_FILE); } catch { }
 
   const env = {
     ...process.env,
@@ -63,7 +46,7 @@ async function main() {
     SEED_DEMO: '1',
     DISABLE_RATE_LIMIT: '1',
     GEOCODER: 'fixture',
-    SMTP_HOST: '', // disabled-mailer → token logged to stdout
+    SMTP_HOST: '',
   };
   const server = spawn('npx', ['tsx', SERVER], {
     env, cwd: path.resolve(__dirname, '..'),
@@ -74,8 +57,8 @@ async function main() {
   server.stderr.on('data', (c) => (log += c.toString()));
 
   const cleanup = () => {
-    try { server.kill('SIGKILL'); } catch { /* */ }
-    setTimeout(() => { try { fs.unlinkSync(DB_FILE); } catch { /* */ } }, 500);
+    try { server.kill('SIGKILL'); } catch { }
+    setTimeout(() => { try { fs.unlinkSync(DB_FILE); } catch { } }, 500);
   };
 
   const scrapeVerifyCode = (email) => {
@@ -121,7 +104,6 @@ async function main() {
     const A = await onboardOwner('shop-a', 'owner-a@example.test');
     const Bee = await onboardOwner('shop-b', 'owner-b@example.test');
 
-    // ── A: full self-service lifecycle ─────────────────────────────────
     const create = await jr('POST', '/saas/kiosks', { name: 'A Front Desk', location: 'Counter' }, A);
     assert(create.status === 201, `A create printer → 201 (got ${create.status})`);
     const kioskId = create.data.data.kiosk.id;
@@ -152,7 +134,6 @@ async function main() {
     const pause = await jr('PATCH', `/saas/kiosks/${kioskId}/status`, { status: 'OFFLINE' }, A);
     assert(pause.status === 200, 'A pause (status OFFLINE) → 200');
 
-    // ── B: hard-blocked from A's printer ───────────────────────────────
     const bList = await jr('GET', '/saas/kiosks', undefined, Bee);
     assert(bList.status === 200, 'B list own → 200 (B is NOT blanket-locked)');
     assert(
@@ -169,11 +150,9 @@ async function main() {
     const bDel = await jr('DELETE', `/saas/kiosks/${kioskId}`, undefined, Bee);
     assert(bDel.status === 404, `B delete A's printer → 404 (got ${bDel.status})`);
 
-    // ── A still owns it after B's attempts ─────────────────────────────
     const aRegen2 = await jr('POST', `/saas/kiosks/${kioskId}/regenerate-key`, {}, A);
     assert(aRegen2.status === 200, 'A still controls their printer after B\'s probes → 200');
 
-    // ── B can manage their OWN ─────────────────────────────────────────
     const bCreate = await jr('POST', '/saas/kiosks', { name: 'B Printer' }, Bee);
     assert(bCreate.status === 201, `B create own printer → 201 (got ${bCreate.status})`);
 

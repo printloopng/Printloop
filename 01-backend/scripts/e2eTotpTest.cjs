@@ -1,15 +1,3 @@
-/* 2FA (TOTP) end-to-end (V2-22).
- *
- *   1. admin login (no 2FA yet) → token.
- *   2. /me/2fa/setup → secret + otpauth URL.
- *   3. /me/2fa/enable with a freshly-computed code → enabled.
- *   4. login WITHOUT a code → 401 TOTP_REQUIRED.
- *   5. login WITH a computed code → 200.
- *   6. /me/2fa/disable with a code → disabled; login works code-free again.
- *
- * Computes codes with the same RFC 6238 logic the server uses (a tiny
- * inline TOTP so the test doesn't import TS). Backend must be on :4000.
- */
 const crypto = require('node:crypto');
 const B = 'http://localhost:4000/api';
 
@@ -77,7 +65,6 @@ function assert(cond, msg) {
   const badCode = await jr('POST', '/admin/auth/login', { email: EMAIL, password: PW, totpCode: '000000' });
   assert(badCode.status === 401 && badCode.data.code === 'TOTP_INVALID', 'login with wrong code → 401 TOTP_INVALID');
 
-  // Disable (use a fresh token from the with-code login).
   const auth2 = { Authorization: `Bearer ${withCode.data.data.tokens.accessToken}` };
   const disable = await jr('POST', '/saas/me/2fa/disable', { code: totp(secret) }, auth2);
   assert(disable.status === 200 && disable.data.data.enabled === false, '2fa disabled with code');

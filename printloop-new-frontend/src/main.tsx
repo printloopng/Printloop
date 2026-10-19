@@ -97,9 +97,6 @@ class TempErrorBoundary extends React.Component<
   }
 }
 
-// V2-36 — bootstrap Sentry BEFORE React mounts so init-time errors
-// (broken env, missing globals) still get captured. The init is a
-// safe no-op when VITE_SENTRY_DSN is unset, so dev runs cost nothing.
 initSentryIfConfigured();
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
@@ -108,8 +105,6 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
       <SentryErrorBoundary>
         <Provider store={store}>
           <BrowserRouter>
-            {/* Keeps Sentry's user context in sync with the auth slice
-                (login → setUser, logout → null). Renders nothing. */}
             <SentryAuthListener />
             <BrandProvider>
               <App />

@@ -42,8 +42,6 @@ describe('TOTP (RFC 6238)', () => {
     const secret = generateTotpSecret();
     const now = Date.now();
     const oldCode = totpAt(secret, now - 90_000);
-    // Only fails if that old code differs from current/±1 — almost
-    // always true; guard the rare collision.
     const current = new Set([
       totpAt(secret, now - 30_000),
       totpAt(secret, now),

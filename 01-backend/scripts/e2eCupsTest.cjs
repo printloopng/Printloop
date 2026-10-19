@@ -1,13 +1,3 @@
-/* CUPS-ingress end-to-end:
- *   1. register a real customer + mint a print token
- *   2. POST /api/cups/print with no/bad token → 401
- *   3. POST /api/cups/print with good token + a real PDF → 200 + code
- *   4. the new code shows up in the customer's job list
- *   5. point a kiosk at the virtual printer, release the code, assert
- *      the printed bytes are byte-exact sha256 of the original PDF
- *
- * Proves the CUPS path lands in the same kiosk pipeline as the web app.
- */
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
@@ -29,7 +19,6 @@ async function jr(method, url, body, headers) {
   return { status: r.status, data: d };
 }
 
-// --- SQLite helpers (used by the concurrency + idempotency blocks) ---
 let sqlite3;
 try { sqlite3 = require('sqlite3'); } catch { sqlite3 = null; }
 function sqlGet(sql, params) {
@@ -54,8 +43,6 @@ function sqlRun(sql, params) {
   });
 }
 
-// Credit the wallet via the verified Paystack webhook — re-uses the
-// production path so we don't need an admin top-up endpoint.
 async function topUpWallet(userId, naira) {
   const secret = process.env.PAYSTACK_WEBHOOK_SECRET || process.env.PAYSTACK_SECRET_KEY;
   if (!secret) throw new Error('PAYSTACK_WEBHOOK_SECRET not set');
@@ -75,7 +62,6 @@ async function topUpWallet(userId, naira) {
 }
 
 (async () => {
-  // 1. Make a small one-page PDF (we'll need byte-exact later).
   const pdf = await PDFDocument.create();
   const pg = pdf.addPage([595, 842]);
   const f = await pdf.embedFont(StandardFonts.HelveticaBold);
@@ -85,7 +71,6 @@ async function topUpWallet(userId, naira) {
   const srcHash = sha(bytes);
   console.log(`1. PDF ${bytes.length}B sha ${srcHash.slice(0, 12)}…`);
 
-  // 2. Real customer registration → JWT.
   const email = `cups${Date.now()}@printloop.test`;
   const reg = await jr('POST', '/customer/auth/register', {
     firstName: 'Cups',
@@ -102,7 +87,6 @@ async function topUpWallet(userId, naira) {
   }
   console.log(`2. Registered ${email} → JWT ${tok.slice(0, 14)}… (${reg.status})`);
 
-  // 3. Rotate a print token.
   const rotate = await jr('POST', '/customer/print-token/rotate', {}, {
     Authorization: `Bearer ${tok}`,
   });
@@ -114,7 +98,6 @@ async function topUpWallet(userId, naira) {
   }
   console.log(`3. printToken ${printToken.slice(0, 12)}… (${rotate.status})`);
 
-  // helper — build the CUPS multipart body
   const cupsForm = (filename = 'cups.pdf') => {
     const fd = new FormData();
     fd.append('file', new Blob([bytes], { type: 'application/pdf' }), filename);
@@ -127,11 +110,9 @@ async function topUpWallet(userId, naira) {
     return fd;
   };
 
-  // 4. No token → 401
   let r = await fetch(B + '/cups/print', { method: 'POST', body: cupsForm() });
   console.log(`4. no token → ${r.status} (expect 401) ${r.status === 401 ? 'PASS' : 'FAIL'}`);
 
-  // 5. Bad token → 401
   r = await fetch(B + '/cups/print', {
     method: 'POST',
     headers: { Authorization: 'Bearer garbage-nope-not-a-real-token' },
@@ -139,7 +120,6 @@ async function topUpWallet(userId, naira) {
   });
   console.log(`5. bad token → ${r.status} (expect 401) ${r.status === 401 ? 'PASS' : 'FAIL'}`);
 
-  // 6. Good token → 200 + a fresh release code
   r = await fetch(B + '/cups/print', {
     method: 'POST',
     headers: { Authorization: `Bearer ${printToken}` },
@@ -152,16 +132,13 @@ async function topUpWallet(userId, naira) {
   const cfgOk =
     cfg.paper === 'A4' && cfg.sided === 'double' && cfg.color === 'color' && cfg.copies === 2;
   console.log(`   parsed CUPS opts paper=${cfg.paper} sided=${cfg.sided} color=${cfg.color} copies=${cfg.copies} ${cfgOk ? 'PASS' : 'FAIL'}`);
-  // Matrix lookup: A4 color duplex 300dpi = ₦250/page × 1pg × 2 copies = ₦500
   const expectCost = 250 * 1 * 2;
   console.log(`   cost ₦${body?.data?.cost} (expect ₦${expectCost}) ${body?.data?.cost === expectCost ? 'PASS' : 'FAIL'}`);
 
-  // 7. The code is in the customer's job list (status=ready)
   const list = await jr('GET', '/customer/print-jobs', null, { Authorization: `Bearer ${tok}` });
   const mine = (list.data?.data?.jobs || []).find((x) => x.code === code);
   console.log(`7. list contains code=${code}: ${!!mine} status=${mine?.status ?? '—'} ${mine && mine.status === 'ready' ? 'PASS' : 'FAIL'}`);
 
-  // 8. Admin: aim kiosk at the virtual printer + release the code
   const al = await jr('POST', '/admin/auth/login', {
     email: 'admin@printloop.test',
     password: 'Admin1234!',
@@ -195,9 +172,6 @@ async function topUpWallet(userId, naira) {
     process.exit(1);
   }
 
-  // ───────────────────────────────────────────────────────────────────
-  // IDEMPOTENCY: same payload, same Idempotency-Key, twice → ONE PrintJob.
-  // ───────────────────────────────────────────────────────────────────
   console.log('\n--- Idempotency ---');
   const idemKey = `cups-test-idem-${Date.now()}`;
   const idemHeaders = { Authorization: `Bearer ${printToken}`, 'Idempotency-Key': idemKey };
@@ -214,13 +188,7 @@ async function topUpWallet(userId, naira) {
   );
   console.log(`    DB rows for that key: ${jobsForKey.length} (expect 1) ${jobsForKey.length === 1 ? 'PASS' : 'FAIL'}`);
 
-  // ───────────────────────────────────────────────────────────────────
-  // WALLET RACE: fund wallet for exactly 3 prints, fire 5 in parallel,
-  // assert balance ends at zero — not negative — proving the atomic
-  // debit closed the read-modify-write race.
-  // ───────────────────────────────────────────────────────────────────
   console.log('\n--- Wallet race ---');
-  // Fresh user so the signup bonus + previous prints don't interfere.
   const raceEmail = `cupsrace${Date.now()}@printloop.test`;
   const raceReg = await jr('POST', '/customer/auth/register', {
     firstName: 'Race', lastName: 'Tester', email: raceEmail,
@@ -230,22 +198,11 @@ async function topUpWallet(userId, naira) {
   const raceUserId = raceReg.data?.data?.user?.id;
   const raceRot = await jr('POST', '/customer/print-token/rotate', {}, { Authorization: `Bearer ${raceTok}` });
   const racePrintToken = raceRot.data?.data?.token;
-  // Each /cups/print posted below costs ₦43 (1pg · 2 copies · color ·
-  // duplex). Fund the wallet for exactly 3 to leave clear evidence if a
-  // 4th sneaks through.
-  // Matrix: A4 color duplex 300dpi = ₦250/pg × 1pg × 2 copies = ₦500
   const UNIT = 500;
-  // Force the wallet to exactly 3 × UNIT — the signup bonus would
-  // otherwise leave it with enough for 4+ debits and the race window
-  // we're trying to test would never get hit.
   await sqlRun(`UPDATE wallets SET balance = ? WHERE userId = ?`, [3 * UNIT, raceUserId]);
   const startBal = (await sqlGet(`SELECT balance FROM wallets WHERE userId = ?`, [raceUserId]))?.balance ?? 0;
   console.log(`13. wallet pinned at ₦${startBal} (= 3 × ₦${UNIT})`);
 
-  // 5 parallel prints — only 3 should debit; the other 2 should still
-  // create PrintJob rows (best-effort billing matches the customer app)
-  // but leave the wallet at zero. The pre-fix code would have let all 5
-  // pass the balance check and double-spent.
   const fires = Array.from({ length: 5 }, (_, i) =>
     fetch(B + '/cups/print', {
       method: 'POST',
@@ -264,7 +221,6 @@ async function topUpWallet(userId, naira) {
     console.error(`15. ❌ Wallet race — got ₦${endBal}, expected ₦${expected}. Overshoot = double-spend.`);
     process.exit(1);
   }
-  // Should never go negative.
   if (Number(endBal) < 0) {
     console.error('    ❌ Wallet went NEGATIVE — debit was applied without bounds check.');
     process.exit(1);

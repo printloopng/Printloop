@@ -8,13 +8,6 @@ import express from 'express';
 
 const router = Router();
 
-/**
- * GET /api/files/:key
- *
- * Serves uploaded documents. If S3 is configured, generates a presigned
- * URL and redirects (302) so the client fetches directly from S3/R2.
- * Falls back to local disk for dev / single-tenant deployments without S3.
- */
 router.get('/:key', async (req: Request, res: Response) => {
   const key = decodeURIComponent(req.params.key);
 
@@ -32,7 +25,6 @@ router.get('/:key', async (req: Request, res: Response) => {
     }
   }
 
-  // Local fallback
   const filePath = path.join(UPLOAD_DIR, key);
   if (fs.existsSync(filePath)) {
     res.sendFile(filePath);

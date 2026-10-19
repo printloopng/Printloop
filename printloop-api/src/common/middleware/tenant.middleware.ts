@@ -126,11 +126,6 @@ export const optionalTenant = async (
   }
 };
 
-/**
- * After resolveTenant: only members with one of `roles` in this tenant (or
- * platform super admins) may continue. Used on money and data-export
- * actions so future STAFF members can't move funds or data.
- */
 export const requireTenantRole =
   (...roles: TenantMemberRole[]) =>
   (req: Request, res: Response, next: NextFunction): void => {
@@ -140,7 +135,6 @@ export const requireTenantRole =
     const memberships = (req.tenantMemberships || []).filter((m) => m.tenantId === tenantId);
     const allowed =
       memberships.some((m) => roles.includes(m.role)) ||
-      // Tenant admins created before memberships existed have none for this tenant.
       (memberships.length === 0 && user?.role === UserRole.ADMIN && user?.tenantId === tenantId);
     if (allowed) return next();
     res.status(403).json({

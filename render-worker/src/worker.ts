@@ -26,7 +26,6 @@ async function updateQueueDepth(queue: Queue) {
 export interface RenderJobData {
   printJobId: string;
   fileId?: string;
-  // S3 object key of the uploaded document (the API sends this; fileId is a DB id).
   sourceStorageKey?: string | null;
   tenantId: string;
   printerProfileId?: string;
@@ -105,10 +104,9 @@ async function callbackFailureToBackend(payload: RenderFailurePayload): Promise<
 
 async function processRenderJob(job: Job<RenderJobData>) {
   const { printJobId, fileId, sourceStorageKey, tenantId, printerProfileId, printerProfile, sourceFileUrl, fileName, printConfiguration } = job.data;
-  const attempt = job.attemptsMade + 1; // BullMQ tracks attemptsMade (0-indexed)
+  const attempt = job.attemptsMade + 1;
   const log = logger.child({ printJobId, tenantId, printerProfileId, attempt });
   
-  // Track retry metric
   if (attempt > 1) {
     renderRetriesTotal.inc({ attempt: String(attempt) });
     log.info({ attempt, maxAttempts: config.bullmq.attempts }, 'Retry attempt');
@@ -149,14 +147,13 @@ async function processRenderJob(job: Job<RenderJobData>) {
     
     await job.updateProgress(60);
     
-    // Generate preview images (first 3 pages)
     const previewImagePaths = await generatePreviewImages(normalizedPdfPath, 3);
     const previewImageUrls: string[] = [];
     for (const imgPath of previewImagePaths) {
       const imgBuffer = await fs.readFile(imgPath);
       const imgKey = generateRenderKey(printJobId, `preview-${path.basename(imgPath)}`);
       await uploadToS3(imgKey, imgBuffer, 'image/jpeg');
-      const url = await getPresignedUrl(imgKey, 86400); // 24 hours
+      const url = await getPresignedUrl(imgKey, 86400);
       previewImageUrls.push(url);
       await deleteTempFile(imgPath);
     }
@@ -170,7 +167,7 @@ async function processRenderJob(job: Job<RenderJobData>) {
     await uploadToS3(renderedKey, result.pwgBuffer, 'application/vnd.pwg-raster');
     log.info({ key: renderedKey }, 'Uploaded rendered artifact to S3');
     
-    const renderedPdfUrl = await getPresignedUrl(renderedKey, 86400); // 24 hours
+    const renderedPdfUrl = await getPresignedUrl(renderedKey, 86400);
     
     await job.updateProgress(90);
     
@@ -253,7 +250,6 @@ async function main() {
     s3Bucket: config.s3.bucket,
   }, 'Configuration');
 
-  // Start metrics server
   const metricsApp = express();
   metricsApp.get('/metrics', async (req, res) => {
     try {
@@ -272,7 +268,6 @@ async function main() {
 
   const worker = createWorker();
 
-  // Periodic queue depth update
   const queue = new Queue(config.bullmq.queueName, { connection: { url: config.redis.url } });
   const depthInterval = setInterval(() => updateQueueDepth(queue), 10000);
 

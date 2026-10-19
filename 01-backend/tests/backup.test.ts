@@ -40,7 +40,6 @@ describe('Database backup (V2-59)', () => {
     }
     await AppDataSource.initialize();
     await AppDataSource.runMigrations();
-    // Force a row into the schema so the snapshot has real content.
     await AppDataSource.getRepository(SystemSetting).save(
       AppDataSource.getRepository(SystemSetting).create({
         key: `backup-probe-${Date.now()}`,

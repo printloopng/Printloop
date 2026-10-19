@@ -18,7 +18,6 @@ export class Wallet {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  /** Mirrors the owning User's tenantId. Denormalized for index speed. */
   @Column({ type: 'uuid', nullable: true })
   tenantId: string | null;
 

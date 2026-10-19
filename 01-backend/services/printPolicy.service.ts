@@ -1,13 +1,6 @@
 import { AppDataSource } from '../config/database';
 import { SystemSetting } from '../entities/systemSetting.entity';
 
-/**
- * Server-side print-script policy engine (PaperCut "print scripts" style).
- * Every release is evaluated before it reaches the printer: a policy can
- * BLOCK the job or silently MUTATE it (force mono, force duplex, clamp
- * copies). All rules are admin-configurable via System Settings.
- */
-
 export interface PolicyJob {
   totalPages: number;
   copies: number;
@@ -36,7 +29,6 @@ async function settingsMap(): Promise<Record<string, string>> {
     for (const r of rows) map[r.key] = r.value;
     cache = { at: Date.now(), map };
   } catch {
-    /* keep stale cache on error */
   }
   return cache.map;
 }
@@ -58,7 +50,6 @@ export async function evaluatePrintPolicy(job: PolicyJob): Promise<PolicyResult>
 
   const sheets = Math.max(1, mutated.totalPages) * Math.max(1, mutated.copies);
 
-  // ── Hard blocks ────────────────────────────────────────────────────────
   const maxPages = num(s.policyMaxPagesPerJob, 0);
   if (maxPages > 0 && mutated.totalPages > maxPages) {
     return {
@@ -84,7 +75,6 @@ export async function evaluatePrintPolicy(job: PolicyJob): Promise<PolicyResult>
     return { allow: false, deniedReason: 'Colour printing is currently disabled by policy.', mutated, notes };
   }
 
-  // ── Silent mutations ───────────────────────────────────────────────────
   const maxCopies = num(s.policyMaxCopiesPerJob, 0);
   if (maxCopies > 0 && mutated.copies > maxCopies) {
     notes.push(`copies clamped ${mutated.copies}→${maxCopies}`);
@@ -106,40 +96,23 @@ export async function evaluatePrintPolicy(job: PolicyJob): Promise<PolicyResult>
   return { allow: true, mutated, notes };
 }
 
-/** IPPS / TLS connection prefs (admin + env configurable). */
 export async function ippConnectionPrefs(): Promise<{
   secure: boolean;
   port?: number;
   rejectUnauthorized: boolean;
   path: string;
   version: '1.0' | '1.1' | '2.0';
-  /**
-   * Transport for the print job:
-   *   'ipp'      — standard IPP Print-Job over HTTP (default)
-   *   'raw9100'  — TCP raw socket on port 9100 with PJL options,
-   *                used when the printer's IPP filter silently drops
-   *                anonymous jobs (Sharp MX-series being the classic
-   *                example).
-   *   'lpr'      — LPR/LPD RFC 1179 client protocol (default port 515).
-   *   'email'    — ePrint email attachment (SMTP).
-   */
   transport: 'ipp' | 'raw9100' | 'lpr' | 'email';
-  /** Port the raw-socket transport uses (default 9100). */
   rawPort: number;
 }> {
   const s = await settingsMap();
   const secure = bool(s.ippSecure) || process.env.IPP_SECURE === 'true';
   const port =
     num(s.ippPort, 0) || (process.env.IPP_PORT ? Number(process.env.IPP_PORT) : 0) || undefined;
-  // Appliance printers usually carry self-signed certs → default to not
-  // rejecting unless the admin explicitly turns verification on.
   const rejectUnauthorized =
     bool(s.ippTlsRejectUnauthorized) || process.env.IPP_TLS_REJECT_UNAUTHORIZED === 'true';
   const rawPath = (s.ippPath && String(s.ippPath).trim()) || process.env.IPP_PATH || '/ipp/print';
   const path = rawPath.startsWith('/') ? rawPath : `/${rawPath}`;
-  // Default IPP 2.0 (IPP-Everywhere). Sharp MX-series and other older /
-  // vendor-quirky firmwares reject 2.0 with `server-error-version-not-
-  // supported`; setting `ippVersion=1.1` in admin → Settings fixes that.
   const versionRaw = String(s.ippVersion || process.env.IPP_VERSION || '2.0').trim();
   const version: '1.0' | '1.1' | '2.0' =
     versionRaw === '1.0' ? '1.0' : versionRaw === '1.1' ? '1.1' : '2.0';
@@ -156,19 +129,6 @@ export async function ippConnectionPrefs(): Promise<{
   return { secure, port, rejectUnauthorized, path, version, transport, rawPort };
 }
 
-/**
- * How the backend hands a paid+released job off to the physical printer.
- *
- *  - `cloud-push`  (default, legacy): the backend itself opens a socket to
- *                  the printer's LAN IP and runs IPP / raw-9100. Requires
- *                  the backend to have LAN reachability (Tailscale subnet
- *                  router, on-prem deploy, etc.).
- *  - `kiosk-pull`: the backend marks the job RELEASING and an on-site
- *                  kiosk app polls /api/agent/jobs/ready,
- *                  downloads the bytes via signed URL, and dispatches to
- *                  the printer over the LAN it shares with the agent. No
- *                  inbound LAN access from the cloud needed.
- */
 export async function printDispatchMode(): Promise<'cloud-push' | 'kiosk-pull'> {
   const s = await settingsMap();
   const raw = String(s.printDispatchMode || process.env.PRINT_DISPATCH_MODE || 'cloud-push').trim();

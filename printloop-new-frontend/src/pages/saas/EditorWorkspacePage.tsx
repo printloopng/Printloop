@@ -44,7 +44,6 @@ export default function EditorWorkspacePage() {
     onError: (err) => toast.error(err.message),
   });
 
-  // Handle export
   const handleExport = async (format: 'pdf' | 'pwg') => {
     if (!token) return;
     setIsExporting(true);
@@ -52,7 +51,6 @@ export default function EditorWorkspacePage() {
       const result = await exportDocument(format);
       toast.success(`Exported as ${format.toUpperCase()} — ${result.pageCount} page${result.pageCount > 1 ? 's' : ''}`);
 
-      // Auto-download
       const link = globalThis.document.createElement('a');
       link.href = result.documentUrl;
       link.download = `edited-${session?.documentEditId}.${format}`;
@@ -65,10 +63,8 @@ export default function EditorWorkspacePage() {
     }
   };
 
-  // Handle approve (shop marks complete)
   const handleApprove = async () => {
     try {
-      // Export first if needed
       if (session?.status === 'in_progress') {
         setIsExporting(true);
         try {
@@ -82,20 +78,16 @@ export default function EditorWorkspacePage() {
         }
       }
       
-      // The customer approves, not the shop
-      // Shop just exports and marks complete via export
       toast.success('Document exported successfully. Customer will be notified for review.');
     } catch (err: any) {
       toast.error(err.message || 'Failed to approve');
     }
   };
 
-  // Handle back navigation
   const handleBack = () => {
     navigate(ROUTES.SAAS.EDIT_QUEUE);
   };
 
-  // Loading state
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[500px]">
@@ -123,7 +115,6 @@ export default function EditorWorkspacePage() {
 
   return (
     <div className="max-w-7xl mx-auto p-4 sm:p-6 h-[calc(100vh-80px)] flex flex-col">
-      {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="sm" onClick={handleBack} className="flex items-center gap-1">
@@ -139,7 +130,6 @@ export default function EditorWorkspacePage() {
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">
-          {/* Connection status */}
           <div className={`flex items-center gap-1.5 px-3 py-1.5 border-2 rounded-pl ${isConnected ? 'border-sage bg-sage/10' : 'border-persimmon bg-persimmon/10'}`}>
             <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-sage' : 'bg-persimmon'}`} />
             <span className="text-[10px] font-bold tracking-editorial">
@@ -147,7 +137,6 @@ export default function EditorWorkspacePage() {
             </span>
           </div>
 
-          {/* Save status */}
           <div className={`flex items-center gap-1.5 px-3 py-1.5 border-2 rounded-pl ${
             saveStatus === 'saving' ? 'border-ochre bg-ochre/10' :
             saveStatus === 'error' ? 'border-persimmon bg-persimmon/10' :
@@ -163,7 +152,6 @@ export default function EditorWorkspacePage() {
             </span>
           </div>
 
-          {/* Export button */}
           <Button 
             variant="ghost" 
             size="sm" 
@@ -188,7 +176,6 @@ export default function EditorWorkspacePage() {
         </div>
       </div>
 
-      {/* Document info bar */}
       <div className="border-2 border-ink bg-paper-light rounded-pl p-4 mb-4">
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
           <div>
@@ -213,14 +200,12 @@ export default function EditorWorkspacePage() {
           </div>
         </div>
         
-        {/* Edit instructions */}
         <div className="mt-4 pt-4 border-t-2 border-ink/20">
           <div className="editorial-label text-persimmon mb-1">EDIT INSTRUCTIONS</div>
           <p className="pl-serif italic text-ink/70 whitespace-pre-wrap">{editInstructions}</p>
         </div>
       </div>
 
-      {/* Main Editor */}
       <div className="flex-1 min-h-0 relative">
 {token && univerDocument && (
             <UniverEditor
@@ -237,7 +222,6 @@ export default function EditorWorkspacePage() {
         )}
       </div>
 
-{/* Export Dialog */}
       <Dialog open={showExportDialog} onOpenChange={setShowExportDialog}>
         <DialogContent className="max-w-md">
           <DialogHeader>

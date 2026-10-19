@@ -19,12 +19,6 @@ const printerExt = new PrinterServiceExtensions();
 const groupSvc = new GroupSessionService();
 const ipp = new IppService();
 
-/**
- * Dispatch a print job over whichever transport the admin has selected
- * for this PrintLoop install. Default is IPP Print-Job; admins switch
- * to `raw9100` for printers whose IPP layer accepts envelopes but then
- * silently drops the payload (Sharp MX-series is the canonical case).
- */
 async function dispatchPrint(
   printerIp: string,
   source: any,
@@ -46,28 +40,10 @@ async function dispatchPrint(
   return ipp.printJob(printerIp, source, jobName, opts);
 }
 
-/**
- * Force grayscale on the cloud-push path when the (policy-resolved)
- * colour isn't 'color'. The printer's PJL colour directives are
- * unreliable for PDF input — the Sharp ignores them and prints the
- * PDF's own colour space — so we strip the colour from the bytes
- * server-side via Ghostscript, the same guarantee the kiosk-pull
- * download endpoint applies. No-op (returns the original bytes) if
- * Ghostscript isn't installed on the host.
- */
 async function maybeGrayscale(buffer: Buffer, color: string | undefined): Promise<Buffer> {
   return color && color !== 'color' ? toGrayscale(buffer) : buffer;
 }
 
-/**
- * Bake the chosen orientation into the page geometry on the cloud-push
- * path. Like {@link maybeGrayscale} this is firmware-proof: the Sharp
- * ignores the PJL ORIENTATION hint for PDF input but obeys the PDF's own
- * page geometry, so `fitToOrientation` scales each page to fit the chosen
- * sheet (pillarbox portrait→landscape, letterbox landscape→portrait; never
- * rotated, never cropped). No-op (original bytes) when no explicit
- * orientation is set, when pages already match it, or on any failure.
- */
 async function maybeOrient(buffer: Buffer, orientation: string | undefined): Promise<Buffer> {
   return orientation === 'landscape' || orientation === 'portrait'
     ? fitToOrientation(buffer, orientation)
@@ -85,17 +61,11 @@ function parsePages(cfg: any): number[] | null {
   return out.length ? out : null;
 }
 
-// All printer endpoints require a valid kiosk API key (X-Kiosk-Key header)
 router.get('/heartbeat', kioskAuth, heartbeat);
 router.post('/validate-code', kioskAuth, bruteForceProtection, validateCode);
 router.post('/get-job', kioskAuth, getJob);
 router.patch('/progress', kioskAuth, updateProgress);
 
-/**
- * Release a SINGLE job to the physical printer.
- * Pipeline: load job → print-script policy (block/mutate) → IPP/IPPS
- * dispatch to the kiosk's printer → mark complete.
- */
 router.post('/complete', kioskAuth, async (req: Request, res: Response) => {
   try {
     const code = req.body.code || req.body.jobNumber;
@@ -106,9 +76,6 @@ router.post('/complete', kioskAuth, async (req: Request, res: Response) => {
       return;
     }
 
-    // In kiosk-pull mode the agent — not the backend — opens the socket to
-    // the printer, so the kiosk row needs no `ipAddress`. Only enforce it
-    // for cloud-push, where this process literally dials the printer's LAN IP.
     const dispatchMode = await printDispatchMode();
     if (dispatchMode === 'cloud-push' && !kiosk?.ipAddress) {
       res.status(409).json({
@@ -126,14 +93,6 @@ router.post('/complete', kioskAuth, async (req: Request, res: Response) => {
       return;
     }
 
-    // ── Pricing reconciliation gate (V2-52/53) ───────────────────────────
-    // If the render worker's final page count priced ABOVE what the
-    // customer paid, charge the delta to their saved Paystack card
-    // before the job can be released. The customer is standing at the
-    // kiosk — the natural moment to collect. Jobs with no Payment row
-    // (CUPS ingress) and jobs whose card declines stay releasable via
-    // admin action; the gate answers 402 PAYMENT_DUE on a declined
-    // charge so the kiosk can surface the amount due.
     const settlement = await settleShortfall(job.id);
     if (
       settlement.reason === 'charge-failed' ||
@@ -150,20 +109,12 @@ router.post('/complete', kioskAuth, async (req: Request, res: Response) => {
 
     const cfg: any = job.printConfiguration || {};
 
-    // ── Kiosk-pull short-circuit ────────────────────────────────────────
-    // Mark the job RELEASING + bind it to this kiosk so its on-site agent
-    // can claim it via /api/agent/jobs/ready, download the bytes, and
-    // dispatch over its own LAN. We still run policy here so the agent
-    // can't print something the admin has blocked — mutations get
-    // persisted onto printConfiguration before the agent sees the job.
     if (dispatchMode === 'kiosk-pull') {
       const items = await AppDataSource.getRepository(PrintJobItem).find({
         where: { printJobId: job.id },
         order: { order: 'ASC' },
       });
 
-      // Per-document policy evaluation (single + batch alike). On a block
-      // we abort the whole release exactly like cloud-push does.
       if (items.length) {
         for (const it of items) {
           const ic: any = it.printConfiguration || {};
@@ -184,7 +135,6 @@ router.post('/complete', kioskAuth, async (req: Request, res: Response) => {
             });
             return;
           }
-          // Persist any mutations so the agent fetches the corrected config.
           it.printConfiguration = {
             ...ic,
             copies: pol.mutated.copies,
@@ -221,8 +171,6 @@ router.post('/complete', kioskAuth, async (req: Request, res: Response) => {
         };
       }
 
-      // Atomic transition READY → RELEASING. The conditional update means
-      // two kiosks racing on the same code can't both win.
       const upd = await jobRepo
         .createQueryBuilder()
         .update(PrintJob)
@@ -251,7 +199,6 @@ router.post('/complete', kioskAuth, async (req: Request, res: Response) => {
       return;
     }
 
-    // ── Personal batch: ONE code → many documents, each its own settings ─
     const items = await AppDataSource.getRepository(PrintJobItem).find({
       where: { printJobId: job.id },
       order: { order: 'ASC' },
@@ -261,7 +208,6 @@ router.post('/complete', kioskAuth, async (req: Request, res: Response) => {
       const collate = cfg.collate !== false;
       const fileRepo = AppDataSource.getRepository(File);
 
-      // Policy pre-pass — block the whole release if any item is denied.
       const planned: Array<{ it: PrintJobItem; pol: any }> = [];
       for (const it of items) {
         const ic: any = it.printConfiguration || {};
@@ -288,7 +234,6 @@ router.post('/complete', kioskAuth, async (req: Request, res: Response) => {
       let printed = 0;
       for (const { it, pol } of planned) {
         const f = await fileRepo.findOne({ where: { id: it.fileId } });
-        // Watermarking is removed — always serve the original URL.
         const url = f?.fileURL;
         if (!url) continue;
         let src: any = { url };
@@ -320,8 +265,6 @@ router.post('/complete', kioskAuth, async (req: Request, res: Response) => {
           sided: pol.mutated.sided,
           color: pol.mutated.color,
           paper: pol.mutated.paper || 'A4',
-          // Orientation lives on the saved printConfiguration — policy
-          // doesn't mutate it, so we read it directly off the item.
           orientation:
             (it.printConfiguration as any)?.orientation === 'landscape'
               ? 'landscape'
@@ -364,7 +307,6 @@ router.post('/complete', kioskAuth, async (req: Request, res: Response) => {
       return;
     }
 
-    // ── Print-script policy (authoritative, before dispatch) ────────────
     const policy = await evaluatePrintPolicy({
       totalPages: job.totalPages || Number(totalPages) || 1,
       copies: cfg.copies || 1,
@@ -383,14 +325,12 @@ router.post('/complete', kioskAuth, async (req: Request, res: Response) => {
       return;
     }
 
-    // ── Resolve the document ────────────────────────────────────────────
     const file = job.fileId
       ? await AppDataSource.getRepository(File).findOne({ where: { id: job.fileId } })
       : null;
     const fileUrl =
       file?.fileURL || `local://${encodeURIComponent(job.fileName || job.code || '')}.pdf`;
 
-    // ── IPP / IPPS dispatch with the (possibly mutated) options ─────────
     const prefs = await ippConnectionPrefs();
     const opts: PrintOptions = {
       copies: policy.mutated.copies,
@@ -409,7 +349,6 @@ router.post('/complete', kioskAuth, async (req: Request, res: Response) => {
       version: prefs.version,
     };
 
-    // Printers speak PDF — fetch the real bytes and convert if needed.
     let source: any = { url: fileUrl };
     try {
       const bytes = await loadDocumentBytes(fileUrl);
@@ -449,7 +388,6 @@ router.post('/complete', kioskAuth, async (req: Request, res: Response) => {
       return;
     }
 
-    // ── Mark complete + schedule cleanup ────────────────────────────────
     const result = await printerExt.completePrintJob({
       code,
       kioskId: kiosk.id,
@@ -473,10 +411,6 @@ router.post('/complete', kioskAuth, async (req: Request, res: Response) => {
   }
 });
 
-/**
- * Release a GROUP BATCH (one batch code → every paid participant file),
- * each dispatched to the printer in turn.
- */
 router.post('/complete-batch', kioskAuth, async (req: Request, res: Response) => {
   try {
     const code = req.body.code;
@@ -486,9 +420,6 @@ router.post('/complete-batch', kioskAuth, async (req: Request, res: Response) =>
       return;
     }
 
-    // Group-batch is a fan-out across participant uploads; the kiosk-pull
-    // pipeline only supports single PrintJob rows today. Tell the caller
-    // up-front rather than silently failing inside the dispatch loop.
     const dispatchMode = await printDispatchMode();
     if (dispatchMode === 'kiosk-pull') {
       res.status(501).json({
@@ -514,8 +445,6 @@ router.post('/complete-batch', kioskAuth, async (req: Request, res: Response) =>
     const prefs = await ippConnectionPrefs();
     const sessDefaults: any = data.session.defaultOptions || {};
 
-    // Per-document policy pre-pass — each participant's OWN settings (falls
-    // back to the host/session defaults only when a participant has none).
     const planned: Array<{ f: any; pol: any }> = [];
     for (const f of data.files) {
       const ic: any = f.printConfig || sessDefaults || {};
@@ -549,7 +478,7 @@ router.post('/complete-batch', kioskAuth, async (req: Request, res: Response) =>
         orientation:
           (f.printConfig as any)?.orientation === 'landscape' ? 'landscape' : 'portrait',
         qualityDpi: (f.printConfig as any)?.qualityDpi,
-        collate: true, // a participant's own set prints collated
+        collate: true,
         requestingUser: 'PrintLoop-Kiosk',
         secure: prefs.secure,
         port: prefs.port,

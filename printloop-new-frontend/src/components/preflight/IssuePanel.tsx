@@ -116,7 +116,6 @@ export function IssuePanel({ issues, onFixSelect, selectedFixes, onFixToggle }: 
 
   return (
     <div className="space-y-4">
-      {/* Summary Bar */}
       <Reveal variant="wipe">
         <div className="flex flex-wrap gap-2 mb-4">
           <button
@@ -154,7 +153,6 @@ export function IssuePanel({ issues, onFixSelect, selectedFixes, onFixToggle }: 
         </div>
       </Reveal>
 
-      {/* Issues by Page */}
       <Reveal variant="rise" delay={100}>
         <div className="space-y-4">
           {pages.map((pageNum) => {
@@ -232,7 +230,6 @@ export function IssuePanel({ issues, onFixSelect, selectedFixes, onFixToggle }: 
           </div>
         </Reveal>
 
-      {/* Quick Actions */}
       <Reveal variant="rise" delay={200}>
         <div className="border-2 border-ink rounded-pl p-4 bg-paper-light">
           <div className="editorial-label text-persimmon mb-2">QUICK ACTIONS</div>

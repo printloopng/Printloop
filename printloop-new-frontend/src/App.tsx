@@ -76,7 +76,6 @@ export default function App() {
       <ImpersonationBanner />
       <CookieConsent />
       <Routes>
-        {/* Public marketing pages */}
         <Route element={<SuspenseOutlet />}>
           <Route path={ROUTES.ROOT} element={<LandingPage />} />
           <Route path="/features" element={<FeaturesPage />} />
@@ -89,27 +88,23 @@ export default function App() {
           <Route path="/terms" element={<TermsPage />} />
         </Route>
 
-        {/* Kiosk */}
         <Route element={<SuspenseOutlet />}>
           <Route path={ROUTES.KIOSK.HOME} element={<KioskCodePage />} />
           <Route path={ROUTES.KIOSK.CODE} element={<KioskCodePage />} />
         </Route>
 
-        {/* Marketplace discovery */}
         <Route element={<SuspenseOutlet />}>
           <Route path="/join/:shareId" element={<JoinPage />} />
           <Route path="/find" element={<FindPage />} />
           <Route path="/find/:slug" element={<ShopDetailPage />} />
         </Route>
 
-        {/* SaaS tenant admin — public pages */}
         <Route element={<SuspenseOutlet />}>
           <Route path="/saas/signup" element={<SignupPage />} />
           <Route path="/saas/login" element={<SaasLoginPage />} />
           <Route path="/saas/verify-email" element={<SaasVerifyEmailPage />} />
         </Route>
 
-        {/* SaaS tenant admin — protected pages */}
         <Route element={<SaasProtectedRoute />}>
           <Route element={<SaasShell />}>
             <Route element={<SuspenseOutlet />}>
@@ -128,7 +123,6 @@ export default function App() {
           </Route>
         </Route>
 
-        {/* Tenant settings — nested under tab-nav shell */}
         <Route path="/saas/settings" element={<SettingsLayout />}>
           <Route element={<SuspenseInlineOutlet />}>
             <Route index element={<BrandingPage />} />
@@ -140,12 +134,10 @@ export default function App() {
           </Route>
         </Route>
 
-        {/* Platform operator console (SUPER_ADMIN only) */}
         <Route element={<SuspenseOutlet />}>
           <Route path="/platform" element={<PlatformConsolePage />} />
         </Route>
 
-        {/* Auth pages — only visible when signed out */}
         <Route element={<PublicOnlyRoute />}>
           <Route element={<AuthLayout />}>
             <Route element={<SuspenseOutlet />}>
@@ -157,14 +149,12 @@ export default function App() {
           </Route>
         </Route>
 
-        {/* Admin login — standalone page, no AppLayout, redirect if already admin */}
         <Route element={<AdminPublicOnlyRoute />}>
           <Route element={<SuspenseOutlet />}>
             <Route path={ROUTES.ADMIN.LOGIN} element={<AdminLoginPage />} />
           </Route>
         </Route>
 
-        {/* Admin console — fully separate: own layout, no customer chrome */}
         <Route element={<AdminProtectedRoute />}>
           <Route element={<AdminLayout />}>
             <Route element={<SuspenseOutlet />}>
@@ -173,7 +163,6 @@ export default function App() {
           </Route>
         </Route>
 
-        {/* Protected customer app */}
         <Route element={<ProtectedRoute />}>
           <Route element={<AppLayout />}>
             <Route element={<SuspenseOutlet />}>
@@ -189,7 +178,6 @@ export default function App() {
           </Route>
         </Route>
 
-        {/* Fallback */}
         <Route
           path="*"
           element={<Navigate to={ROUTES.ROOT} replace />}

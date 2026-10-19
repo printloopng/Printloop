@@ -29,7 +29,6 @@ import BlogTab from "@/pages/admin/tabs/BlogTab";
 import OperatorQueuePage from "@/pages/admin/OperatorQueuePage";
 import DisputesTab from "@/pages/admin/tabs/DisputesTab";
 
-// ─── Types ─────────────────────────────────────────────────────────────────
 type Tab =
   | "dashboard"
   | "operator"
@@ -63,7 +62,6 @@ const tabs: { key: Tab; label: string }[] = [
   { key: "disputes", label: "Disputes" },
 ];
 
-// Permissions an admin can be granted (mirrors backend Permission enum).
 const ALL_PRIVILEGES = [
   "view_dashboard",
   "view_jobs",
@@ -149,7 +147,6 @@ function EnvTile({
   );
 }
 
-// ─── Dashboard ─────────────────────────────────────────────────────────────
 function DashboardTab() {
   const { data, isLoading } = useGetDashboardStatsQuery();
   const { data: audit } = useGetAuditLogsQuery({ limit: 6 });
@@ -280,7 +277,6 @@ function DashboardTab() {
   );
 }
 
-// ─── Users & Admins ────────────────────────────────────────────────────────
 function UsersTab({ canManageAdmins }: { canManageAdmins: boolean }) {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -486,15 +482,11 @@ function UsersTab({ canManageAdmins }: { canManageAdmins: boolean }) {
   );
 }
 
-// ─── Pricing & Charging ────────────────────────────────────────────────────
 const PAPER_SIZES = ["A4", "A3", "LETTER", "LEGAL"];
 const COLOR_TYPES = ["BLACK_WHITE", "COLOR"];
 const money = (n: number) =>
   `₦${Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 
-// The six per-cell fields plus the legacy fallback. Editing any single
-// cell only sends that cell; the rest of the row is untouched. Values
-// stored as strings so the input can hold the empty state.
 const CELL_KEYS = [
   "price100Simplex",
   "price300Simplex",
@@ -603,7 +595,6 @@ function PricingCard({
         )}
       </div>
 
-      {/* 6-cell pricing matrix. Rows: simplex/duplex; columns: 100/300/600 dpi. */}
       <div className="overflow-x-auto">
         <table className="w-full border-separate border-spacing-1 text-sm">
           <thead>
@@ -684,7 +675,6 @@ function PricingTab({ canManage }: { canManage: boolean }) {
   const [addForm, setAddForm] = useState({
     paperSize: "A4",
     colorType: "BLACK_WHITE",
-    // Per-cell prices — blank means "use the legacy multiplier path".
     price100Simplex: "",
     price300Simplex: "",
     price600Simplex: "",
@@ -702,8 +692,6 @@ function PricingTab({ canManage }: { canManage: boolean }) {
       const payload: any = {
         paperSize: addForm.paperSize,
         colorType: addForm.colorType,
-        // pricePerPage mirrors the 300dpi-simplex cell — the existing
-        // `pricePerPage` field stays in sync for any legacy reader.
         pricePerPage: Number(addForm.price300Simplex) || 0,
         duplexMultiplier: 1.0,
         highResolutionMultiplier: 1.0,
@@ -779,7 +767,6 @@ function PricingTab({ canManage }: { canManage: boolean }) {
               </select>
             </div>
           </div>
-          {/* 6-cell matrix — same layout as the per-row editor below. */}
           <div className="overflow-x-auto">
             <table className="w-full border-separate border-spacing-1 text-sm">
               <thead>
@@ -857,7 +844,6 @@ function PricingTab({ canManage }: { canManage: boolean }) {
   );
 }
 
-// ─── App Log ───────────────────────────────────────────────────────────────
 function AppLogTab() {
   const [page, setPage] = useState(1);
   const { data, isLoading } = useGetAuditLogsQuery({ page, limit: 50 });
@@ -945,7 +931,6 @@ function AppLogTab() {
   );
 }
 
-// ─── Main Page ─────────────────────────────────────────────────────────────
 export default function AdminConsolePage() {
   const currentUser = useSelector((state: RootState) => state.auth.user) as any;
   const dispatch = useDispatch();
@@ -1001,10 +986,6 @@ export default function AdminConsolePage() {
 
   return (
     <div className="flex flex-col lg:flex-row lg:h-screen">
-      {/* ── Mobile / tablet top bar ─────────────────────────────────
-         The desktop sidebar (lg:) is hidden, replaced by:
-           - a compact bg-sage header with admin name + sign out
-           - a horizontally-scrollable tab strip directly below */}
       <header className="lg:hidden bg-sage text-paper px-4 sm:px-5 py-3 flex items-center justify-between gap-3">
         <div className="min-w-0">
           <div className="editorial-label text-paper/50 text-[9px]">PRINTLOOP ADMIN</div>
@@ -1040,7 +1021,6 @@ export default function AdminConsolePage() {
         </div>
       </nav>
 
-      {/* ── Desktop sidebar ─────────────────────────────────────── */}
       <aside className="hidden lg:flex w-64 bg-sage text-paper flex-shrink-0 flex-col overflow-y-auto">
         <div className="px-5 py-6 border-b border-paper/10">
           <div className="editorial-label text-paper/50 mb-1">PRINTLOOP ADMIN</div>
@@ -1080,7 +1060,6 @@ export default function AdminConsolePage() {
         </div>
       </aside>
 
-      {/* ── Main content area ──────────────────────────────────── */}
       <main className="flex-1 bg-paper overflow-y-auto p-4 sm:p-6 lg:p-8 animate-fadein">{content}</main>
     </div>
   );

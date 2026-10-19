@@ -35,11 +35,6 @@ type Receipt = { id?: string; code: string; cost: number; expiresAt?: string; qr
 
 const qualityOptions: QualityDpi[] = [100, 300, 600];
 
-// `priceOf` was previously hardcoded to ₦5/₦25/0.85 multipliers, which
-// silently diverged from the admin pricing matrix. Live calc now lives in
-// `priceFromMatrix` above and is fed by `useGetPricingQuery` inside the
-// component.
-
 function formatExpiry(value?: string) {
   if (!value) return "24 hours";
   return new Intl.DateTimeFormat(undefined, {
@@ -56,8 +51,6 @@ export default function NewPrintPage() {
   const [receipt, setReceipt] = useState<Receipt | null>(null);
   const [awaitingPayment, setAwaitingPayment] = useState(false);
 
-  // Auto-detected from the document; manualPages only used for formats we
-  // cannot parse (e.g. DOCX) — that is the entire purpose of "page count".
   const [docPages, setDocPages] = useState(0);
   const [rangeable, setRangeable] = useState(false);
   const [manualPages, setManualPages] = useState(1);
@@ -84,9 +77,6 @@ export default function NewPrintPage() {
     orientation: "portrait",
   });
 
-  // When a new file's native orientation is detected, default the selector to
-  // it (once per file) — a landscape document opens as Landscape. The customer
-  // can still override; we don't fight a manual change afterwards.
   const autoOrientedFor = useRef<File | null>(null);
   const handleMeta = (m: { pageCount: number; rangeable: boolean; orientation?: "portrait" | "landscape" }) => {
     setDocPages(m.pageCount);
@@ -98,10 +88,8 @@ export default function NewPrintPage() {
   };
   const { data: pricingData } = useGetPricingQuery();
   const pricingRows: PricingRow[] | undefined = pricingData?.configs;
-  // V2-48 — does this shop's server convert Office files to PDF?
   const officeEnabled = Boolean((pricingData as any)?.officeConversion);
 
-  // V2-XX — Document Editing Service
   const { data: editPricing } = useGetEditPricingQuery();
   const editingEnabled = editPricing?.editingEnabled === true;
   const [editingRequired, setEditingRequired] = useState(false);
@@ -130,9 +118,6 @@ export default function NewPrintPage() {
     }
   }, [hasColorCapability, config.color]);
 
-  // Office files can't be page-counted in the browser — the server
-  // converts + counts on upload. Until then everything we show is an
-  // estimate driven by the user's approximate page count.
   const isOffice = file ? isOfficeName(file.name) : false;
   const totalDocPages = rangeable ? docPages : manualPages;
   const selectedPages = useMemo(() => {
@@ -145,9 +130,6 @@ export default function NewPrintPage() {
     config.pages === "range" && selectedPages ? selectedPages.length : totalDocPages || 1;
   const total = priceFromMatrix(printedPageCount, config, pricingRows);
 
-  // Per-page rate and the actual simplex↔duplex delta — both derived from
-  // the same matrix the server bills against, so the review panel can
-  // never lie about "₦5/page" while charging matrix prices.
   const ratePerPage = priceFromMatrix(1, { ...config, copies: 1 }, pricingRows);
   const simplexRate = priceFromMatrix(
     1,
@@ -161,8 +143,6 @@ export default function NewPrintPage() {
   );
   const duplexDeltaPct =
     simplexRate > 0 ? Math.round(((duplexRate - simplexRate) / simplexRate) * 100) : 0;
-  // Positive => duplex more expensive; negative => duplex cheaper. Both
-  // legitimate depending on the admin's pricing model.
   const duplexLabel =
     config.sided !== "double"
       ? "—"
@@ -179,16 +159,11 @@ export default function NewPrintPage() {
   const submitPrintJob = async () => {
     if (!file) return toast.error("Choose a file first.");
     try {
-      // Multipart → the real customer endpoint persists the actual document
-      // and creates a real PrintJob a kiosk can fetch & print. The job is
-      // created PENDING — the release code is minted by the Paystack
-      // webhook after the customer pays (V2-53: no wallet).
       const fd = new FormData();
       fd.append("file", file, file.name);
       fd.append("fileName", file.name);
       fd.append("pageCount", String(printedPageCount));
       fd.append("jobType", "single");
-      // V2-XX — Document Editing Service
       fd.append("editingRequired", String(editingRequired));
       if (editingRequired && editingInstructions.trim()) {
         fd.append("editingInstructions", editingInstructions.trim());
@@ -206,8 +181,6 @@ export default function NewPrintPage() {
       const job = payload?.job || payload;
       if (!job?.id) throw new Error("Job was not created.");
 
-      // Open the Paystack hosted checkout; the payment poll below
-      // picks up the release code once the webhook lands.
       const init = await initJobPayment({ jobId: job.id }).unwrap();
       const initData = init?.data || init;
       const url = initData?.authorizationUrl;
@@ -220,8 +193,6 @@ export default function NewPrintPage() {
     }
   };
 
-  // While the Paystack checkout tab is open, poll the job list every 3s
-  // until the release code appears (minted by the webhook after payment).
   const { data: jobsData } = useListJobsQuery(undefined, {
     pollingInterval: awaitingPayment ? 3000 : 0,
     skip: !awaitingPayment,
@@ -247,7 +218,6 @@ export default function NewPrintPage() {
       setStep(4);
     }
   }, [awaitingPayment, jobsData]);
-
 
   const stepLabels = ["UPLOAD", "CONFIGURE + REVIEW", "SUMMARY + PREVIEW", "TOKEN"];
   const pagesLabel =
@@ -388,7 +358,6 @@ export default function NewPrintPage() {
               Pages are read from your document automatically — choose a range to print only part of it.
             </p>
 
-            {/* Hidden detector: parses page count without showing the preview yet */}
             <div className="hidden">
               <PrintPreview file={file} pages={null} color="color" orientation={config.orientation}
                 onMeta={handleMeta} />
@@ -518,9 +487,6 @@ export default function NewPrintPage() {
             <h2 className="pl-serif text-xl sm:text-2xl font-bold mb-5">No surprises later.</h2>
             {[
               ["FILE", file?.name || "-"],
-              // Per-page rate matches what the matrix charges for this exact
-              // (paper, colour, dpi, sided) cell — no more lying about ₦5/page
-              // while billing ₦70.
               ["RATE", `₦${ratePerPage.toLocaleString()}/page`],
               ["QUALITY", `${config.qualityDpi}dpi`],
               ["PAGES", `${isOffice ? "~" : ""}${printedPageCount} x ${config.copies} cop${config.copies === 1 ? "y" : "ies"}${isOffice ? " (est.)" : ""}`],
@@ -599,7 +565,6 @@ export default function NewPrintPage() {
 
       {step === 3 && (
         <div className="animate-fadein space-y-4">
-          {/* ── Summary first ───────────────────────────────── */}
           <div className="border-2 border-ink">
             <div className="bg-ink text-paper px-6 py-4 flex justify-between items-center">
               <div>
@@ -638,7 +603,6 @@ export default function NewPrintPage() {
             </div>
           </div>
 
-          {/* ── Preview after summary ───────────────────────── */}
           <div className="border-2 border-ink">
             <div className="bg-ink text-paper px-6 py-3">
               <div className="editorial-label text-persimmon">PRINT PREVIEW</div>

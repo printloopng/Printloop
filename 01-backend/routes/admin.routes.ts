@@ -17,8 +17,6 @@ import { Kiosk, KioskStatus } from '../entities/kiosk.entity';
 const router = Router();
 const dashboardService = new AdminDashboardService();
 
-// ── Helpers ──────────────────────────────────────────────────────────────
-
 import { writeAudit } from '../services/audit.service';
 
 function paginate(query: any) {
@@ -29,7 +27,6 @@ function paginate(query: any) {
 
 const SENSITIVE_USER_FIELDS = ['passwordHash', 'salt', 'verificationToken', 'resetToken'];
 
-/** Remove credential material before a user object leaves the admin API. */
 function scrubUser<T extends Record<string, any> | null | undefined>(u: T): T {
   if (!u || typeof u !== 'object') return u;
   const copy: any = { ...u };
@@ -37,7 +34,6 @@ function scrubUser<T extends Record<string, any> | null | undefined>(u: T): T {
   return copy;
 }
 
-// ── Dashboard ────────────────────────────────────────────────────────────
 router.get(
   '/dashboard/stats',
   requirePermission(Permission.VIEW_DASHBOARD),
@@ -56,7 +52,6 @@ router.get(
   }
 );
 
-// ── Jobs ─────────────────────────────────────────────────────────────────
 router.get(
   '/jobs',
   requirePermission(Permission.VIEW_JOBS),
@@ -68,7 +63,6 @@ router.get(
       const repo = AppDataSource.getRepository(PrintJob);
       const qb = repo.createQueryBuilder('job').leftJoinAndSelect('job.user', 'user');
 
-      // Tenant scope first — everything else AND-chains onto it.
       if (req.tenant) qb.andWhere('job.tenantId = :__tid', { __tid: req.tenant.id });
       if (status) qb.andWhere('job.status = :status', { status });
       if (kioskId) qb.andWhere('job.kioskId = :kioskId', { kioskId });
@@ -128,12 +122,6 @@ router.patch(
   }
 );
 
-/**
- * POST /api/admin/jobs/:id/accept — the Bolt-style accept window
- * (V2-58). The operator accepts a paid job that's waiting in
- * awaiting_accept; it becomes READY (releasable at the kiosk). Jobs
- * rerouted to this shop get their ledger credit here.
- */
 router.post(
   '/jobs/:id/accept',
   requirePermission(Permission.REQUEUE_JOBS),
@@ -164,13 +152,6 @@ router.post(
   },
 );
 
-/**
- * POST /api/admin/jobs/:id/release — operator "one-tap print"
- * (V2-57). Marks a READY job RELEASING and binds it to the tenant's
- * first ACTIVE kiosk; the on-site agent polls /api/agent/jobs/ready
- * and silent-prints it via the kiosk-pull path. Same atomic
- * READY→RELEASING transition the kiosk code entry uses.
- */
 router.post(
   '/jobs/:id/release',
   requirePermission(Permission.REQUEUE_JOBS),
@@ -275,7 +256,6 @@ router.patch(
   }
 );
 
-// ── Group sessions (admin viewer) ────────────────────────────────────────
 router.get(
   '/group-sessions',
   requirePermission(Permission.VIEW_JOBS),
@@ -295,7 +275,6 @@ router.get(
   }
 );
 
-// ── Pricing ──────────────────────────────────────────────────────────────
 router.get(
   '/pricing',
   requirePermission(Permission.VIEW_PRICING),
@@ -334,8 +313,6 @@ router.patch(
         highResolutionMultiplier,
         isActive,
         notes,
-        // per-cell prices (nullable — sending `null` clears a cell so it
-        // falls back to the legacy multiplier path)
         price100Simplex,
         price300Simplex,
         price600Simplex,
@@ -459,7 +436,6 @@ router.delete(
   }
 );
 
-// ── Promotions ───────────────────────────────────────────────────────────
 router.get(
   '/promotions',
   requirePermission(Permission.VIEW_PROMOTIONS),
@@ -484,12 +460,8 @@ router.post(
   async (req: Request, res: Response) => {
     try {
       const repo = AppDataSource.getRepository(Promotion);
-      // Normalize the code at write time so `applyPromotion` can use the
-      // unique index on `code` directly (no UPPER() functional lookup).
       const body = { ...(req.body || {}) };
       if (typeof body.code === 'string') body.code = body.code.trim().toUpperCase();
-      // Stamp tenant — promotions are scoped per-tenant (each tenant
-      // runs their own promo codes).
       body.tenantId = req.tenant?.id ?? null;
       const promotion = repo.create(body as Partial<Promotion>);
       const saved = await repo.save(promotion);
@@ -529,7 +501,6 @@ router.patch(
   }
 );
 
-// ── Transactions & refunds ───────────────────────────────────────────────
 router.get(
   '/transactions',
   requirePermission(Permission.VIEW_TRANSACTIONS),
@@ -562,7 +533,6 @@ router.get(
   }
 );
 
-// ── Blog (V2-54) ─────────────────────────────────────────────────────────
 function slugify(input: string): string {
   return (
     String(input)
@@ -702,7 +672,6 @@ router.delete(
   },
 );
 
-// ── Printer profiles (V2-56) ────────────────────────────────────────────
 const PAPER_SIZES = ['A4', 'A3', 'LETTER', 'LEGAL'];
 const DPI_CHOICES = [100, 300, 600];
 
@@ -829,7 +798,6 @@ router.patch(
         await clearOtherDefaults(repo, req.tenant!.id, profile.id);
         profile.isDefault = true;
       } else if (isDefault === false && profile.isDefault) {
-        // Don't silently remove the last default; just allow it.
         profile.isDefault = false;
       }
       await repo.save(profile);
@@ -869,7 +837,6 @@ router.delete(
   },
 );
 
-// ── Users ────────────────────────────────────────────────────────────────
 router.get(
   '/users',
   requirePermission(Permission.VIEW_USERS),
@@ -1000,7 +967,6 @@ router.patch(
       }
       const prev = user.role;
       user.role = role;
-      // Reset privileges when changing role tier (super admin needs none).
       user.adminPrivileges = role === UserRole.ADMIN ? user.adminPrivileges || [] : [];
       await repo.save(user);
       await writeAudit(req, 'user.role_changed', `user:${user.id}`, { from: prev, to: role });
@@ -1046,7 +1012,6 @@ router.patch(
   }
 );
 
-// ── Reports ──────────────────────────────────────────────────────────────
 router.get(
   '/reports/revenue',
   requirePermission(Permission.EXPORT_REPORTS),
@@ -1120,7 +1085,6 @@ router.get(
   }
 );
 
-// ── System settings ──────────────────────────────────────────────────────
 router.get(
   '/settings',
   requirePermission(Permission.VIEW_SETTINGS),
@@ -1162,7 +1126,6 @@ router.patch(
   }
 );
 
-// ── Audit log viewer ─────────────────────────────────────────────────────
 router.get(
   '/audit-logs',
   requirePermission(Permission.VIEW_AUDIT_LOG),

@@ -4,7 +4,6 @@ export class CreateEditPricingConfigsTable1721000000000 implements MigrationInte
     name = 'CreateEditPricingConfigsTable1721000000000';
 
     public async up(queryRunner: QueryRunner): Promise<void> {
-        // SQLite-compatible schema
         await queryRunner.query(`
             CREATE TABLE "edit_pricing_configs" (
                 "id" TEXT NOT NULL PRIMARY KEY,

@@ -5,11 +5,6 @@ import {
   tenantNetFromTransaction,
 } from './commission.service';
 
-/**
- * Money math is the highest-consequence pure logic in the app — a
- * rounding or split error means real Naira mis-routed. The Tenant
- * type is only read for `commissionPct`, so we pass a minimal stub.
- */
 const tenant = (pct: number) => ({ commissionPct: pct }) as any;
 
 describe('computeCommissionSplit', () => {
@@ -23,7 +18,6 @@ describe('computeCommissionSplit', () => {
 
   it('rounds commission half-up to 2dp and keeps gross = commission + net', () => {
     const s = computeCommissionSplit(tenant(0.1), 99.99);
-    // 9.999 → 10.00; net = 99.99 - 10.00 = 89.99
     expect(s.commissionAmount).toBe(10);
     expect(s.tenantNetAmount).toBe(89.99);
     expect(
@@ -58,12 +52,12 @@ describe('computeCommissionSplit', () => {
 
 describe('commissionInKobo', () => {
   it('floors commission to integer minor units', () => {
-    const s = computeCommissionSplit(tenant(0.1), 199.99); // commission 20.00 (19.999→20.00)
+    const s = computeCommissionSplit(tenant(0.1), 199.99);
     expect(commissionInKobo(s)).toBe(2000);
   });
 
   it('never sends a fractional kobo', () => {
-    const s = computeCommissionSplit(tenant(0.075), 33.33); // 2.49975 → 2.50
+    const s = computeCommissionSplit(tenant(0.075), 33.33);
     expect(Number.isInteger(commissionInKobo(s))).toBe(true);
   });
 });

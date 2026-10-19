@@ -61,7 +61,7 @@ export const watermarkWorker = new Worker<WatermarkJobData>(
         y: padding,
         size: fontSize,
         font: helveticaFont,
-        color: rgb(0.4, 0.4, 0.4), // Grey
+        color: rgb(0.4, 0.4, 0.4),
         opacity: 0.6,
       });
     }

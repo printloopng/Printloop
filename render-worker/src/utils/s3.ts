@@ -66,6 +66,5 @@ export async function deleteTempFile(filePath: string): Promise<void> {
   try {
     await fs.unlink(filePath);
   } catch {
-    // ignore
   }
 }

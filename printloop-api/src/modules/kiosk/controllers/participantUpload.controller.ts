@@ -45,9 +45,6 @@ export class KioskParticipantUploadController {
         return;
       }
 
-      // The document itself must be uploaded (multipart `file`, or base64):
-      // pages and price are always computed from the bytes we store, never
-      // from client-supplied URLs or page counts.
       const body = req.body || {};
       const fileName = String(body.fileName || req.file?.originalname || '');
       const mimeType = body.mimeType || req.file?.mimetype;

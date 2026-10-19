@@ -17,9 +17,6 @@ export default function LoginPage() {
   const [needs2fa, setNeeds2fa] = useState(false);
   const [params] = useSearchParams();
   const handoffToken = params.get("handoff");
-  // V2-32 — when arriving from /find with a handoff token, verify
-  // it and pre-fill the email field. The query auto-fires when the
-  // token is present and stays skipped otherwise.
   const handoff = useVerifyHandoffQuery(
     { token: handoffToken || "" },
     { skip: !handoffToken },
@@ -42,8 +39,6 @@ export default function LoginPage() {
           totpCode: values.totpCode || undefined,
         }).unwrap();
         toast.success("Welcome back.");
-        // V2-57: role-aware routing — shop owners/staff go to the shop
-        // console, plain customers to their dashboard.
         const payload = result?.response || result?.data || result;
         const user = payload?.user;
         const isOperator =
@@ -60,9 +55,6 @@ export default function LoginPage() {
       } catch (err) {
         const code = (err as any)?.data?.code;
         const msg = extractError(err);
-        // 2FA gate (V2-24): TOTP_REQUIRED means the account has 2FA on
-        // but no code was sent — reveal the field and let them resubmit.
-        // Without this, enabling 2FA would lock the account out here.
         if (code === "TOTP_REQUIRED") {
           setNeeds2fa(true);
           toast.message("Enter your authenticator code to continue.");
@@ -90,9 +82,6 @@ export default function LoginPage() {
     }
   };
 
-  // V2-32 handoff: once the verify query lands, pre-fill the email
-  // field (if the customer typed one on /find/:slug) and show a
-  // small chip so they know they came in from the marketplace.
   useEffect(() => {
     if (handoff.data?.email && !formik.values.email) {
       formik.setFieldValue("email", handoff.data.email);

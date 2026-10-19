@@ -1,30 +1,14 @@
 import crypto from 'node:crypto';
 
-/**
- * RFC 6238 TOTP — hand-rolled on node:crypto, no external dependency
- * (V2-22). Used for 2FA on platform admins + tenant owners.
- *
- * - Secrets are Base32 (RFC 4648, no padding) so they paste into any
- *   authenticator app (Google Authenticator, Authy, 1Password…).
- * - 6 digits, 30-second step, SHA-1 (the universal authenticator
- *   default).
- * - Verification accepts a ±1 step window to tolerate clock skew.
- *
- * Self-tested against the RFC 6238 Appendix B SHA-1 vectors at the
- * bottom of this file via `selfTestTotp()` (called by the e2e script).
- */
-
 const BASE32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 const STEP_SECONDS = 30;
 const DIGITS = 6;
 
-/** Generate a random Base32 secret (default 160 bits = 32 chars). */
 export function generateTotpSecret(bytes = 20): string {
   const buf = crypto.randomBytes(bytes);
   return base32Encode(buf);
 }
 
-/** Build the otpauth:// URI an authenticator app scans / imports. */
 export function buildOtpAuthUrl(opts: {
   secret: string;
   accountName: string;
@@ -42,17 +26,11 @@ export function buildOtpAuthUrl(opts: {
   return `otpauth://totp/${label}?${params.toString()}`;
 }
 
-/** Compute the TOTP code for a given secret at a given time (ms). */
 export function totpAt(secret: string, atMs: number = Date.now()): string {
   const counter = Math.floor(atMs / 1000 / STEP_SECONDS);
   return hotp(secret, counter);
 }
 
-/**
- * Verify a user-supplied code against the secret, accepting the
- * current step ± `window` (default 1 → tolerates ±30s skew).
- * Constant-time per-candidate compare.
- */
 export function verifyTotp(
   secret: string,
   code: string,
@@ -70,12 +48,9 @@ export function verifyTotp(
   return false;
 }
 
-// ── internals ───────────────────────────────────────────────────────
-
 function hotp(secret: string, counter: number): string {
   const key = base32Decode(secret);
   const buf = Buffer.alloc(8);
-  // 64-bit big-endian counter.
   buf.writeUInt32BE(Math.floor(counter / 2 ** 32), 0);
   buf.writeUInt32BE(counter >>> 0, 4);
   const hmac = crypto.createHmac('sha1', key).update(buf).digest();
@@ -128,16 +103,8 @@ function timingSafeEqualStr(a: string, b: string): boolean {
   return ba.length === bb.length && crypto.timingSafeEqual(ba, bb);
 }
 
-/**
- * RFC 6238 Appendix B self-test (SHA-1, 8 digits in the RFC; we use
- * the same seed but assert our 6-digit truncation matches the last 6
- * of the RFC's 8-digit values). Returns true if all vectors pass.
- *
- * Seed (ASCII "12345678901234567890") in Base32 = GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ.
- */
 export function selfTestTotp(): boolean {
   const secret = base32Encode(Buffer.from('12345678901234567890', 'ascii'));
-  // [unix seconds, expected 8-digit TOTP from the RFC]
   const vectors: Array<[number, string]> = [
     [59, '94287082'],
     [1111111109, '07081804'],
@@ -155,7 +122,6 @@ export function selfTestTotp(): boolean {
   return true;
 }
 
-// 8-digit variant used only by the self-test (RFC vectors are 8-digit).
 function totp8(secret: string, atMs: number): string {
   const counter = Math.floor(atMs / 1000 / STEP_SECONDS);
   const key = base32Decode(secret);

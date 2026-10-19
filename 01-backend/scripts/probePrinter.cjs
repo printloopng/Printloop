@@ -1,15 +1,3 @@
-/**
- * Probe a real / CUPS / IPP printer with Get-Printer-Attributes.
- * Confirms reachability and prints state before you wire it to a kiosk.
- *
- *   node scripts/probePrinter.cjs <host> [--port=631] [--path=/ipp/print]
- *                                 [--ipps] [--insecure] [--ca=/path/ca.pem]
- *
- * Examples:
- *   node scripts/probePrinter.cjs 192.168.1.50                       # IPP Everywhere
- *   node scripts/probePrinter.cjs cups.lan --path=/printers/HP_Laser # CUPS queue
- *   node scripts/probePrinter.cjs 10.0.0.9 --ipps --insecure          # self-signed IPPS
- */
 const fs = require('node:fs');
 const ipp = require('ipp');
 
@@ -28,8 +16,6 @@ if (!host) {
 
 const secure = has('ipps');
 const port = Number(opt('port', 631));
-// Git-Bash/MSYS rewrites a leading "/printers/x" arg into
-// "C:/Program Files/Git/printers/x" — repair it back to the real IPP path.
 let path = opt('path', '/ipp/print');
 const km = path.match(/(\/(?:ipp\/print|printers\/[^\s]+))\s*$/i);
 if (km) path = km[1];

@@ -1,11 +1,5 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-/**
- * Make print_jobs.code column nullable and add paymentReference (Milestone 1).
- * Allows creating unpaid draft jobs in PENDING status without a release code,
- * which prevents code leakage or uniqueness collisions during draft stages.
- * On Postgres, the columns are updated inline in the PostgresBaseline migration.
- */
 export class AllowNullablePrintJobCode1718500000000
   implements MigrationInterface
 {
@@ -16,7 +10,6 @@ export class AllowNullablePrintJobCode1718500000000
 
     await queryRunner.query(`PRAGMA foreign_keys = OFF`);
     try {
-      // 1. Create print_jobs_new table with "code" nullable and add "paymentReference"
       await queryRunner.query(`
         CREATE TABLE "print_jobs_new" (
           "id" varchar PRIMARY KEY NOT NULL,
@@ -46,7 +39,6 @@ export class AllowNullablePrintJobCode1718500000000
         )
       `);
 
-      // 2. Copy the existing data over
       await queryRunner.query(`
         INSERT INTO "print_jobs_new" (
           "id","tenantId","userId","fileId","fileName","code","cost",
@@ -64,13 +56,10 @@ export class AllowNullablePrintJobCode1718500000000
         FROM "print_jobs"
       `);
 
-      // 3. Drop old table
       await queryRunner.query(`DROP TABLE "print_jobs"`);
 
-      // 4. Rename new table
       await queryRunner.query(`ALTER TABLE "print_jobs_new" RENAME TO "print_jobs"`);
 
-      // 5. Recreate indexes
       await queryRunner.query(
         `CREATE UNIQUE INDEX IF NOT EXISTS "print_jobs_user_idem_uniq" ON "print_jobs" ("userId", "idempotencyKey") WHERE "idempotencyKey" IS NOT NULL`,
       );

@@ -7,18 +7,10 @@ import { Tenant } from '../entities/tenant.entity';
 import { EmailService } from './email.service';
 import { SMSService } from './sms.service';
 
-/** Re-alert only after this many minutes have passed since the last alert. */
 const ALERT_COOLDOWN_MINUTES = parseInt(
   process.env.KIOSK_ALERT_COOLDOWN_MINUTES || '30',
 );
 
-/**
- * After the scheduled worker marks kiosks OFFLINE, call this with the
- * IDs that just transitioned so we can notify the right tenant owner.
- *
- * Rate-limited per-kiosk via `lastOfflineAlertAt` so a kiosk that
- * keeps going offline every scan cycle doesn't spam the owner.
- */
 export async function notifyOfflineKiosks(kioskIds: string[]): Promise<void> {
   if (!kioskIds.length) return;
 
@@ -29,7 +21,6 @@ export async function notifyOfflineKiosks(kioskIds: string[]): Promise<void> {
 
   const cooloffCutoff = new Date(Date.now() - ALERT_COOLDOWN_MINUTES * 60_000);
 
-  // Only alert kiosks whose last alert is beyond the cooldown (or never alerted).
   const kiosks = await kioskRepo.find({
     where: { id: In(kioskIds), status: KioskStatus.OFFLINE },
     select: ['id', 'name', 'location', 'tenantId', 'lastOfflineAlertAt'],
@@ -40,7 +31,6 @@ export async function notifyOfflineKiosks(kioskIds: string[]): Promise<void> {
   );
   if (!alertable.length) return;
 
-  // Group by tenant so we do one lookup per tenant, not per kiosk.
   const byTenant = new Map<string, Kiosk[]>();
   for (const k of alertable) {
     if (!k.tenantId) continue;
@@ -53,7 +43,6 @@ export async function notifyOfflineKiosks(kioskIds: string[]): Promise<void> {
   const sms = new SMSService();
 
   for (const [tenantId, offlineKiosks] of byTenant) {
-    // Find owners and admins for this tenant.
     const members = await memberRepo.find({
       where: {
         tenantId,
@@ -86,7 +75,6 @@ export async function notifyOfflineKiosks(kioskIds: string[]): Promise<void> {
       .join('');
 
     for (const user of users) {
-      // Email
       await email
         .send({
           to: user.email,
@@ -111,7 +99,6 @@ export async function notifyOfflineKiosks(kioskIds: string[]): Promise<void> {
           console.error('[kioskAlert] email send failed:', err),
         );
 
-      // SMS — short message only
       if (user.phoneNumber) {
         const names = offlineKiosks.map((k) => k.name).join(', ');
         await sms
@@ -125,7 +112,6 @@ export async function notifyOfflineKiosks(kioskIds: string[]): Promise<void> {
       }
     }
 
-    // Stamp lastOfflineAlertAt on all alerted kiosks.
     await kioskRepo.update(
       { id: In(offlineKiosks.map((k) => k.id)) },
       { lastOfflineAlertAt: new Date() },

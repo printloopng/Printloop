@@ -1,8 +1,3 @@
-/**
- * Redis is optional. When REDIS_URL (or REDIS_HOST) is configured we use a
- * real client; otherwise we fall back to a no-op stub so caching/queue code
- * runs cleanly in local dev without a Redis server.
- */
 import { createClient, type RedisClientType } from 'redis';
 
 export const REDIS_ENABLED = process.env.DISABLE_REDIS !== '1' && Boolean(process.env.REDIS_URL || process.env.REDIS_HOST);

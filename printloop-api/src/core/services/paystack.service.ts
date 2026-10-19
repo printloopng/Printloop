@@ -15,7 +15,6 @@ export class PaystackService {
     this.secretKey = process.env.PAYSTACK_SECRET_KEY || '';
   }
 
-  
   async initializeJobPayment(
     userId: string,
     jobId: string,
@@ -66,7 +65,6 @@ export class PaystackService {
     return response.data.data;
   }
 
-  
   async chargeAuthorization(opts: {
     authorizationCode: string;
     amountNaira: number;
@@ -116,7 +114,6 @@ export class PaystackService {
     return response.data.data;
   }
 
-  
   async verifyTransaction(reference: string): Promise<any> {
     if (!this.secretKey) throw new Error('Paystack secret key is missing');
     const response = await axios.get(
@@ -130,12 +127,11 @@ export class PaystackService {
     return response.data?.data;
   }
 
-  
   async createSubaccount(opts: {
     businessName: string;
-    settlementBank: string; // bank code (e.g. '058' for GTB)
+    settlementBank: string;
     accountNumber: string;
-    percentageCharge?: number; // Paystack's own fee % (defaults to processor default)
+    percentageCharge?: number;
   }): Promise<{ subaccountCode: string; accountName: string }> {
     if (!this.secretKey) throw new Error('Paystack secret key is missing');
     const response = await axios.post(
@@ -160,7 +156,6 @@ export class PaystackService {
     };
   }
 
-  
   async createTransferRecipient(opts: {
     name: string;
     accountNumber: string;
@@ -186,7 +181,6 @@ export class PaystackService {
     return { recipientCode: response.data?.data?.recipient_code };
   }
 
-  
   async initiateTransfer(opts: {
     amountKobo: number;
     recipientCode: string;
@@ -216,7 +210,6 @@ export class PaystackService {
     };
   }
 
-  
   verifyWebhookSignature(rawBody: Buffer | string, signature: string | undefined): boolean {
     if (!signature) return false;
     const secret = process.env.PAYSTACK_WEBHOOK_SECRET || this.secretKey;
@@ -227,7 +220,6 @@ export class PaystackService {
     return a.length === b.length && crypto.timingSafeEqual(a, b);
   }
 
-  
   async handleWebhook(event: any): Promise<{ handled: boolean; action?: string }> {
     const type = event?.event;
     const data = event?.data || {};
@@ -262,8 +254,6 @@ export class PaystackService {
         );
         const authorizationCode: string | null =
           data.authorization?.authorization_code ?? null;
-        // data.amount is what Paystack actually charged (kobo) — checked
-        // against the job's price before it is marked paid.
         const res = await completePrintJobPayment(metadata.jobId, reference, {
           authorizationCode,
           paidKobo: Number(data.amount),
@@ -280,7 +270,6 @@ export class PaystackService {
     return { handled: false };
   }
 
-  
   async initializePayment(opts: {
     amountNaira: number;
     email: string;

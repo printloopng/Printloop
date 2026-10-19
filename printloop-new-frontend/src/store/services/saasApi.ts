@@ -1,15 +1,5 @@
 import { apiSlice } from "./apiSlice";
 
-/**
- * RTK Query bindings for the SaaS tenant admin API
- * (`/api/saas/*` on the backend — see 01-backend/routes/saas.routes.ts).
- *
- * Covers the full tenant-admin lifecycle: signup, email verification,
- * tenant config, balance, payouts (list + instant), transactions.
- * The onboarding-setup endpoints (Paystack subaccount + bank account)
- * are mutations that flip the booleans returned by `/me`.
- */
-
 export interface TenantMeResponse {
   id: string;
   name: string;
@@ -25,7 +15,6 @@ export interface TenantMeResponse {
   };
   isDiscoverable?: boolean;
   address?: string | null;
-  /** Operator-controlled (V2-57): open | busy | closed. */
   availability: "open" | "busy" | "closed";
   payoutSchedule: {
     cadence: "daily" | "weekly" | "manual";
@@ -139,7 +128,6 @@ export type WebhookEventName =
   | "customer.signed_up"
   | "payout.paid";
 
-/** Document Edit Status (V2-XX — Edit & Print feature) */
 export type DocumentEditStatus =
   | "pending_shop"
   | "in_progress"
@@ -148,7 +136,6 @@ export type DocumentEditStatus =
   | "rejected"
   | "completed";
 
-/** Edit Pricing Config (V2-XX — per-shop editing service pricing) */
 export interface EditPricingConfig {
   id: string;
   tenantId: string;
@@ -165,7 +152,6 @@ export interface EditPricingConfig {
   updatedAt: string;
 }
 
-/** Document Edit Job (V2-XX — tracking the edit workflow) */
 export interface DocumentEdit {
   id: string;
   printJobId: string;
@@ -217,7 +203,7 @@ export interface TenantWebhook {
   tenantId: string;
   name: string;
   url: string;
-  secret: string; // "***" on list/patch; real value only on create
+  secret: string;
   events: WebhookEventName[];
   isActive: boolean;
   lastSuccessAt: string | null;
@@ -236,7 +222,6 @@ export interface OperatorKiosk {
   lastSeenAt: string | null;
   testPrintPassedAt: string | null;
   totalJobsPrinted: number;
-  /** V2-44 — agent-discovered hardware capabilities; null = unknown. */
   capColor?: boolean | null;
   capDuplex?: boolean | null;
   capA3?: boolean | null;
@@ -264,7 +249,6 @@ export interface OpsSummary {
 
 export const saasApi = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
-    // ── Anonymous (no auth) ──────────────────────────────────────────
     signupTenant: builder.mutation<SignupResponse, SignupPayload>({
       query: (body) => ({ url: "saas/signup", method: "POST", body }),
     }),
@@ -291,13 +275,11 @@ export const saasApi = apiSlice.injectEndpoints({
       }),
     }),
 
-    // ── Authenticated (resolved tenant required) ─────────────────────
     getTenantMe: builder.query<TenantMeResponse, void>({
       query: () => "saas/me",
       transformResponse: (r: { data: TenantMeResponse }) => r.data,
       providesTags: ["TenantMe"],
     }),
-    // Operator availability toggle (V2-57): open | busy | closed.
     setTenantAvailability: builder.mutation<
       { availability: "open" | "busy" | "closed" },
       { availability: "open" | "busy" | "closed" }
@@ -373,7 +355,6 @@ export const saasApi = apiSlice.injectEndpoints({
       invalidatesTags: ["TenantMe"],
     }),
 
-    // ── Two-factor auth (V2-22/24) ───────────────────────────────────
     setup2fa: builder.mutation<{ secret: string; otpauthUrl: string }, void>({
       query: () => ({ url: "saas/me/2fa/setup", method: "POST" }),
       transformResponse: (r: { data: { secret: string; otpauthUrl: string } }) =>
@@ -388,7 +369,6 @@ export const saasApi = apiSlice.injectEndpoints({
       transformResponse: (r: { data: { enabled: boolean } }) => r.data,
     }),
 
-    // ── Branding (Dimension 7) ───────────────────────────────────────
     getBranding: builder.query<TenantBranding, void>({
       query: () => "saas/me/branding",
       transformResponse: (r: { data: TenantBranding }) => r.data,
@@ -400,7 +380,6 @@ export const saasApi = apiSlice.injectEndpoints({
       invalidatesTags: ["TenantBranding"],
     }),
 
-    // ── Custom domains (Dimension 8) ─────────────────────────────────
     listDomains: builder.query<TenantDomain[], void>({
       query: () => "saas/me/domains",
       transformResponse: (r: { data: TenantDomain[] }) => r.data,
@@ -424,7 +403,6 @@ export const saasApi = apiSlice.injectEndpoints({
       invalidatesTags: ["TenantDomains", "TenantMe"],
     }),
 
-    // ── Webhooks (Dimension 14) ──────────────────────────────────────
     listWebhooks: builder.query<TenantWebhook[], void>({
       query: () => "saas/me/webhooks",
       transformResponse: (r: { data: TenantWebhook[] }) => r.data,
@@ -460,7 +438,6 @@ export const saasApi = apiSlice.injectEndpoints({
       invalidatesTags: ["TenantWebhooks"],
     }),
 
-    // ── Account: close (delete). Export is a raw fetch (file download). ─
     closeTenant: builder.mutation<
       { id: string; status: string },
       { confirmSlug: string; reason?: string }
@@ -470,18 +447,12 @@ export const saasApi = apiSlice.injectEndpoints({
       invalidatesTags: ["TenantMe"],
     }),
 
-    // ── Operator console (V2-39) ──────────────────────────────────────
-    // Live "how's my shop today" snapshot.
     getOpsSummary: builder.query<OpsSummary, void>({
       query: () => "saas/ops/summary",
       transformResponse: (r: { data: OpsSummary }) => r.data,
       providesTags: ["TenantOps", "TenantKiosks"],
     }),
 
-    // Self-service printer/kiosk management (V2-40). These hit the
-    // tenant-NATIVE /saas/kiosks API — every read/write is hard-filtered
-    // to the caller's own tenant on the server, so the operator console
-    // never borrows the SUPER_ADMIN-scope /admin/kiosks surface.
     listKiosks: builder.query<OperatorKiosk[], void>({
       query: () => "saas/kiosks",
       transformResponse: (r: any) =>
@@ -529,15 +500,11 @@ export const saasApi = apiSlice.injectEndpoints({
       invalidatesTags: ["TenantKiosks", "TenantOps"],
     }),
 
-    // Flip marketplace discoverability (live gate enforced server-side).
     setDiscoverable: builder.mutation<unknown, { isDiscoverable: boolean }>({
       query: (body) => ({ url: "saas/me/location", method: "PATCH", body }),
       invalidatesTags: ["TenantMe", "TenantOps"],
     }),
 
-    // ── Campus LMS trusted link (V2-44) ───────────────────────────────
-    // Status only on reads; the key + ready-to-paste URL are disclosed
-    // exactly once, on regenerate (kiosk apiKey discipline).
     getLmsStatus: builder.query<{ keySet: boolean }, void>({
       query: () => "saas/me/lms",
       transformResponse: (r: { data: { keySet: boolean } }) => r.data,
@@ -552,8 +519,6 @@ export const saasApi = apiSlice.injectEndpoints({
       invalidatesTags: ["TenantMe"],
     }),
 
-    // ── Document Editing Service (V2-XX) ────────────────────────────────
-    // Shop-facing: manage edit pricing config
     getEditPricing: builder.query<EditPricingConfig, void>({
       query: () => "saas/edit-pricing",
       transformResponse: (r: { data: EditPricingConfig }) => r.data,
@@ -565,7 +530,6 @@ export const saasApi = apiSlice.injectEndpoints({
       invalidatesTags: ["TenantEditPricing"],
     }),
 
-    // Shop-facing: edit queue (jobs needing editing)
     listEditQueue: builder.query<{ items: DocumentEdit[] }, { status?: DocumentEditStatus; limit?: number } | void>({
       query: (args) => {
         const params = new URLSearchParams();
@@ -578,49 +542,42 @@ export const saasApi = apiSlice.injectEndpoints({
       providesTags: ["TenantEditQueue"],
     }),
 
-    // Shop-facing: start editing a job (claim it)
     startEdit: builder.mutation<{ editId: string; status: DocumentEditStatus; editorUrl?: string }, { jobId: string }>({
       query: ({ jobId }) => ({ url: `saas/edit/${jobId}/start`, method: "POST" }),
       transformResponse: (r: { data: { editId: string; status: DocumentEditStatus; editorUrl?: string } }) => r.data,
       invalidatesTags: ["TenantEditQueue", "TenantOps"],
     }),
 
-    // Shop-facing: upload edited document
     uploadEditedDocument: builder.mutation<{ editId: string; status: DocumentEditStatus }, { jobId: string; documentUrl: string; pageCount: number; fileSize: number; editOperations: any[]; shopNotes?: string }>({
       query: ({ jobId, ...body }) => ({ url: `saas/edit/${jobId}/upload`, method: "POST", body }),
       transformResponse: (r: { data: { editId: string; status: DocumentEditStatus } }) => r.data,
       invalidatesTags: ["TenantEditQueue", "TenantOps"],
     }),
 
-    // Shop-facing: mark edit as complete
     completeEdit: builder.mutation<{ editId: string; status: DocumentEditStatus; documentUrl?: string }, { jobId: string }>({
       query: ({ jobId }) => ({ url: `saas/edit/${jobId}/complete`, method: "POST" }),
       transformResponse: (r: { data: { editId: string; status: DocumentEditStatus; documentUrl?: string } }) => r.data,
       invalidatesTags: ["TenantEditQueue", "TenantOps"],
     }),
 
-    // Customer-facing: confirm satisfaction with edited document
     confirmEdit: builder.mutation<{ editId: string; status: DocumentEditStatus; printJobStatus: string }, { jobId: string }>({
       query: ({ jobId }) => ({ url: `saas/edit/${jobId}/confirm`, method: "POST" }),
       transformResponse: (r: { data: { editId: string; status: DocumentEditStatus; printJobStatus: string } }) => r.data,
       invalidatesTags: ["TenantEditQueue", "TenantOps"],
     }),
 
-    // Customer-facing: reject edited document
     rejectEdit: builder.mutation<{ editId: string; status: DocumentEditStatus }, { jobId: string; reason?: string }>({
       query: ({ jobId, ...body }) => ({ url: `saas/edit/${jobId}/reject`, method: "POST", body }),
       transformResponse: (r: { data: { editId: string; status: DocumentEditStatus } }) => r.data,
       invalidatesTags: ["TenantEditQueue", "TenantOps"],
     }),
 
-    // Shop-facing: confirm customer has paid via bank transfer
     confirmEditPayment: builder.mutation<{ editId: string; status: DocumentEditStatus; printJobStatus: string }, { jobId: string }>({
       query: ({ jobId }) => ({ url: `saas/edit/${jobId}/confirm-payment`, method: "POST" }),
       transformResponse: (r: { data: { editId: string; status: DocumentEditStatus; printJobStatus: string } }) => r.data,
       invalidatesTags: ["TenantEditQueue", "TenantOps"],
     }),
 
-    // Get edit job details (shop or customer)
     getEditJob: builder.query<DocumentEdit, { jobId: string }>({
       query: ({ jobId }) => `saas/edit/${jobId}`,
       transformResponse: (r: { data: DocumentEdit }) => r.data,

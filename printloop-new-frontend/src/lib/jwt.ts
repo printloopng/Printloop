@@ -1,9 +1,3 @@
-/**
- * Client-side JWT payload decode (no verification — display only).
- * Used to read the `impersonating` claim so the UI can show the
- * "acting as <tenant>" banner. Never trust this for auth decisions;
- * the backend verifies the signature on every request.
- */
 export interface DecodedToken {
   userId?: string;
   role?: string;

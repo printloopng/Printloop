@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import { shopJobsController as ctrl } from '@/modules/saas/controllers/shopJobs.controller';
 
-// Mounted at /saas/jobs behind authenticate + resolveTenant (see index.ts).
 const router = Router();
 
 router.get('/', ctrl.list);

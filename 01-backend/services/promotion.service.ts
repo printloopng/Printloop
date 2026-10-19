@@ -14,16 +14,6 @@ export interface PromotionApplyResult {
     | 'no_code';
 }
 
-/**
- * Run a job cost through a (case-insensitive) promotion code.
- * Always returns a positive integer cost — discounts that would push the
- * total below the floor are clamped, and an unknown / invalid / expired
- * code is a no-op (returns the original cost with a `reason`). Increments
- * `usageCount` atomically when a discount actually applies.
- *
- * NOTE: the call site decides whether to *display* the reason. We never
- * 500 the upload over a bad coupon — fall back to full price.
- */
 export async function applyPromotion(
   baseCost: number,
   rawCode: string | undefined | null,
@@ -34,9 +24,6 @@ export async function applyPromotion(
   if (!code) return { cost, discount: 0, reason: 'no_code' };
 
   const repo = AppDataSource.getRepository(Promotion);
-  // Codes are normalized to uppercase at write time (admin.routes.ts on
-  // POST/PATCH + a one-shot migration in config/database.ts), so the
-  // lookup uses the unique index on `code` directly.
   const promo = await repo.findOne({ where: { code } });
   if (!promo) return { cost, discount: 0, reason: 'not_found' };
 
@@ -61,8 +48,6 @@ export async function applyPromotion(
   } else if (promo.discountType === 'fixed') {
     discount = Math.floor(value);
   } else if (promo.discountType === 'free_pages') {
-    // Free N pages at the B/W per-page rate (best-effort — caller provides
-    // pages + per-page price; otherwise we estimate from baseCost).
     const pages = Math.max(0, Number(opts.pageCount) || 0);
     const perPage =
       Number(opts.perPageBw) ||
@@ -72,10 +57,6 @@ export async function applyPromotion(
   discount = Math.max(0, Math.min(cost, discount));
   if (discount <= 0) return { cost, discount: 0, code: promo.code };
 
-  // Conditional UPDATE — bumps usageCount only if we're still under
-  // maxUses. The previous implementation checked then incremented in two
-  // statements, which let concurrent redemptions overshoot maxUses. We
-  // do the check + write in one statement and check the affected count.
   const result = await repo
     .createQueryBuilder()
     .update(Promotion)
@@ -83,8 +64,6 @@ export async function applyPromotion(
     .where('id = :id AND (maxUses IS NULL OR usageCount < maxUses)', { id: promo.id })
     .execute();
   if ((result.affected ?? 0) !== 1) {
-    // Lost the race — someone else took the last slot between our
-    // bounds-check above and this UPDATE.
     return { cost, discount: 0, code: promo.code, reason: 'exhausted' };
   }
 
