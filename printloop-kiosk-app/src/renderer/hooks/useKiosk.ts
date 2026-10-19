@@ -1,19 +1,37 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import type { KioskSettings, PrintJobData, PrinterInfo, TestPrintResult, PrintResult } from '../types';
+import type {
+  KioskSettings,
+  PrintJobData,
+  PrinterInfo,
+  TestPrintResult,
+  QueueStatus,
+  JobUpdate,
+  ReleaseResult,
+} from '../types';
 
 const EMPTY_SETTINGS: KioskSettings = {
   apiKey: '',
   printerUri: '',
-  heartbeatInterval: 15000,
+  pollInterval: 10000,
   kioskName: 'PrintLoop Kiosk',
+};
+
+const EMPTY_QUEUE: QueueStatus = {
+  online: false,
+  printer: 'unknown',
+  queued: 0,
+  waitingForPickup: 0,
+  current: null,
+  lastPollAt: null,
 };
 
 export function useKiosk() {
   const [settings, setSettings] = useState<KioskSettings>(EMPTY_SETTINGS);
   const [printers, setPrinters] = useState<PrinterInfo[]>([]);
   const [job, setJob] = useState<PrintJobData | null>(null);
+  const [queue, setQueue] = useState<QueueStatus>(EMPTY_QUEUE);
+  const [lastUpdate, setLastUpdate] = useState<JobUpdate | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const isConfigured = useMemo(
     () => !!(settings.apiKey && settings.printerUri),
@@ -57,55 +75,65 @@ export function useKiosk() {
 
   const fetchJob = useCallback(async (code: string): Promise<PrintJobData> => {
     setLoading(true);
-    setError(null);
     try {
       const jobData = await window.electronAPI?.printJob.fetch(code);
       if (!jobData) throw new Error('No job data returned');
       setJob(jobData);
+      setLastUpdate(null);
       return jobData;
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Failed to fetch job';
-      setError(msg);
-      throw new Error(msg);
+      throw new Error(cleanIpcError(err, 'Failed to fetch job'));
     } finally {
       setLoading(false);
     }
   }, []);
 
-  const handlePrintJob = useCallback(async (): Promise<PrintResult> => {
-    if (!job) return { success: false, jobId: '', error: 'No job loaded' };
-
+  const releaseJob = useCallback(async (): Promise<ReleaseResult> => {
+    if (!job) throw new Error('No job loaded');
     setLoading(true);
     try {
-      const result = await window.electronAPI?.printJob.print(job.id, job.artifactKey);
-      return result || { success: false, jobId: job.id, error: 'Print failed' };
+      return await window.electronAPI.printJob.release(job.code);
     } catch (err) {
-      return {
-        success: false,
-        jobId: job.id,
-        error: err instanceof Error ? err.message : 'Print failed',
-      };
+      throw new Error(cleanIpcError(err, 'Could not start printing'));
     } finally {
       setLoading(false);
     }
   }, [job]);
 
+  const clearJob = useCallback(() => {
+    setJob(null);
+    setLastUpdate(null);
+  }, []);
+
   useEffect(() => {
     reloadSettings();
     refreshPrinters();
+    window.electronAPI?.queue.status().then(setQueue).catch(() => {});
+    return window.electronAPI?.onKioskEvent((event, data) => {
+      if (event === 'queue:status') setQueue({ ...(data as QueueStatus) });
+      if (event === 'job:update') setLastUpdate(data as JobUpdate);
+    });
   }, [reloadSettings, refreshPrinters]);
 
   return {
     settings,
     printers,
     job,
+    queue,
+    lastUpdate,
     loading,
-    error,
     isConfigured,
     fetchJob,
-    printJob: handlePrintJob,
+    releaseJob,
+    clearJob,
     refreshPrinters,
     testPrinter: handleTestPrinter,
     updateSetting,
   };
+}
+
+// Electron prefixes errors thrown across IPC with "Error invoking remote method ...: Error: ".
+function cleanIpcError(err: unknown, fallback: string): string {
+  const msg = err instanceof Error ? err.message : '';
+  return msg.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') || fallback;
 }

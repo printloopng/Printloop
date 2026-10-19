@@ -1,6 +1,7 @@
 import { type Request, type Response, type NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import path from 'node:path';
+import { IsNull } from 'typeorm';
 import { AppDataSource } from '@/config/data-source';
 import { PrintJob, PrintJobStatus } from '@/database/entities/printJob.entity';
 import { PrintJobItem } from '@/database/entities/printJobItem.entity';
@@ -55,79 +56,215 @@ function publicBaseUrl(req: Request): string {
   return `${proto}://${host}`;
 }
 
+// Poll cadence the API hands back to the kiosk: drain fast while jobs are
+// queued, otherwise relax to the normal 10s tick.
+const POLL_IDLE_MS = 10_000;
+const POLL_BUSY_MS = 2_000;
+// A claimed job the kiosk stops reporting as in-flight for this long is
+// treated as lost (kiosk restarted, or the poll response never arrived)
+// and goes back to the queue.
+const CLAIM_GRACE_MS = 60_000;
+
+// RELEASING jobs this kiosk may take: bound to it, or unbound in its tenant.
+function releasableWhere(kiosk: Kiosk) {
+  const tenantId = kiosk.tenantId as string;
+  return [
+    { status: PrintJobStatus.RELEASING, kioskId: kiosk.id, tenantId },
+    { status: PrintJobStatus.RELEASING, kioskId: IsNull(), tenantId },
+  ];
+}
+
+function effectivePages(docTotal: number, cfg: any): number {
+  const total = Math.max(1, Number(docTotal) || 1);
+  if (!cfg || cfg.pages !== 'range' || !cfg.pageRange) return total;
+  const picked = parsePageRange(String(cfg.pageRange), total);
+  return picked.length > 0 ? picked.length : total;
+}
+
+async function serializeJobForKiosk(job: PrintJob, kiosk: Kiosk, base: string) {
+  const token = encodeURIComponent(buildFileToken(job.id, kiosk.id));
+  let items: Array<{
+    fileId: string;
+    fileName: string;
+    downloadUrl: string;
+    printConfiguration: any;
+    totalPages: number;
+  }>;
+
+  if (job.jobType === 'personal_batch') {
+    const rows = await AppDataSource.getRepository(PrintJobItem).find({
+      where: { printJobId: job.id },
+      order: { order: 'ASC' },
+    });
+    items = rows.map((it) => ({
+      fileId: it.fileId,
+      fileName: it.fileName,
+      downloadUrl: `${base}/api/agent/jobs/${job.id}/file?item=${encodeURIComponent(it.id)}&t=${token}`,
+      printConfiguration: it.printConfiguration,
+      totalPages: effectivePages(it.totalPages, it.printConfiguration),
+    }));
+  } else {
+    items = [
+      {
+        fileId: job.fileId,
+        fileName: job.fileName || 'document.pdf',
+        downloadUrl: `${base}/api/agent/jobs/${job.id}/file?t=${token}`,
+        printConfiguration: job.printConfiguration,
+        totalPages: effectivePages(job.totalPages, job.printConfiguration),
+      },
+    ];
+  }
+  return {
+    id: job.id,
+    code: job.code,
+    jobType: job.jobType,
+    totalPages: job.totalPages,
+    updatedAt: job.updatedAt,
+    items,
+  };
+}
+
 export class KioskAgentController {
   listReadyJobs = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const kiosk = req.kiosk as Kiosk;
-      const repo = AppDataSource.getRepository(PrintJob);
-      const kioskTid = kiosk.tenantId as string;
-      const jobs = await repo.find({
-        where: [
-          { status: PrintJobStatus.RELEASING, kioskId: kiosk.id, tenantId: kioskTid },
-          { status: PrintJobStatus.RELEASING, kioskId: null as any, tenantId: kioskTid },
-        ],
+      const jobs = await AppDataSource.getRepository(PrintJob).find({
+        where: releasableWhere(kiosk),
         order: { updatedAt: 'ASC' },
         take: 10,
       });
-
       const base = publicBaseUrl(req);
-      const out = await Promise.all(
-        jobs.map(async (job) => {
-          let items: Array<{
-            fileId: string;
-            fileName: string;
-            downloadUrl: string;
-            printConfiguration: any;
-            totalPages: number;
-          }>;
-          const effectivePages = (docTotal: number, cfg: any): number => {
-            const total = Math.max(1, Number(docTotal) || 1);
-            if (!cfg || cfg.pages !== 'range' || !cfg.pageRange) return total;
-            const picked = parsePageRange(String(cfg.pageRange), total);
-            return picked.length > 0 ? picked.length : total;
-          };
-
-          if (job.jobType === 'personal_batch') {
-            const rows = await AppDataSource.getRepository(PrintJobItem).find({
-              where: { printJobId: job.id },
-              order: { order: 'ASC' },
-            });
-            items = rows.map((it) => ({
-              fileId: it.fileId,
-              fileName: it.fileName,
-              downloadUrl: `${base}/api/agent/jobs/${job.id}/file?item=${encodeURIComponent(
-                it.id,
-              )}&t=${encodeURIComponent(buildFileToken(job.id, kiosk.id))}`,
-              printConfiguration: it.printConfiguration,
-              totalPages: effectivePages(it.totalPages, it.printConfiguration),
-            }));
-          } else {
-            items = [
-              {
-                fileId: job.fileId,
-                fileName: job.fileName || 'document.pdf',
-                downloadUrl: `${base}/api/agent/jobs/${job.id}/file?t=${encodeURIComponent(
-                  buildFileToken(job.id, kiosk.id),
-                )}`,
-                printConfiguration: job.printConfiguration,
-                totalPages: effectivePages(job.totalPages, job.printConfiguration),
-              },
-            ];
-          }
-          return {
-            id: job.id,
-            code: job.code,
-            jobType: job.jobType,
-            totalPages: job.totalPages,
-            updatedAt: job.updatedAt,
-            items,
-          };
-        }),
-      );
-
+      const out = await Promise.all(jobs.map((job) => serializeJobForKiosk(job, kiosk, base)));
       res.json({ success: true, data: { jobs: out } });
     } catch (err: any) {
       console.error('[agent] /jobs/ready error:', err?.message);
+      next(err);
+    }
+  };
+
+  /**
+   * The kiosk's single 10s tick. In one round-trip it:
+   *   1. reconciles its claims — jobs it holds in PRINTING but no longer
+   *      reports in `inFlight` are requeued; `inFlight` ids the server no
+   *      longer considers this kiosk's (refunded, cancelled) come back as
+   *      `revoked` so the kiosk stops printing them;
+   *   2. claims up to `max` RELEASING jobs (RELEASING → PRINTING, atomic
+   *      per job so two kiosks never take the same one);
+   *   3. returns queue counts and the delay before the next poll.
+   */
+  poll = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const kiosk = req.kiosk as Kiosk;
+      const tenantId = kiosk.tenantId as string;
+      const repo = AppDataSource.getRepository(PrintJob);
+      const inFlight = new Set<string>(req.body?.inFlight ?? []);
+      const max: number = req.body?.max ?? 1;
+
+      const held = await repo.find({
+        where: { status: PrintJobStatus.PRINTING, kioskId: kiosk.id, tenantId },
+        select: { id: true, updatedAt: true },
+      });
+      const now = Date.now();
+      const lost = held
+        .filter(
+          (j) => !inFlight.has(j.id) && now - new Date(j.updatedAt).getTime() > CLAIM_GRACE_MS,
+        )
+        .map((j) => j.id);
+      if (lost.length) {
+        await repo
+          .createQueryBuilder()
+          .update(PrintJob)
+          .set({ status: PrintJobStatus.RELEASING, pagesCompleted: 0 })
+          .where('id IN (:...ids) AND status = :printing AND kioskId = :kid AND tenantId = :tid', {
+            ids: lost,
+            printing: PrintJobStatus.PRINTING,
+            kid: kiosk.id,
+            tid: tenantId,
+          })
+          .execute();
+        console.warn(`[agent] kiosk ${kiosk.id} lost ${lost.length} claimed job(s); requeued`);
+      }
+      const heldIds = new Set(held.map((j) => j.id));
+      const revoked = [...inFlight].filter((id) => !heldIds.has(id));
+
+      const claimed: PrintJob[] = [];
+      if (max > 0) {
+        const candidates = await repo.find({
+          where: releasableWhere(kiosk),
+          order: { updatedAt: 'ASC' },
+          take: max,
+        });
+        for (const job of candidates) {
+          const result = await repo
+            .createQueryBuilder()
+            .update(PrintJob)
+            .set({ status: PrintJobStatus.PRINTING, kioskId: kiosk.id, pagesCompleted: 0 })
+            .where(
+              'id = :id AND status = :releasing AND tenantId = :tid AND (kioskId = :kid OR kioskId IS NULL)',
+              { id: job.id, releasing: PrintJobStatus.RELEASING, tid: tenantId, kid: kiosk.id },
+            )
+            .execute();
+          if ((result.affected ?? 0) === 1) {
+            job.status = PrintJobStatus.PRINTING;
+            job.kioskId = kiosk.id;
+            claimed.push(job);
+          }
+        }
+      }
+
+      const [queued, waitingForPickup] = await Promise.all([
+        repo.count({ where: releasableWhere(kiosk) }),
+        repo.count({ where: { status: PrintJobStatus.READY, tenantId } }),
+      ]);
+
+      const base = publicBaseUrl(req);
+      const jobs = await Promise.all(claimed.map((job) => serializeJobForKiosk(job, kiosk, base)));
+      res.json({
+        success: true,
+        data: {
+          jobs,
+          revoked,
+          counts: {
+            claimed: claimed.length,
+            printing: held.length - lost.length + claimed.length,
+            queued,
+            waitingForPickup,
+            requeued: lost.length,
+          },
+          nextPollMs: queued > 0 ? POLL_BUSY_MS : POLL_IDLE_MS,
+        },
+      });
+    } catch (err: any) {
+      console.error('[agent] /poll error:', err?.message);
+      next(err);
+    }
+  };
+
+  progressJob = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const kiosk = req.kiosk as Kiosk;
+      const result = await AppDataSource.getRepository(PrintJob)
+        .createQueryBuilder()
+        .update(PrintJob)
+        .set({ pagesCompleted: req.body.pagesCompleted })
+        .where('id = :id AND status = :printing AND kioskId = :kid AND tenantId = :tid', {
+          id: req.params.id,
+          printing: PrintJobStatus.PRINTING,
+          kid: kiosk.id,
+          tid: kiosk.tenantId,
+        })
+        .execute();
+      if ((result.affected ?? 0) !== 1) {
+        res.status(409).json({
+          success: false,
+          message: 'Job is not printing on this kiosk',
+          code: 'JOB_NOT_HELD',
+        });
+        return;
+      }
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error('[agent] /jobs/:id/progress error:', err?.message);
       next(err);
     }
   };
@@ -295,6 +432,19 @@ export class KioskAgentController {
         res.status(403).json({ success: false, message: 'Job belongs to another kiosk' });
         return;
       }
+      // Kiosks retry this call until it lands, so a repeat is a no-op.
+      if (job.status === PrintJobStatus.DONE) {
+        res.json({ success: true, data: { jobId: job.id, completedAt: job.completedAt } });
+        return;
+      }
+      if (job.status !== PrintJobStatus.PRINTING && job.status !== PrintJobStatus.RELEASING) {
+        res.status(409).json({
+          success: false,
+          message: `Job is ${job.status} and cannot be completed`,
+          code: 'JOB_NOT_HELD',
+        });
+        return;
+      }
 
       const VALID_STATES = new Set(['confirmed', 'unconfirmed']);
       const VALID_METHODS = new Set(['ipp-job-state', 'queue-drain', 'none']);
@@ -359,19 +509,36 @@ export class KioskAgentController {
     try {
       const kiosk = req.kiosk as Kiosk;
       const reason = String(req.body?.reason || 'agent reported failure').slice(0, 280);
+      const retryable = req.body?.retryable === true;
       const repo = AppDataSource.getRepository(PrintJob);
       const result = await repo
         .createQueryBuilder()
         .update(PrintJob)
-        .set({ status: PrintJobStatus.FAILED })
-        .where('id = :id AND tenantId = :tid AND (kioskId = :kid OR kioskId IS NULL)', {
-          tid: kiosk.tenantId,
-          id: req.params.id,
-          kid: kiosk.id,
-        })
+        // Retryable = the printer was unreachable / busy before anything
+        // printed: hand the job back to the tenant's queue instead of
+        // failing the customer's order.
+        .set(
+          retryable
+            ? { status: PrintJobStatus.RELEASING, kioskId: null as any, pagesCompleted: 0 }
+            : { status: PrintJobStatus.FAILED },
+        )
+        .where(
+          'id = :id AND tenantId = :tid AND (kioskId = :kid OR kioskId IS NULL) AND status IN (:...live)',
+          {
+            tid: kiosk.tenantId,
+            id: req.params.id,
+            kid: kiosk.id,
+            live: [PrintJobStatus.PRINTING, PrintJobStatus.RELEASING],
+          },
+        )
         .execute();
       if ((result.affected ?? 0) !== 1) {
         res.status(404).json({ success: false, message: 'Job not found or claimed by another kiosk' });
+        return;
+      }
+      if (retryable) {
+        console.warn(`[agent] job ${req.params.id} requeued by kiosk ${kiosk.id}: ${reason}`);
+        res.json({ success: true, data: { requeued: true } });
         return;
       }
       console.error(`[agent] job ${req.params.id} FAILED: ${reason}`);

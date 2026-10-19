@@ -48,9 +48,11 @@ function formatJob(j: PrintJob) {
     status: j.status,
     jobType: j.jobType,
     pageCount: j.totalPages,
+    pagesCompleted: j.pagesCompleted || 0,
     printConfiguration: cfg,
     createdAt: j.createdAt,
     expiresAt: j.expiresAt,
+    completedAt: j.completedAt,
     qrPayload: `printloop://release/${j.code}`,
     meta: `${j.totalPages}pp · ${cfg.paper || 'A4'} · ${cfg.color === 'color' ? 'Colour' : 'B&W'} · ${cfg.qualityDpi || 300}dpi`,
   };

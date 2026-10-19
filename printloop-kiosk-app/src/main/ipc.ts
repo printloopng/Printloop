@@ -1,12 +1,12 @@
 import { ipcMain, BrowserWindow } from 'electron';
-import { logger } from '../utils/logger';
-import { getSettings, setSetting, loadSettings, KioskSettings } from './settings';
-import { fetchPrintJob, printJob } from './printJob';
+import { getSettings, setSetting, KioskSettings } from './settings';
+import { fetchPrintJob, releasePrintJob } from './printJob';
 import { listPrinters, testPrinter } from './ipp';
+import { getQueueStatus, pollNow } from './jobPoller';
 
 let mainWindow: BrowserWindow | null = null;
 
-export function setMainWindow(window: BrowserWindow) {
+export function setMainWindow(window: BrowserWindow | null) {
   mainWindow = window;
 }
 
@@ -17,22 +17,19 @@ export function setupIpcHandlers() {
 
   ipcMain.handle('settings:set', async (_event, key: keyof KioskSettings, value: unknown) => {
     await setSetting(key, String(value));
+    pollNow();
   });
 
   ipcMain.handle('print-job:fetch', async (_event, code: string) => {
-    const settings = getSettings();
-    if (!settings.apiKey) {
-      throw new Error('Kiosk not configured');
-    }
-    return fetchPrintJob(settings.apiKey, code);
+    return fetchPrintJob(code);
   });
 
-  ipcMain.handle('print-job:print', async (_event, jobId: string, artifactKey: string) => {
-    const settings = getSettings();
-    if (!settings.printerUri) {
-      throw new Error('No printer configured');
-    }
-    return printJob(settings.printerUri, artifactKey);
+  ipcMain.handle('print-job:release', async (_event, code: string) => {
+    return releasePrintJob(code);
+  });
+
+  ipcMain.handle('queue:status', async () => {
+    return getQueueStatus();
   });
 
   ipcMain.handle('printer:list', async () => {
@@ -45,7 +42,7 @@ export function setupIpcHandlers() {
 }
 
 export function emitKioskEvent(event: string, data: unknown) {
-  if (mainWindow) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('kiosk:event', event, data);
   }
 }

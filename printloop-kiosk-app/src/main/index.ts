@@ -1,8 +1,8 @@
 import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
-import { setupIpcHandlers } from './ipc';
-import { startHeartbeat, stopHeartbeat } from './heartbeat';
+import { setupIpcHandlers, setMainWindow } from './ipc';
+import { startJobPoller, stopJobPoller } from './jobPoller';
 import { logger } from '../utils/logger';
 
 const APP_ROOT = path.join(__dirname, '..');
@@ -35,8 +35,10 @@ function createWindow() {
     mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
   }
 
+  setMainWindow(mainWindow);
   mainWindow.on('closed', () => {
     mainWindow = null;
+    setMainWindow(null);
   });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -48,7 +50,7 @@ function createWindow() {
 app.whenReady().then(() => {
   createWindow();
   setupIpcHandlers();
-  startHeartbeat();
+  startJobPoller();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -56,12 +58,12 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
-  stopHeartbeat();
+  stopJobPoller();
   if (!isWindows) app.quit();
 });
 
 app.on('before-quit', () => {
-  stopHeartbeat();
+  stopJobPoller();
 });
 
 ipcMain.handle('app:get-version', () => app.getVersion());

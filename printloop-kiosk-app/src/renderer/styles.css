@@ -453,3 +453,46 @@ body {
     font-size: 1.25rem;
   }
 }
+.progress-fill.indeterminate {
+  animation: progress-slide 1.4s ease-in-out infinite;
+}
+
+@keyframes progress-slide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(340%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progress-fill.indeterminate { animation: none; }
+}
+
+.job-code {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: #888;
+}
+
+/* Live connection + queue strip on the code-entry screen */
+.queue-strip {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  padding: 10px 32px;
+  background: #1a1410;
+  color: #f8f4ed;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.875rem;
+}
+
+.queue-strip .dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 8px;
+  background: #6b7a5c;
+}
+
+.queue-strip .dot.warn { background: #c7944a; }
+.queue-strip .dot.down { background: #d14b2c; }

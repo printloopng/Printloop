@@ -1,11 +1,35 @@
 import React, { useState, useEffect, useRef } from 'react';
+import type { QueueStatus } from '../types';
 
 interface CodeEntryScreenProps {
+  queue: QueueStatus;
   onSubmit: (code: string) => void;
   onSettings: () => void;
 }
 
-export function CodeEntryScreen({ onSubmit, onSettings }: CodeEntryScreenProps) {
+function QueueStrip({ queue }: { queue: QueueStatus }) {
+  const printerDown = queue.printer === 'unreachable' || queue.printer === 'stopped';
+  const tone = !queue.online ? 'down' : printerDown ? 'warn' : '';
+  const label = !queue.online
+    ? 'Offline — reconnecting…'
+    : printerDown
+      ? `Printer ${queue.printer}${queue.printerReasons ? `: ${queue.printerReasons}` : ''}`
+      : queue.current
+        ? `Printing ${queue.current.code ?? ''}`
+        : 'Online';
+  return (
+    <div className="queue-strip" role="status">
+      <span>
+        <span className={`dot ${tone}`} />
+        {label}
+      </span>
+      {queue.online && <span>{queue.queued} in queue</span>}
+      {queue.online && <span>{queue.waitingForPickup} awaiting pickup</span>}
+    </div>
+  );
+}
+
+export function CodeEntryScreen({ queue, onSubmit, onSettings }: CodeEntryScreenProps) {
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -44,7 +68,8 @@ export function CodeEntryScreen({ onSubmit, onSettings }: CodeEntryScreenProps) 
           ⚙
         </button>
       </header>
-      
+      <QueueStrip queue={queue} />
+
       <main className="main">
         <div className="card">
           <h2>Enter Your Code</h2>

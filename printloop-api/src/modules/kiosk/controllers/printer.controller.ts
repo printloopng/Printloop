@@ -88,7 +88,9 @@ export class KioskPrinterController {
       }
 
       const jobRepo = AppDataSource.getRepository(PrintJob);
-      const job = await jobRepo.findOne({ where: { code } });
+      const job = await jobRepo.findOne({
+        where: kiosk?.tenantId ? { code, tenantId: kiosk.tenantId } : { code },
+      });
       if (!job) {
         res.status(404).json({ success: false, message: 'Job not found' });
         return;

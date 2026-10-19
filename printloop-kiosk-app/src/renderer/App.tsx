@@ -1,20 +1,27 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { CodeEntryScreen } from './screens/CodeEntryScreen';
 import { JobDetailsScreen } from './screens/JobDetailsScreen';
 import { PrintingScreen } from './screens/PrintingScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
 import { ErrorScreen } from './screens/ErrorScreen';
 import { useKiosk } from './hooks/useKiosk';
+import type { ReleaseResult } from './types';
 
 type Screen = 'code-entry' | 'job-details' | 'printing' | 'settings' | 'error';
 
 const App: React.FC = () => {
   const [screen, setScreen] = useState<Screen>('code-entry');
   const [error, setError] = useState<string | null>(null);
-  
+  const [releaseMode, setReleaseMode] = useState<ReleaseResult['mode']>('kiosk-pull');
+
   const {
+    job,
+    queue,
+    lastUpdate,
+    loading,
     fetchJob,
-    printJob: handlePrintJob,
+    releaseJob,
+    clearJob,
     isConfigured,
     settings,
     printers,
@@ -23,65 +30,82 @@ const App: React.FC = () => {
     updateSetting,
   } = useKiosk();
 
+  const showError = useCallback((err: unknown, fallback: string) => {
+    setError(err instanceof Error ? err.message : fallback);
+    setScreen('error');
+  }, []);
+
   const handleCodeSubmit = useCallback(async (code: string) => {
     try {
       setError(null);
       await fetchJob(code);
       setScreen('job-details');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch job');
-      setScreen('error');
+      showError(err, 'Failed to fetch job');
     }
-  }, [fetchJob]);
+  }, [fetchJob, showError]);
 
   const handlePrint = useCallback(async () => {
-    setScreen('printing');
-  }, []);
+    try {
+      const { mode } = await releaseJob();
+      setReleaseMode(mode);
+      setScreen('printing');
+    } catch (err) {
+      showError(err, 'Could not start printing');
+    }
+  }, [releaseJob, showError]);
 
-  const handlePrintComplete = useCallback((success: boolean, error?: string) => {
+  const handlePrintComplete = useCallback((success: boolean, err?: string) => {
     if (success) {
+      clearJob();
       setScreen('code-entry');
     } else {
-      setError(error || 'Print failed');
-      setScreen('error');
+      showError(new Error(err || 'Print failed'), 'Print failed');
     }
-  }, []);
-
-  const handleSettings = useCallback(() => {
-    setScreen('settings');
-  }, []);
+  }, [clearJob, showError]);
 
   const handleBack = useCallback(() => {
-    setScreen('code-entry');
-    setError(null);
-  }, []);
-
-  const handleRetry = useCallback(() => {
+    clearJob();
     setError(null);
     setScreen('code-entry');
-  }, []);
+  }, [clearJob]);
 
-  const handleSettingsSaved = useCallback(() => {
-    setScreen('code-entry');
-  }, []);
+  const settingsScreen = (
+    <SettingsScreen
+      onSave={handleBack}
+      settings={settings}
+      onUpdateSetting={(key, value) => updateSetting(key as any, value)}
+      printers={printers}
+      onRefreshPrinters={refreshPrinters}
+      onTestPrinter={testPrinter}
+    />
+  );
 
-  if (!isConfigured) {
-    return <SettingsScreen onSave={handleSettingsSaved} settings={settings} onUpdateSetting={(key, value) => updateSetting(key as any, value)} printers={[]} onRefreshPrinters={() => {}} onTestPrinter={() => Promise.resolve({ success: false, error: 'Not configured' })} />;
-  }
+  if (!isConfigured) return settingsScreen;
 
   switch (screen) {
-    case 'code-entry':
-      return <CodeEntryScreen onSubmit={handleCodeSubmit} onSettings={handleSettings} />;
     case 'job-details':
-      return <JobDetailsScreen onPrint={handlePrint} onBack={handleBack} />;
+      return job ? (
+        <JobDetailsScreen job={job} busy={loading} onPrint={handlePrint} onBack={handleBack} />
+      ) : null;
     case 'printing':
-      return <PrintingScreen onComplete={handlePrintComplete} />;
+      return job ? (
+        <PrintingScreen
+          job={job}
+          mode={releaseMode}
+          update={lastUpdate?.jobId === job.jobId ? lastUpdate : null}
+          queue={queue}
+          onComplete={handlePrintComplete}
+        />
+      ) : null;
     case 'settings':
-      return <SettingsScreen onSave={handleSettingsSaved} settings={settings} onUpdateSetting={(key, value) => updateSetting(key as any, value)} printers={printers} onRefreshPrinters={refreshPrinters} onTestPrinter={testPrinter} />;
+      return settingsScreen;
     case 'error':
-      return <ErrorScreen error={error || 'Unknown error'} onRetry={handleRetry} onBack={handleBack} />;
+      return <ErrorScreen error={error || 'Unknown error'} onRetry={handleBack} onBack={handleBack} />;
     default:
-      return <CodeEntryScreen onSubmit={handleCodeSubmit} onSettings={handleSettings} />;
+      return (
+        <CodeEntryScreen queue={queue} onSubmit={handleCodeSubmit} onSettings={() => setScreen('settings')} />
+      );
   }
 };
 

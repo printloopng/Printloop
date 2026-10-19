@@ -1,11 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Copy, QrCode, AlertTriangle } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { toast } from "sonner";
 import { useListJobsQuery, useSubmitDisputeMutation, useUploadFileMutation } from "@/store/services/jobsApi";
 import { useSubmitShopReviewMutation } from "@/store/services/discoveryApi";
 
-type JobStatus = "all" | "ready" | "done" | "expired" | "refunded" | "printing" | "failed";
+type JobStatus = "all" | "ready" | "releasing" | "printing" | "done" | "expired" | "refunded" | "failed";
 
 type Job = {
   id: string;
@@ -15,6 +15,8 @@ type Job = {
   code: string;
   qrPayload?: string;
   cost: number;
+  pageCount?: number;
+  pagesCompleted?: number;
   status: Exclude<JobStatus, "all">;
   createdAt?: string;
   expiresAt?: string;
@@ -39,21 +41,71 @@ function formatDate(value?: string) {
 
 function statusClass(status: Job["status"]) {
   if (status === "ready") return "bg-paper text-persimmon";
+  if (status === "releasing" || status === "printing")
+    return "bg-ochre/15 text-ochre border border-ochre/30 motion-safe:animate-pulse";
   if (status === "done") return "text-sage border border-sage";
   if (status === "refunded") return "text-ochre border border-ochre";
   return "text-fog border border-fog";
 }
 
+const STATUS_LABEL: Partial<Record<Job["status"], string>> = {
+  releasing: "QUEUED",
+  printing: "PRINTING",
+  done: "PRINTED",
+};
+
+const isInProgress = (job: Job) => job.status === "releasing" || job.status === "printing";
+
+// How often to refresh the ledger: fast while the kiosk is working on a job,
+// slower while a job waits for pickup (to catch the moment it's released).
+function pollingIntervalFor(jobs: Job[]) {
+  if (jobs.some(isInProgress)) return 4_000;
+  if (jobs.some((j) => j.status === "ready")) return 15_000;
+  return 0;
+}
+
+function JobProgress({ job, onAccent }: { job: Job; onAccent?: boolean }) {
+  if (!isInProgress(job)) return null;
+  const total = Math.max(1, job.pageCount || 1);
+  const done = Math.min(total, job.pagesCompleted || 0);
+  const pct = job.status === "printing" ? Math.max(5, Math.round((done / total) * 100)) : 0;
+  return (
+    <div className="mt-2" role="status">
+      <div className={`h-1.5 border ${onAccent ? "border-paper/60" : "border-ink/30"} bg-ochre/10`}>
+        <div className="h-full bg-ochre transition-[width] duration-500" style={{ width: `${pct}%` }} />
+      </div>
+      <div className={`text-[10px] font-bold mt-1 ${onAccent ? "text-paper/80" : "text-ochre"}`}>
+        {job.status === "releasing"
+          ? "Queued at the printer — starts in a moment."
+          : done > 0
+            ? `Printing · ${done} of ${total} pages`
+            : "Printing now — head to the printer."}
+      </div>
+    </div>
+  );
+}
+
 export default function PrintJobsPage() {
   const [filter, setFilter] = useState<JobStatus>("all");
   const [openQr, setOpenQr] = useState<string | null>(null);
-  const { data, isLoading, isError } = useListJobsQuery();
+  const [pollingInterval, setPollingInterval] = useState(0);
+  const { data, isLoading, isError } = useListJobsQuery(undefined, {
+    pollingInterval,
+    skipPollingIfUnfocused: true,
+  });
   const allJobs = useMemo(() => getJobs(data), [data]);
-  const filtered = filter === "all" ? allJobs : allJobs.filter((job) => job.status === filter);
+  useEffect(() => setPollingInterval(pollingIntervalFor(allJobs)), [allJobs]);
+  const filtered =
+    filter === "all"
+      ? allJobs
+      : filter === "printing"
+        ? allJobs.filter(isInProgress)
+        : allJobs.filter((job) => job.status === filter);
 
   const tabs = [
     { k: "all" as const, l: `ALL · ${allJobs.length}` },
     { k: "ready" as const, l: `READY · ${allJobs.filter((j) => j.status === "ready").length}` },
+    { k: "printing" as const, l: `IN PROGRESS · ${allJobs.filter(isInProgress).length}` },
     { k: "done" as const, l: `DONE · ${allJobs.filter((j) => j.status === "done").length}` },
     { k: "refunded" as const, l: `REFUNDED · ${allJobs.filter((j) => j.status === "refunded").length}` },
     { k: "failed" as const, l: `FAILED · ${allJobs.filter((j) => j.status === "failed").length}` },
@@ -219,6 +271,7 @@ export default function PrintJobsPage() {
                   >
                     {job.meta}
                   </div>
+                  <JobProgress job={job} />
                   {job.status === "refunded" && (
                     <div className="text-[10px] font-bold mt-1">
                       Auto-refunded after 24-hour expiry.
@@ -249,7 +302,7 @@ export default function PrintJobsPage() {
                       job.status,
                     )}`}
                   >
-                    {job.status.toUpperCase()}
+                    {STATUS_LABEL[job.status] ?? job.status.toUpperCase()}
                   </span>
                 </div>
                 {job.status === "ready" ? (
@@ -341,13 +394,14 @@ export default function PrintJobsPage() {
                         {job.meta}
                       </div>
                     )}
+                    <JobProgress job={job} onAccent={isReady} />
                   </div>
                   <span
                     className={`px-2 py-0.5 text-[9px] tracking-editorial font-bold flex-shrink-0 ${statusClass(
                       job.status,
                     )}`}
                   >
-                    {job.status.toUpperCase()}
+                    {STATUS_LABEL[job.status] ?? job.status.toUpperCase()}
                   </span>
                 </div>
 

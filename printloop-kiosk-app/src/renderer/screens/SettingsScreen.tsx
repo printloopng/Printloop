@@ -5,7 +5,7 @@ interface SettingsScreenProps {
   settings: {
     apiKey: string;
     printerUri: string;
-    heartbeatInterval: number;
+    pollInterval: number;
     kioskName: string;
   };
   onUpdateSetting: (key: string, value: unknown) => void;
@@ -88,23 +88,30 @@ export function SettingsScreen({
             <h2>Printer</h2>
             <div className="form-group">
               <div className="form-row">
-                <label htmlFor="printerUri">Printer</label>
+                <label htmlFor="printerUri">Printer IPP address</label>
                 <button className="btn btn-secondary" onClick={onRefreshPrinters}>
                   Refresh
                 </button>
               </div>
-              <select
+              <input
                 id="printerUri"
+                type="text"
+                list="known-printers"
                 value={formData.printerUri}
-                onChange={(e) => handleChange('printerUri', e.target.value)}
-              >
-                <option value="">Select a printer</option>
+                onChange={(e) => handleChange('printerUri', e.target.value.trim())}
+                placeholder="ipp://192.168.1.50/ipp/print"
+              />
+              <datalist id="known-printers">
                 {printers.map((p) => (
                   <option key={p.uri} value={p.uri}>
-                    {p.name} ({p.makeAndModel}) {p.isDefault ? '✓' : ''}
+                    {p.name} ({p.makeAndModel}) · {p.state}
                   </option>
                 ))}
-              </select>
+              </datalist>
+              <p className="form-hint">
+                Network printers: ipp://&lt;printer-ip&gt;/ipp/print. Local CUPS:
+                ipp://localhost:631/printers/&lt;queue-name&gt;.
+              </p>
               {formData.printerUri && (
                 <div className="printer-actions">
                   <button
@@ -112,7 +119,7 @@ export function SettingsScreen({
                     onClick={() => handleTest(formData.printerUri!)}
                     disabled={testingPrinter === formData.printerUri}
                   >
-                    {testingPrinter ? 'Testing...' : 'Test Print'}
+                    {testingPrinter ? 'Checking...' : 'Check Printer'}
                   </button>
                   {testResult && (
                     <span className={testResult.success ? 'success' : 'error'}>
@@ -127,16 +134,20 @@ export function SettingsScreen({
           <section className="settings-section">
             <h2>Advanced</h2>
             <div className="form-group">
-              <label htmlFor="heartbeatInterval">Heartbeat Interval (ms)</label>
+              <label htmlFor="pollInterval">Job check interval (ms)</label>
               <input
-                id="heartbeatInterval"
+                id="pollInterval"
                 type="number"
-                value={formData.heartbeatInterval}
-                onChange={(e) => handleChange('heartbeatInterval', parseInt(e.target.value, 10))}
-                min="5000"
-                max="300000"
-                step="5000"
+                value={formData.pollInterval}
+                onChange={(e) => handleChange('pollInterval', parseInt(e.target.value, 10))}
+                min="3000"
+                max="60000"
+                step="1000"
               />
+              <p className="form-hint">
+                How often the kiosk asks PrintLoop for released jobs. The server speeds this up
+                automatically while jobs are queued.
+              </p>
             </div>
           </section>
 

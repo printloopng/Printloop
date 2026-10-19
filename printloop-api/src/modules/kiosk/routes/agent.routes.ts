@@ -3,6 +3,8 @@ import { kioskAuth } from '@/common/middleware/kioskAuth.middleware';
 import { validate } from '@/common/middleware/validation';
 import { kioskAgentController } from '@/modules/kiosk/controllers/agent.controller';
 import {
+  agentPollBodySchema,
+  agentProgressBodySchema,
   agentCompleteBodySchema,
   agentFailedBodySchema,
   agentCapabilitiesBodySchema,
@@ -10,9 +12,16 @@ import {
 
 const router = Router();
 
+router.post('/poll', kioskAuth, validate(agentPollBodySchema), kioskAgentController.poll);
 router.get('/jobs/ready', kioskAuth, kioskAgentController.listReadyJobs);
 router.get('/jobs/:id/file', kioskAgentController.downloadJobFile);
 router.post('/jobs/:id/start', kioskAuth, kioskAgentController.startJob);
+router.post(
+  '/jobs/:id/progress',
+  kioskAuth,
+  validate(agentProgressBodySchema),
+  kioskAgentController.progressJob,
+);
 router.post(
   '/jobs/:id/complete',
   kioskAuth,

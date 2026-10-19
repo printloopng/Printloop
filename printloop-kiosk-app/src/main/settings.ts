@@ -7,21 +7,21 @@ const SETTINGS_FILE = path.join(__dirname, '../../../kiosk-settings.json');
 export interface KioskSettings {
   apiKey: string;
   printerUri: string;
-  heartbeatInterval: number;
+  pollInterval: number;
   kioskName: string;
 }
 
 const DEFAULT_SETTINGS: KioskSettings = {
   apiKey: '',
   printerUri: '',
-  heartbeatInterval: 15000,
+  pollInterval: 10000,
   kioskName: 'PrintLoop Kiosk',
 };
 
 const PERSISTED_KEYS = new Set<keyof KioskSettings>([
   'apiKey',
   'printerUri',
-  'heartbeatInterval',
+  'pollInterval',
   'kioskName',
 ]);
 
@@ -35,9 +35,8 @@ function pickPersisted(raw: Record<string, unknown>): KioskSettings {
       (next as unknown as Record<string, unknown>)[key] = raw[key];
     }
   }
-  if (typeof next.heartbeatInterval !== 'number') {
-    next.heartbeatInterval = Number(next.heartbeatInterval) || DEFAULT_SETTINGS.heartbeatInterval;
-  }
+  // Floor of 3s keeps a mistyped value from hammering the API.
+  next.pollInterval = Math.max(3000, Number(next.pollInterval) || DEFAULT_SETTINGS.pollInterval);
   return next;
 }
 
@@ -70,10 +69,8 @@ export async function setSetting(key: keyof KioskSettings, value: unknown): Prom
   const settings = loadSettings();
   const settingsRecord = settings as unknown as Record<string, unknown>;
   settingsRecord[key] =
-    key === 'heartbeatInterval'
-      ? typeof value === 'number'
-        ? value
-        : Number(value)
+    key === 'pollInterval'
+      ? Math.max(3000, Number(value) || DEFAULT_SETTINGS.pollInterval)
       : typeof value === 'string'
         ? value
         : String(value);

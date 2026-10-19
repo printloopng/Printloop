@@ -1,20 +1,48 @@
 export interface KioskSettings {
   apiKey: string;
   printerUri: string;
-  heartbeatInterval: number;
+  pollInterval: number;
   kioskName: string;
 }
 
 export interface PrintJobData {
-  id: string;
+  jobId: string;
   code: string;
-  artifactKey: string;
-  pageCount: number;
-  colorPages: number;
-  monoPages: number;
+  fileName: string | null;
+  totalPages: number;
   cost: number;
-  customerName: string;
-  fileName: string;
+  printConfig: {
+    copies?: number;
+    paper?: string;
+    color?: 'bw' | 'color';
+    sided?: 'single' | 'double';
+  };
+}
+
+export interface ReleaseResult {
+  mode: 'kiosk-pull' | 'cloud-push';
+}
+
+export interface JobUpdate {
+  jobId: string;
+  code: string | null;
+  state: 'printing' | 'done' | 'failed' | 'requeued';
+  item?: number;
+  totalItems?: number;
+  pagesCompleted?: number;
+  totalPages?: number;
+  error?: string;
+}
+
+export interface QueueStatus {
+  online: boolean;
+  printer: 'idle' | 'processing' | 'stopped' | 'unreachable' | 'unknown';
+  printerReasons?: string;
+  queued: number;
+  waitingForPickup: number;
+  current: JobUpdate | null;
+  lastPollAt: string | null;
+  error?: string;
 }
 
 export interface PrinterInfo {
@@ -30,12 +58,6 @@ export interface TestPrintResult {
   error?: string;
 }
 
-export interface PrintResult {
-  success: boolean;
-  jobId: string;
-  error?: string;
-}
-
 declare global {
   interface Window {
     electronAPI: {
@@ -46,7 +68,10 @@ declare global {
       onKioskEvent: (callback: (event: string, data: unknown) => void) => () => void;
       printJob: {
         fetch: (code: string) => Promise<PrintJobData>;
-        print: (jobId: string, artifactKey: string) => Promise<PrintResult>;
+        release: (code: string) => Promise<ReleaseResult>;
+      };
+      queue: {
+        status: () => Promise<QueueStatus>;
       };
       settings: {
         get: () => Promise<KioskSettings>;

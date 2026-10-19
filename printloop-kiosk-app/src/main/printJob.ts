@@ -1,65 +1,51 @@
-import axios from 'axios';
-import * as fs from 'fs/promises';
-import * as path from 'path';
-import { logger } from '../utils/logger';
-import { getSettings } from './settings';
-import { downloadFromS3 } from '../utils/s3';
-import { printPwgToIpp } from './ipp';
-import { getApiUrl } from '../config';
+import { kioskApi, unwrap, apiErrorMessage } from './api';
+import { pollNow } from './jobPoller';
+
+/*
+ * Walk-up flow: the customer types their pickup code, sees the job, taps
+ * Print. "Print" releases the job to this kiosk (READY → RELEASING); the
+ * job poller then claims and prints it like any other released job.
+ */
 
 export interface PrintJobData {
-  id: string;
+  jobId: string;
   code: string;
-  artifactKey: string;
-  pageCount: number;
-  colorPages: number;
-  monoPages: number;
+  fileName: string | null;
+  totalPages: number;
   cost: number;
-  customerName: string;
-  fileName: string;
+  printConfig: {
+    copies?: number;
+    paper?: string;
+    color?: 'bw' | 'color';
+    sided?: 'single' | 'double';
+  };
 }
 
-export async function fetchPrintJob(apiKey: string, code: string): Promise<PrintJobData> {
-  const apiUrl = getApiUrl();
-  const response = await axios.post(
-    `${apiUrl}/api/printer/get-job`,
-    { code },
-    {
-      headers: {
-        'X-Kiosk-Key': apiKey,
-        'Content-Type': 'application/json',
-      },
-      timeout: 10000,
-    },
-  );
-
-  const payload = response.data?.data ?? response.data;
-  return payload;
-}
-
-export async function printJob(
-  printerUri: string,
-  artifactKey: string,
-): Promise<{ success: boolean; jobId: string; error?: string }> {
-  const settings = getSettings();
-
-  if (!settings.apiKey) {
-    throw new Error('Kiosk not configured');
-  }
-
-  const pwgBuffer = await downloadFromS3(artifactKey);
-  logger.info({ size: pwgBuffer.length, artifactKey }, 'Downloaded PWG artifact from S3');
-
-  const tempDir = path.join(__dirname, '../../../tmp');
-  await fs.mkdir(tempDir, { recursive: true });
-  const tempFile = path.join(tempDir, `${Date.now()}.pwg`);
-  await fs.writeFile(tempFile, pwgBuffer);
-
+export async function fetchPrintJob(code: string): Promise<PrintJobData> {
   try {
-    const result = await printPwgToIpp(printerUri, tempFile);
-    logger.info({ jobId: result.jobId }, 'Print job submitted to IPP printer');
-    return result;
-  } finally {
-    await fs.unlink(tempFile).catch(() => {});
+    const api = kioskApi();
+    // validate-code enforces READY + pickup limits; get-job returns details.
+    await api.post('/printer/validate-code', { code });
+    const res = await api.post('/printer/get-job', { code });
+    const data = unwrap<any>(res.data);
+    if (!data?.jobId) {
+      throw new Error('Group batch codes are not supported at this kiosk yet');
+    }
+    return { ...data, cost: Number(data.cost) || 0 };
+  } catch (err) {
+    throw new Error(apiErrorMessage(err));
+  }
+}
+
+export async function releasePrintJob(code: string): Promise<{ mode: 'kiosk-pull' | 'cloud-push' }> {
+  try {
+    const res = await kioskApi().post('/printer/complete', { code });
+    const data = unwrap<any>(res.data);
+    // cloud-push: the API already sent it to the printer and marked it done.
+    if (data?.mode !== 'kiosk-pull') return { mode: 'cloud-push' };
+    pollNow();
+    return { mode: 'kiosk-pull' };
+  } catch (err) {
+    throw new Error(apiErrorMessage(err));
   }
 }

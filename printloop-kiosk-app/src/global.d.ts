@@ -1,21 +1,11 @@
 declare module 'ipp' {
-  interface PrinterAttributes {
-    uri: string;
-    name?: string;
-    'printer-make-and-model'?: string;
-    'printer-state'?: number;
-    'printer-is-default'?: boolean;
-    [key: string]: unknown;
-  }
-
+  // The `ipp` package is callback-based; see src/main/ipp.ts for the promise wrapper.
   interface Printer {
-    execute(operation: string, options: any): Promise<any>;
+    execute(operation: string, msg: any, cb: (err: unknown, res: any) => void): void;
   }
 
-  function Printer(uri: string): Printer;
+  function Printer(uri: string, opts?: Record<string, unknown>): Printer;
 
-  function getPrinters(): Promise<PrinterAttributes[]>;
-
-  export { Printer, getPrinters };
-  export default { Printer, getPrinters };
+  export { Printer };
+  export default { Printer };
 }

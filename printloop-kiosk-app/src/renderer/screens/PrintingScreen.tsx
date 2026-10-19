@@ -1,66 +1,84 @@
 import React, { useEffect, useState } from 'react';
+import type { JobUpdate, PrintJobData, QueueStatus, ReleaseResult } from '../types';
 
 interface PrintingScreenProps {
+  job: PrintJobData;
+  mode: ReleaseResult['mode'];
+  update: JobUpdate | null;
+  queue: QueueStatus;
   onComplete: (success: boolean, error?: string) => void;
 }
 
-export function PrintingScreen({ onComplete }: PrintingScreenProps) {
-  const [progress, setProgress] = useState(0);
-  const [status, setStatus] = useState('Preparing print job...');
-  const [error, setError] = useState<string | null>(null);
+const DONE_RETURN_MS = 6_000;
+const SLOW_AFTER_MS = 90_000;
+
+export function PrintingScreen({ job, mode, update, queue, onComplete }: PrintingScreenProps) {
+  const [slow, setSlow] = useState(false);
+  const state = mode === 'cloud-push' ? 'done' : update?.state;
 
   useEffect(() => {
-    const steps = [
-      { progress: 10, status: 'Connecting to printer...', delay: 1000 },
-      { progress: 30, status: 'Sending document...', delay: 2000 },
-      { progress: 60, status: 'Processing...', delay: 3000 },
-      { progress: 90, status: 'Printing...', delay: 5000 },
-      { progress: 100, status: 'Complete!', delay: 1000 },
-    ];
+    const t = setTimeout(() => setSlow(true), SLOW_AFTER_MS);
+    return () => clearTimeout(t);
+  }, []);
 
-    let currentStep = 0;
+  useEffect(() => {
+    if (state === 'failed') onComplete(false, update?.error || 'Print failed');
+    if (state === 'done') {
+      const t = setTimeout(() => onComplete(true), DONE_RETURN_MS);
+      return () => clearTimeout(t);
+    }
+  }, [state, update, onComplete]);
 
-    const runSteps = async () => {
-      for (const step of steps) {
-        setProgress(step.progress);
-        setStatus(step.status);
-        await new Promise((resolve) => setTimeout(resolve, step.delay));
-      }
-      
-      // Simulate print job submission
-      try {
-        // In real implementation, this would call the print API
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-        onComplete(true);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Print failed');
-        onComplete(false, err instanceof Error ? err.message : 'Print failed');
-      }
-    };
+  const printerDown = queue.printer === 'unreachable' || queue.printer === 'stopped';
+  const total = update?.totalPages || job.totalPages || 1;
+  const progress =
+    state === 'done' ? 100 : state === 'printing' ? Math.max(5, Math.round(((update?.pagesCompleted ?? 0) / total) * 100)) : 0;
 
-    runSteps();
-  }, [onComplete]);
+  let message: string;
+  if (state === 'done') message = 'Done! Please collect your pages.';
+  else if (state === 'printing' && (update?.totalItems ?? 1) > 1)
+    message = `Printing file ${update?.item} of ${update?.totalItems}…`;
+  else if (state === 'printing') message = 'Printing…';
+  else if (state === 'requeued') message = 'The printer had a hiccup. Retrying shortly…';
+  else if (printerDown)
+    message = `Printer is unavailable${queue.printerReasons ? ` (${queue.printerReasons})` : ''}. Your job is saved and will print once it is back.`;
+  else message = 'Sending your job to the printer…';
 
   return (
     <div className="screen printing">
       <header className="header">
-        <h1>Printing</h1>
+        <h1>{state === 'done' ? 'Printed' : 'Printing'}</h1>
       </header>
-      
+
       <main className="main">
         <div className="card printing-card">
-          <div className="printer-icon">🖨️</div>
-          
+          <div className="printer-icon">{state === 'done' ? '✅' : '🖨️'}</div>
+          <p className="job-code">Code {job.code}</p>
+
           <div className="progress-container">
             <div className="progress-bar">
-              <div className="progress-fill" style={{ width: `${progress}%` }} />
+              <div
+                className={`progress-fill ${state ? '' : 'indeterminate'}`}
+                style={{ width: state ? `${progress}%` : '30%' }}
+              />
             </div>
-            <div className="progress-text">{progress}%</div>
+            {state && <div className="progress-text">{progress}%</div>}
           </div>
-          
-          <p className="status">{status}</p>
-          
-          {error && <div className="error">{error}</div>}
+
+          <p className="status">{message}</p>
+
+          {(state === 'done' || (slow && !state)) && (
+            <div className="actions">
+              {slow && !state && (
+                <p className="hint">
+                  Your job is queued and will print automatically. Ask a staff member if you can't wait.
+                </p>
+              )}
+              <button className="btn btn-primary btn-large" onClick={() => onComplete(true)}>
+                Done
+              </button>
+            </div>
+          )}
         </div>
       </main>
     </div>

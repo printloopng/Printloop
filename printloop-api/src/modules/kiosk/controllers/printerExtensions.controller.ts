@@ -33,6 +33,7 @@ export class KioskPrinterExtensionsController {
         code,
         pagesCompleted,
         kioskId: kiosk?.id,
+        tenantId: kiosk?.tenantId,
       });
       res.json(result);
     } catch (error) {
