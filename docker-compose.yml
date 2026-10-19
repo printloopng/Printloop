@@ -8,9 +8,9 @@
 #
 # Then: API at http://localhost:4000, health at /health.
 #
-# This is the first time the stack runs on Postgres rather than SQLite —
-# the driver auto-selects from DATABASE_URL (see config/database.ts), so
-# the Postgres baseline migration (PostgresBaseline1718100000000) builds
+# API package is `printloop-api/` (neurapath-style Express 5 + TypeORM).
+# `01-backend/` is deprecated and kept only until the cutover is verified.
+# Driver auto-selects from DATABASE_URL; Postgres baseline migration builds
 # the schema and runSeed populates demo data on first boot.
 #
 # Secrets here are DEV defaults. For real deploys use the platform's
@@ -86,7 +86,7 @@ services:
       retries: 10
 
   api:
-    build: ./01-backend
+    build: ./printloop-api
     command: ["npm", "start"]
     depends_on:
       postgres:
@@ -122,8 +122,8 @@ services:
   # process registers the repeatable scheduled jobs (initScheduledJobs),
   # so scaling `api` horizontally never double-fires payouts/cleanups.
   worker:
-    build: ./01-backend
-    command: ["npm", "run", "worker"]
+    build: ./printloop-api
+    command: ["node", "dist/workers/main.js"]
     depends_on:
       postgres:
         condition: service_healthy

@@ -3,9 +3,7 @@ import React, { useState, useEffect } from 'react';
 interface SettingsScreenProps {
   onSave: () => void;
   settings: {
-    apiUrl: string;
     apiKey: string;
-    tenantId: string;
     printerUri: string;
     heartbeatInterval: number;
     kioskName: string;
@@ -64,16 +62,6 @@ export function SettingsScreen({
           <section className="settings-section">
             <h2>Cloud Connection</h2>
             <div className="form-group">
-              <label htmlFor="apiUrl">API URL</label>
-              <input
-                id="apiUrl"
-                type="url"
-                value={formData.apiUrl}
-                onChange={(e) => handleChange('apiUrl', e.target.value)}
-                placeholder="https://api.printloop.app"
-              />
-            </div>
-            <div className="form-group">
               <label htmlFor="apiKey">API Key</label>
               <input
                 id="apiKey"
@@ -82,16 +70,7 @@ export function SettingsScreen({
                 onChange={(e) => handleChange('apiKey', e.target.value)}
                 placeholder="kiosk_..."
               />
-            </div>
-            <div className="form-group">
-              <label htmlFor="tenantId">Tenant ID</label>
-              <input
-                id="tenantId"
-                type="text"
-                value={formData.tenantId}
-                onChange={(e) => handleChange('tenantId', e.target.value)}
-                placeholder="tenant-uuid"
-              />
+              <p className="form-hint">Tenant is resolved by the server from this key.</p>
             </div>
             <div className="form-group">
               <label htmlFor="kioskName">Kiosk Name</label>

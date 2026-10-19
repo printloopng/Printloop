@@ -9,25 +9,24 @@ directly. Revenue = per-job commission (default 10%), not a subscription.
 
 | Path | What it is |
 |---|---|
-| `01-backend/` | Express + TypeORM API |
+| `printloop-api/` | **Current** Express 5 + TypeORM API (neurapath-style modules) |
+| `01-backend/` | Deprecated predecessor — keep until cutover is verified, then remove |
 | `printloop-new-frontend/` | React + Vite web app |
 | `render-worker/` | Cloud PDF → PWG render consumer (**needed** for real prints) |
 | `printloop-kiosk-app/` | Electron shop kiosk |
 | `docs/` | Documentation |
 | `deploy/` | Caddy / Fly / Render config samples |
 
-Root also has `README.md`, `CLAUDE.md`, and `docker-compose*.yml`.
-
 ## Local setup (5 minutes)
 
 Needs **Node 20+**. Without `DATABASE_URL` the API uses SQLite.
 
 ```powershell
-# 1. Backend
-cd 01-backend
+# 1. API
+cd printloop-api
 Copy-Item .env.example .env
 npm install
-$env:SEED_DEMO='1'; $env:PORT='4000'; npm run dev
+$env:SEED_DEMO='1'; $env:PORT='4000'; npm run boot
 # http://localhost:4000/health
 
 # 2. Frontend (new terminal)

@@ -386,6 +386,12 @@ body {
   box-shadow: 0 0 0 3px rgba(21, 20, 16, 0.1);
 }
 
+.form-hint {
+  margin: 8px 0 0;
+  font-size: 0.875rem;
+  color: #888888;
+}
+
 .printer-actions {
   display: flex;
   align-items: center;

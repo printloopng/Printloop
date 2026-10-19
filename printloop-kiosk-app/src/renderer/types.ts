@@ -1,7 +1,5 @@
 export interface KioskSettings {
-  apiUrl: string;
   apiKey: string;
-  tenantId: string;
   printerUri: string;
   heartbeatInterval: number;
   kioskName: string;

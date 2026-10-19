@@ -13,18 +13,21 @@ Eng runbook: `docs/DEV-HANDOVER.md`.
 
 ## Folder layout (live surface)
 
-- `01-backend/` — Express + TypeORM. Driver from `DATABASE_URL`:
-  **Postgres in prod / Docker, SQLite for local dev**. Multi-tenancy
-  shipped (`tenantId NOT NULL` on customer tables;
-  `tenant.middleware.ts` resolves JWT → subdomain → custom domain →
-  `X-Tenant-Slug` → legacy fallback).
+- `printloop-api/` — **current** Express 5 + TypeORM API (neurapath
+  layout: `modules/{public,customer,saas,platform,kiosk}` —
+  `platform` owns SUPER_ADMIN + shared OpenAPI/files).
+  Driver from `DATABASE_URL`: **Postgres in prod / Docker, SQLite for
+  local dev**. Multi-tenancy shipped (`tenantId NOT NULL`;
+  `common/middleware/tenant.middleware.ts`). Webhooks live under
+  `modules/public`. No legacy `/api/admin` or `devApi`.
+- `01-backend/` — **deprecated** predecessor; see its `DEPRECATED.md`.
+  Do not add features; remove after cutover is verified.
 - `printloop-new-frontend/` — React + Vite + RTK Query.
   `/` landing, `/find` marketplace, `/saas/*` tenant admin,
-  `/platform` SUPER_ADMIN, `/print/new` upload, `/admin/*` legacy.
+  `/platform` SUPER_ADMIN, `/print/new` upload.
 - `printloop-kiosk-app/` — Electron kiosk (UI + local print + cloud poll).
 - `render-worker/` — BullMQ PDF → PWG consumer; HMAC callback to API
-  via `services/renderEnqueue.service.ts`. **Keep this** — production
-  print path depends on it (`docker compose` runs it).
+  via `core/services/renderEnqueue.service.ts`. **Keep this**.
 - `docs/` — living docs; `docs/archive/` is historical only;
   `docs/deploy/` is the deploy runbook.
 - `deploy/` — platform config samples (Caddy, Fly, Render).

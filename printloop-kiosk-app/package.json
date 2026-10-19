@@ -2,7 +2,7 @@
   "name": "printloop-kiosk-app",
   "version": "1.0.0",
   "description": "PrintLoop Kiosk Application - Electron-based touchscreen UI for print shops",
-  "main": "dist/main/index.js",
+  "main": "dist/main/main/index.js",
   "scripts": {
     "build": "tsc -p tsconfig.main.json && vite build",
     "dev": "concurrently \"tsc -p tsconfig.main.json -w\" \"vite\" \"wait-on http://localhost:5173 && electron .\"",
@@ -77,5 +77,10 @@
       "icon": "public/icon.png",
       "category": "Office"
     }
+  },
+  "allowScripts": {
+    "electron@28.3.3": true,
+    "esbuild@0.21.5": true,
+    "sharp@0.33.5": true
   }
 }

@@ -21,10 +21,10 @@ export function setupIpcHandlers() {
 
   ipcMain.handle('print-job:fetch', async (_event, code: string) => {
     const settings = getSettings();
-    if (!settings.apiUrl || !settings.apiKey) {
+    if (!settings.apiKey) {
       throw new Error('Kiosk not configured');
     }
-    return fetchPrintJob(settings.apiUrl, settings.apiKey, code);
+    return fetchPrintJob(settings.apiKey, code);
   });
 
   ipcMain.handle('print-job:print', async (_event, jobId: string, artifactKey: string) => {

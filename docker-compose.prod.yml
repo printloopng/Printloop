@@ -61,7 +61,7 @@ services:
   # ── API ──────────────────────────────────────────────────────────────────
   api:
     build:
-      context: ./01-backend
+      context: ./printloop-api
       dockerfile: Dockerfile.prod
     restart: unless-stopped
     depends_on:
@@ -129,10 +129,10 @@ services:
   # ── Background Worker (scheduled jobs) ──────────────────────────────────
   worker:
     build:
-      context: ./01-backend
+      context: ./printloop-api
       dockerfile: Dockerfile.prod
     restart: unless-stopped
-    command: ["node", "dist/worker.js"]
+    command: ["node", "dist/workers/main.js"]
     depends_on:
       postgres:
         condition: service_healthy

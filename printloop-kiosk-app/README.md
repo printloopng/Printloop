@@ -9,7 +9,7 @@ Electron-based touchscreen UI for PrintLoop self-service printing kiosks.
 - Job details display (pages, cost, paper size)
 - PWG-Raster printing via IPP to local CUPS
 - Heartbeat to cloud backend
-- Settings management (API URL, API key, printer selection)
+- Settings management (API key, printer selection)
 - Cross-platform: Windows (NSIS installer), Linux (AppImage), macOS (DMG)
 
 ## Architecture
@@ -61,20 +61,21 @@ The kiosk stores settings in `kiosk-settings.json` in the app data directory:
 
 ```json
 {
-  "apiUrl": "https://api.printloop.app",
   "apiKey": "kiosk_...",
-  "tenantId": "tenant-uuid",
   "printerUri": "ipp://localhost:60000/ipp/print",
   "heartbeatInterval": 15000,
   "kioskName": "Main Kiosk"
 }
 ```
 
+Set `API_URL` in `.env` (required). Tenant is resolved by the backend from the
+kiosk API key (`X-Kiosk-Key`).
+
 First run will show the settings screen for configuration.
 
 ## Environment Variables
 
-See `.env.example` for S3 configuration (used for downloading rendered PWG-Raster artifacts).
+See `.env.example` for required `API_URL` and S3 configuration (PWG-Raster downloads).
 
 ## Building Installers
 

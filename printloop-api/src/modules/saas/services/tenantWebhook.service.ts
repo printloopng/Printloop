@@ -1,0 +1,135 @@
+import crypto from 'node:crypto';
+import { repos } from '@/config/repos';
+import {
+  TenantWebhook,
+  WebhookEvent,
+} from '@/database/entities/tenantWebhook.entity';
+import { webhookQueue } from '@/workers/queues';
+import { REDIS_ENABLED } from '@/config/redis';
+
+export interface WebhookPayload {
+  event: WebhookEvent;
+  tenantId: string;
+  emittedAt: string;
+  data: Record<string, unknown>;
+}
+
+export function emitTenantEvent(
+  tenantId: string,
+  event: WebhookEvent,
+  data: Record<string, unknown>,
+): void {
+  void resolveAndEnqueue(tenantId, event, data).catch((err) => {
+    console.error(
+      `[webhook] emit ${event} for tenant ${tenantId} failed:`,
+      err,
+    );
+  });
+}
+
+async function resolveAndEnqueue(
+  tenantId: string,
+  event: WebhookEvent,
+  data: Record<string, unknown>,
+): Promise<void> {
+  const repo = repos.tenantWebhook();
+  const subs = await repo.find({ where: { tenantId, isActive: true } });
+  const matched = subs.filter((w) => w.events?.includes(event));
+  if (!matched.length) return;
+
+  const payload: WebhookPayload = {
+    event,
+    tenantId,
+    emittedAt: new Date().toISOString(),
+    data,
+  };
+  const body = JSON.stringify(payload);
+
+  for (const sub of matched) {
+    const job = {
+      webhookId: sub.id,
+      url: sub.url,
+      secret: sub.secret,
+      event,
+      body,
+    };
+    if (REDIS_ENABLED) {
+      await webhookQueue.add('deliver', job);
+    } else {
+      void deliverInline(job).catch((err) =>
+        console.error(`[webhook] inline delivery failed for ${sub.id}:`, err),
+      );
+    }
+  }
+}
+
+export async function deliverWebhook(job: {
+  webhookId: string;
+  url: string;
+  secret: string;
+  event: string;
+  body: string;
+}): Promise<void> {
+  const raw = Buffer.from(job.body, 'utf8');
+  const signature = crypto
+    .createHmac('sha256', job.secret)
+    .update(raw)
+    .digest('hex');
+
+  const repo = repos.tenantWebhook();
+  try {
+    const res = await fetch(job.url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-PrintLoop-Signature': signature,
+        'X-PrintLoop-Event': job.event,
+      },
+      body: raw,
+    });
+    if (!res.ok) {
+      await stampFailure(repo, job.webhookId, `HTTP ${res.status}`);
+      throw new Error(`webhook ${job.webhookId} returned HTTP ${res.status}`);
+    }
+    await stampSuccess(repo, job.webhookId);
+  } catch (err: any) {
+    await stampFailure(repo, job.webhookId, err?.message || 'Unknown error');
+    throw err;
+  }
+}
+
+async function deliverInline(job: {
+  webhookId: string;
+  url: string;
+  secret: string;
+  event: string;
+  body: string;
+}): Promise<void> {
+  try {
+    await deliverWebhook(job);
+  } catch {
+    
+  }
+}
+
+async function stampSuccess(repo: any, webhookId: string): Promise<void> {
+  await repo.update(
+    { id: webhookId },
+    { lastSuccessAt: new Date(), lastFailureReason: null },
+  );
+}
+
+async function stampFailure(
+  repo: any,
+  webhookId: string,
+  reason: string,
+): Promise<void> {
+  await repo.update(
+    { id: webhookId },
+    { lastFailureAt: new Date(), lastFailureReason: reason.slice(0, 255) },
+  );
+}
+
+export function generateWebhookSecret(): string {
+  return crypto.randomBytes(32).toString('base64url');
+}

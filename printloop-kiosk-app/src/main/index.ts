@@ -5,7 +5,6 @@ import { setupIpcHandlers } from './ipc';
 import { startHeartbeat, stopHeartbeat } from './heartbeat';
 import { logger } from '../utils/logger';
 
-const __dirname = path.dirname(__filename);
 const APP_ROOT = path.join(__dirname, '..');
 
 const isDev = process.env.NODE_ENV === 'development';

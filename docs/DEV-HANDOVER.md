@@ -16,10 +16,13 @@ PrintLoop v2. Commands here are verified against the repo, not invented.
 
 | Package | What it is | Run | Port |
 |---|---|---|---|
-| `01-backend/` | Express + TypeORM API (auth, tenancy, pricing, jobs, payouts, marketplace) | `npm run dev` | 4000 |
+| `printloop-api/` | Express 5 + TypeORM API (auth, tenancy, pricing, jobs, payouts, marketplace) | `npm run boot` / `npm run dev` | 4000 |
 | `printloop-new-frontend/` | React 18 + Vite + RTK Query (customer app, shop console, platform console) | `npm run dev` | 5173 |
 | `render-worker/` | BullMQ consumer: PDF → PWG-raster via Ghostscript + cups-filters | `npm run dev` | — |
 | `printloop-kiosk-app/` | Electron kiosk (UI + cloud poll + local print) | `npm run dev` / `npm run package` | — |
+
+`01-backend/` is deprecated (see `01-backend/DEPRECATED.md`). Compose and
+docs point at `printloop-api/`.
 
 Optional: `vendor/openprinting/` (gitignored reference clones — never edit).
 
@@ -47,9 +50,9 @@ not a bug. Code: `pages/discovery/FindPage.tsx` +
 Prereqs: Node 20+ and npm. (Postgres/Redis optional locally — see below.)
 
 ```bash
-# Backend (auto-uses SQLite locally; seeds demo data)
-cd 01-backend && npm install
-SEED_DEMO=1 PORT=4000 npm run dev      # http://localhost:4000/health
+# API (auto-uses SQLite locally; seeds demo data)
+cd printloop-api && npm install
+SEED_DEMO=1 PORT=4000 npm run boot     # http://localhost:4000/health
 
 # Frontend (proxies /api → :4000)
 cd printloop-new-frontend && npm install && npm run dev   # http://localhost:5173
@@ -72,7 +75,7 @@ docker compose up --build     # api on :4000
 
 ## 3. Configuration (env)
 
-Backend reads env directly (`01-backend/.env.example` is the reference).
+API reads env directly (`printloop-api/.env.example` is the reference).
 The load-bearing ones:
 
 - `DATABASE_URL` — **absent → SQLite** (local dev, zero setup);
@@ -106,7 +109,7 @@ The load-bearing ones:
 
 ```bash
 # Backend
-cd 01-backend
+cd printloop-api
 npm run typecheck        # tsc --noEmit
 npm run test:run         # vitest (unit/integration)
 node scripts/e2e<Name>Test.cjs   # self-contained e2e (spawns own server)
@@ -192,7 +195,7 @@ npx tsc -b && npm run test && npx vite build
 
 The well-worn path (backend → frontend → proof):
 
-1. **Route** in `01-backend/routes/<x>.routes.ts`, **mount** in `app.ts`
+1. **Route** in `printloop-api/src/modules/<area>/routes/`, **mount** in `routes/root.route.ts`
    (mind the middleware order: anonymous routes before tenant resolution).
 2. **Logic** in `services/`; keep money/pricing server-authoritative.
 3. **Schema:** new `entities/*.entity.ts` + a migration registered in
@@ -209,7 +212,7 @@ The well-worn path (backend → frontend → proof):
 
 - **Login fails everywhere → the backend is down.** Vite proxies `/api`
   → `:4000`; if nothing's there, every request fails. Not a credentials
-  issue. Restart `01-backend`.
+  issue. Restart `printloop-api`.
 - **Worker won't consume jobs → Redis too old.** BullMQ needs Redis ≥5;
   a stock Windows Redis is 3.x and gets rejected. Use
   `docker run -d -p 6379:6379 redis:7-alpine` (docker-compose already does).
