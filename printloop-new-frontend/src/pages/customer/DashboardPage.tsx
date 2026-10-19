@@ -128,9 +128,10 @@ export default function DashboardPage() {
     document.addEventListener("click", handlePopupClick);
     return () => document.removeEventListener("click", handlePopupClick);
   }, []);
-  // Trigger nearby demo seeding when location is granted
+  // Dev only: seed demo shops near the user so the map isn't empty. The API
+  // refuses this outside demo mode, so it can never add fake shops in prod.
   useEffect(() => {
-    if (origin) {
+    if (origin && import.meta.env.DEV) {
       fetch("/api/discovery/shops/seed-demo-nearby", {
         method: "POST",
         headers: {

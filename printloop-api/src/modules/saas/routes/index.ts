@@ -8,6 +8,7 @@ import {
 } from '@/common/middleware/rateLimit.middleware';
 import editorRoutes from './editor.routes';
 import kioskAdminRoutes from './kiosk-admin.routes';
+import shopJobsRoutes from './shop-jobs.routes';
 import { createOnboardingRoutes } from './onboarding.routes';
 import { createShopRoutes } from './shop.routes';
 import { createBrandingRoutes } from './branding.routes';
@@ -38,6 +39,7 @@ export const createSaasRoutes = (dataSource: DataSource) => {
   router.use('/editor', editorRoutes);
 
   router.use('/kiosks', authenticate, resolveTenant, kioskAdminRoutes);
+  router.use('/jobs', authenticate, resolveTenant, shopJobsRoutes);
 
   return router;
 };

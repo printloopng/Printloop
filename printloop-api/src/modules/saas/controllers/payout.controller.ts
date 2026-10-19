@@ -6,7 +6,8 @@ import { Payout, PayoutTrigger, PayoutStatus } from '@/database/entities/payout.
 import { Transaction } from '@/database/entities/transaction.entity';
 import {
   getAvailableBalance,
-  initiatePayout,
+  requestPayout,
+  PayoutError,
 } from '@/modules/saas/services/payout.service';
 
 const INSTANT_PAYOUT_FEE_NAIRA = 100;
@@ -145,46 +146,24 @@ export class PayoutController {
   instantPayout = async (req: Request, res: Response) => {
     try {
       const tenant = req.tenant!;
-      const scheduleRepo = this.ds.getRepository(PayoutSchedule);
-      const schedule = await scheduleRepo.findOne({
-        where: { tenantId: tenant.id },
-      });
-      if (!schedule?.recipientCode) {
-        res.status(409).json({
+      let payout;
+      try {
+        payout = await requestPayout({
+          tenantId: tenant.id,
+          trigger: PayoutTrigger.INSTANT,
+          feeAmount: INSTANT_PAYOUT_FEE_NAIRA,
+          notes: `Instant payout (fee ₦${INSTANT_PAYOUT_FEE_NAIRA})`,
+        });
+      } catch (err) {
+        if (!(err instanceof PayoutError)) throw err;
+        res.status(err.code === 'INSUFFICIENT_BALANCE' ? 402 : 409).json({
           success: false,
-          message: 'Add a bank account before requesting a payout',
-          code: 'NO_BANK_ACCOUNT',
+          message: err.message,
+          code: err.code,
+          data: err.data,
         });
         return;
       }
-
-      const available = await getAvailableBalance(tenant.id);
-      const minRequired =
-        Number(schedule.minPayoutAmount) + INSTANT_PAYOUT_FEE_NAIRA;
-      if (available < minRequired) {
-        res.status(402).json({
-          success: false,
-          message: `Available balance is ₦${available}; minimum for instant payout is ₦${minRequired} (includes ₦${INSTANT_PAYOUT_FEE_NAIRA} fee)`,
-          code: 'INSUFFICIENT_BALANCE',
-          data: {
-            available,
-            minRequired,
-            fee: INSTANT_PAYOUT_FEE_NAIRA,
-          },
-        });
-        return;
-      }
-
-      const netPayout = available - INSTANT_PAYOUT_FEE_NAIRA;
-      const payout = await initiatePayout({
-        tenantId: tenant.id,
-        amount: netPayout,
-        recipientCode: schedule.recipientCode,
-        trigger: PayoutTrigger.INSTANT,
-        notes: `Instant payout (fee ₦${INSTANT_PAYOUT_FEE_NAIRA})`,
-      });
-      payout.feeAmount = INSTANT_PAYOUT_FEE_NAIRA;
-      await this.ds.getRepository(Payout).save(payout);
 
       res.status(201).json({
         success: true,

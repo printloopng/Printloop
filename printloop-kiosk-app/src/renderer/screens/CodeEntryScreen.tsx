@@ -29,6 +29,12 @@ function QueueStrip({ queue }: { queue: QueueStatus }) {
   );
 }
 
+// Same alphabet the API issues codes from (core/utils/releaseCode.ts):
+// no 0/O or 1/I, so nothing on the keypad can be misread.
+const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const CODE_LENGTH = 6;
+const KEY_ROWS = ['23456789', 'ABCDEFGH', 'JKLMNPQR', 'STUVWXYZ'];
+
 export function CodeEntryScreen({ queue, onSubmit, onSettings }: CodeEntryScreenProps) {
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -38,26 +44,21 @@ export function CodeEntryScreen({ queue, onSubmit, onSettings }: CodeEntryScreen
     inputRef.current?.focus();
   }, []);
 
-  const handleKeyPress = (key: string) => {
-    if (key === 'backspace') {
-      setCode((prev) => prev.slice(0, -1));
-    } else if (key === 'enter') {
-      if (code.length === 6) {
-        onSubmit(code.toUpperCase());
-      } else {
-        setError('Please enter a 6-character code');
-      }
-    } else if (/^[A-Za-z0-9]$/.test(key) && code.length < 6) {
-      setCode((prev) => prev + key.toUpperCase());
-    }
+  const update = (next: string) => {
+    const clean = next
+      .toUpperCase()
+      .split('')
+      .filter((c) => CODE_ALPHABET.includes(c))
+      .join('')
+      .slice(0, CODE_LENGTH);
+    setError(null);
+    setCode(clean);
+    if (clean.length === CODE_LENGTH) onSubmit(clean);
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
-    setCode(value);
-    if (value.length === 6) {
-      onSubmit(value);
-    }
+  const submit = () => {
+    if (code.length === CODE_LENGTH) onSubmit(code);
+    else setError(`Please enter all ${CODE_LENGTH} characters of your code`);
   };
 
   return (
@@ -85,34 +86,37 @@ export function CodeEntryScreen({ queue, onSubmit, onSettings }: CodeEntryScreen
           
           {error && <div className="error">{error}</div>}
           
+          {/* Physical keyboards / barcode scanners type into this. */}
           <input
             ref={inputRef}
             type="text"
             value={code}
-            onChange={handleInputChange}
-            maxLength={6}
+            onChange={(e) => update(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && submit()}
+            maxLength={CODE_LENGTH}
             className="hidden-input"
             autoComplete="off"
             spellCheck={false}
           />
-          
-          <div className="keypad">
-            {['1','2','3','4','5','6','7','8','9','C','0','⌫'].map((key) => (
-              <button
-                key={key}
-                className={`key ${key === 'C' ? 'clear' : ''} ${key === '⌫' ? 'backspace' : ''}`}
-                onClick={() => {
-                  if (key === 'C') setCode('');
-                  else if (key === '⌫') setCode((prev) => prev.slice(0, -1));
-                  else handleKeyPress(key);
-                }}
-              >
+
+          <div className="keypad alnum">
+            {KEY_ROWS.join('').split('').map((key) => (
+              <button key={key} className="key" onClick={() => update(code + key)}>
                 {key}
               </button>
             ))}
+            <button className="key clear wide" onClick={() => update('')}>
+              Clear
+            </button>
+            <button className="key backspace wide" onClick={() => update(code.slice(0, -1))} aria-label="Delete">
+              ⌫
+            </button>
+            <button className="key enter wide" onClick={submit}>
+              Continue
+            </button>
           </div>
-          
-          <p className="hint">Enter the 6-character code from your receipt or SMS</p>
+
+          <p className="hint">Enter the {CODE_LENGTH}-character code from your receipt, SMS or email</p>
         </div>
       </main>
     </div>

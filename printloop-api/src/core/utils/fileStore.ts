@@ -138,24 +138,88 @@ export async function saveBuffer(buf: Buffer, originalName: string): Promise<Sto
   };
 }
 
+// Upload keys are `${uuid}__${sanitized name}` (see saveBuffer); render
+// artifacts are `renders/<printJobId>/<file>` (render-worker). Anything else
+// (slashes, "..", other objects in the bucket) is not ours to read or serve.
+const STORAGE_KEY_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}__[\w.-]{1,80}$/i;
+const RENDER_KEY_RE = /^renders\/[0-9a-f-]{36}\/[\w.-]{1,120}$/i;
+const MAX_FETCH_BYTES = 100 * 1024 * 1024;
+
+export function isStorageKey(key: string): boolean {
+  return STORAGE_KEY_RE.test(key) && !key.includes('..');
+}
+
+function isReadableKey(key: string): boolean {
+  return isStorageKey(key) || (RENDER_KEY_RE.test(key) && !key.includes('..'));
+}
+
+/** The upload key behind a URL saveBuffer returned (local, S3 or Cloudinary), or null. */
+export function storageKeyFromUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  const last = url.split(/[?#]/)[0].split('/').pop() || '';
+  let key: string;
+  try {
+    key = decodeURIComponent(last);
+  } catch {
+    return null;
+  }
+  return isStorageKey(key) ? key : null;
+}
+
+/** Absolute path for `p` if it resolves inside UPLOAD_DIR, else null. */
+export function insideUploadDir(p: string): string | null {
+  const resolved = path.resolve(p);
+  return resolved.startsWith(UPLOAD_DIR + path.sep) ? resolved : null;
+}
+
+/**
+ * Read an object we stored, by key. S3 is read with credentials, so the
+ * bucket can (and should) stay private.
+ */
+export async function loadStoredObject(key: string): Promise<Buffer | null> {
+  if (!isReadableKey(key)) return null;
+  if (hasS3 && s3Client) {
+    try {
+      const out = await s3Client.send(
+        new GetObjectCommand({ Bucket: process.env.S3_BUCKET!, Key: key }),
+      );
+      if (out.Body) return Buffer.from(await out.Body.transformToByteArray());
+    } catch (err: any) {
+      if (err?.name !== 'NoSuchKey') console.warn('[fileStore] S3 read failed:', err?.message);
+    }
+  }
+  const p = insideUploadDir(path.join(UPLOAD_DIR, key));
+  return p && fs.existsSync(p) ? fs.readFileSync(p) : null;
+}
+
+/**
+ * Bytes for a stored document URL. Only reads what PrintLoop itself stored:
+ * our upload keys, our Cloudinary account, or files inside UPLOAD_DIR. A
+ * client-supplied URL pointing anywhere else (internal hosts, server paths)
+ * yields null.
+ */
 export async function loadDocumentBytes(src: string): Promise<Buffer | null> {
   if (!src) return null;
   try {
-    const m = src.match(/\/api\/files\/([^?#]+)/);
-    if (m) {
-      const p = path.join(UPLOAD_DIR, decodeURIComponent(m[1]));
-      return fs.existsSync(p) ? fs.readFileSync(p) : null;
-    }
-    if (src.startsWith('file://')) return fs.readFileSync(fileURLToPath(src));
-    if (/^[a-zA-Z]:[\\/]/.test(src) || src.startsWith('/')) {
-      return fs.existsSync(src) ? fs.readFileSync(src) : null;
-    }
-    if (/^https?:\/\//i.test(src)) {
-      const r = await axios.get(src, { responseType: 'arraybuffer' });
+    const cloud = process.env.CLOUDINARY_CLOUD_NAME;
+    if (hasCloudinary && cloud && src.startsWith(`https://res.cloudinary.com/${cloud}/`)) {
+      const r = await axios.get(src, {
+        responseType: 'arraybuffer',
+        timeout: 30_000,
+        maxRedirects: 0,
+        maxContentLength: MAX_FETCH_BYTES,
+      });
       return Buffer.from(r.data);
+    }
+    const key = storageKeyFromUrl(src);
+    if (key) return await loadStoredObject(key);
+    if (src.startsWith('file://') || path.isAbsolute(src)) {
+      const p = insideUploadDir(src.startsWith('file://') ? fileURLToPath(src) : src);
+      return p && fs.existsSync(p) ? fs.readFileSync(p) : null;
     }
   } catch {
     return null;
   }
-  return null; // local:// , dev:// , etc.
+  return null;
 }

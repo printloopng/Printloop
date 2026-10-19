@@ -4,7 +4,7 @@ import { DocumentEdit, DocumentEditStatus } from '@/database/entities/documentEd
 import { PrintJob, PrintJobStatus } from '@/database/entities/printJob.entity';
 import { User } from '@/database/entities/user.entity';
 import { config } from '@/config';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID as uuidv4 } from 'node:crypto';
 import * as crypto from 'crypto';
 import axios from 'axios';
 import FormData from 'form-data';

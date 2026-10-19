@@ -45,16 +45,31 @@ export class KioskParticipantUploadController {
         return;
       }
 
-      const { fileURL, fileBase64, fileName, pageCount, mimeType, sizeBytes, printConfiguration } =
-        req.body || {};
-      if ((!fileURL && !fileBase64) || !fileName || !pageCount) {
+      // The document itself must be uploaded (multipart `file`, or base64):
+      // pages and price are always computed from the bytes we store, never
+      // from client-supplied URLs or page counts.
+      const body = req.body || {};
+      const fileName = String(body.fileName || req.file?.originalname || '');
+      const mimeType = body.mimeType || req.file?.mimetype;
+      const fileBase64 = body.fileBase64;
+      let printConfiguration: Record<string, unknown> = {};
+      try {
+        printConfiguration =
+          typeof body.printConfiguration === 'string'
+            ? JSON.parse(body.printConfiguration)
+            : body.printConfiguration || {};
+      } catch {
+        res.status(400).json({ success: false, message: 'printConfiguration must be JSON' });
+        return;
+      }
+      if ((!req.file && !fileBase64) || !fileName) {
         res.status(400).json({
           success: false,
-          message: 'fileName, pageCount and one of fileURL/fileBase64 are required',
+          message: 'Upload the document (multipart "file" or fileBase64) with its fileName',
         });
         return;
       }
-      if (!isPrintableDocument(String(fileName), mimeType)) {
+      if (!isPrintableDocument(fileName, mimeType)) {
         res.status(415).json({
           success: false,
           message: `Unsupported file type. PrintLoop prints ${ALLOWED_LABEL} only.`,
@@ -64,24 +79,21 @@ export class KioskParticipantUploadController {
       }
 
       const limits = await getUploadLimits();
-      let buffer: Buffer | null = null;
-      if (fileBase64) {
-        buffer = Buffer.from(String(fileBase64).replace(/^data:.*?;base64,/, ''), 'base64');
-        if (buffer.length > limits.maxFileBytes) {
-          res.status(413).json({
-            success: false,
-            message: `File too large. Max ${Math.round(limits.maxFileBytes / 1048576)} MB.`,
-            code: 'FILE_TOO_LARGE',
-          });
-          return;
-        }
-        buffer = await flattenAnnotations(buffer);
+      let buffer: Buffer =
+        req.file?.buffer ??
+        Buffer.from(String(fileBase64).replace(/^data:.*?;base64,/, ''), 'base64');
+      if (buffer.length > limits.maxFileBytes) {
+        res.status(413).json({
+          success: false,
+          message: `File too large. Max ${Math.round(limits.maxFileBytes / 1048576)} MB.`,
+          code: 'FILE_TOO_LARGE',
+        });
+        return;
       }
       let authoritativePages: number;
       try {
-        authoritativePages = buffer
-          ? await countPages(buffer, String(fileName))
-          : Math.max(1, Math.min(limits.maxPages, Number(pageCount) || 1));
+        buffer = await flattenAnnotations(buffer);
+        authoritativePages = await countPages(buffer, fileName);
       } catch (e: any) {
         res.status(e instanceof UnsupportedDocumentError ? 415 : 422).json({
           success: false,
@@ -99,9 +111,7 @@ export class KioskParticipantUploadController {
         return;
       }
 
-      const stored = buffer ? await saveBuffer(buffer, String(fileName)) : null;
-      const effectiveFileURL = stored ? stored.url : fileURL;
-      const effectiveSize = stored ? stored.sizeBytes : Number(sizeBytes) || 0;
+      const stored = await saveBuffer(buffer, fileName);
 
       const opts = session.defaultOptions;
       const styleOverride = opts.enforce
@@ -148,10 +158,10 @@ export class KioskParticipantUploadController {
       const savedFile = await fileRepo.save(
         fileRepo.create({
           tenantId: session.tenantId ?? null,
-          fileURL: effectiveFileURL,
+          fileURL: stored.url,
           fileName,
           mimeType: mimeType || 'application/pdf',
-          sizeBytes: effectiveSize,
+          sizeBytes: stored.sizeBytes,
           pageCount: authoritativePages,
           participantId: participant.id,
         }),
@@ -186,7 +196,7 @@ export class KioskParticipantUploadController {
         success: true,
         message: 'File uploaded successfully',
         data: {
-          printJob: { id: savedJob.id, code: savedJob.code, cost, totalPages: Number(pageCount) },
+          printJob: { id: savedJob.id, code: savedJob.code, cost, totalPages: authoritativePages },
           nextStep: 'payment',
         },
       });

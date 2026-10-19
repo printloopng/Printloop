@@ -10,6 +10,7 @@ import type {
 } from '../types';
 
 const EMPTY_SETTINGS: KioskSettings = {
+  apiUrl: '',
   apiKey: '',
   printerUri: '',
   pollInterval: 10000,
@@ -34,7 +35,7 @@ export function useKiosk() {
   const [loading, setLoading] = useState(false);
 
   const isConfigured = useMemo(
-    () => !!(settings.apiKey && settings.printerUri),
+    () => !!(settings.apiUrl && settings.apiKey && settings.printerUri),
     [settings],
   );
 

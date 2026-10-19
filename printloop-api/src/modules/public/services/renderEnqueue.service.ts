@@ -1,4 +1,5 @@
 import { renderQueue } from '@/workers/queues';
+import { storageKeyFromUrl } from '@/core/utils/fileStore';
 import { REDIS_ENABLED } from '@/config/redis';
 import { PrintJob, PrintJobStatus, JobType } from '@/database/entities/printJob.entity';
 import { repos } from '@/config/repos';
@@ -9,7 +10,9 @@ export async function enqueueRender(printJobId: string): Promise<{
   enqueued: boolean;
   reason?: string;
 }> {
-  if (!REDIS_ENABLED) {
+  // Rendering is an optimisation (kiosks print the PDF fine without it), so it
+  // is opt-in: Redis alone is not a signal that a render worker is running.
+  if (!REDIS_ENABLED || process.env.RENDER_ENABLED !== '1') {
     return { enqueued: false, reason: 'render-disabled' };
   }
 
@@ -56,6 +59,8 @@ export async function enqueueRender(printJobId: string): Promise<{
       printJobId: job.id,
       tenantId: job.tenantId,
       sourceFileKey: job.fileId,
+      // The object key the worker downloads from S3 (not the DB file id).
+      sourceStorageKey: storageKeyFromUrl(fileURL),
       sourceFileUrl: fileURL,
       fileName: fileName,
       printConfiguration: job.printConfiguration,
@@ -122,23 +127,14 @@ export async function applyRenderFailure(opts: {
   if (job.status !== PrintJobStatus.RENDERING) {
     return { updated: false, reason: `bad-status:${job.status}` };
   }
-  job.status = PrintJobStatus.FAILED;
+  // The job is paid and the original document is intact: a failed render
+  // just means the kiosk prints the PDF instead of pre-rendered PWG.
+  job.status = job.requiresAccept ? PrintJobStatus.AWAITING_ACCEPT : PrintJobStatus.READY;
   job.renderingStatus = 'failed';
   job.renderingError = opts.errorMessage;
   job.renderingCompletedAt = new Date();
   await repo.save(job);
-  if (job.tenantId) {
-    const { emitTenantEvent } = await import(
-      '@/modules/saas/services/tenantWebhook.service'
-    );
-    const { WebhookEvent } = await import('@/database/entities/tenantWebhook.entity');
-    emitTenantEvent(job.tenantId, WebhookEvent.JOB_FAILED, {
-      printJobId: job.id,
-      code: job.code,
-      reason: opts.errorMessage,
-      source: 'render',
-    });
-  }
+  console.warn(`[render] job ${job.id} render failed (${opts.errorMessage}); falling back to PDF`);
   return { updated: true };
 }
 

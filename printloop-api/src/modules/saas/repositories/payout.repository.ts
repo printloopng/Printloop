@@ -34,7 +34,7 @@ export class PayoutRepository extends BaseRepository<Payout> {
 
   async sumCommittedByTenant(tenantId: string): Promise<number> {
     const row = await this.createQueryBuilder("p")
-      .select(`COALESCE(SUM(CAST(p.amount AS REAL)), 0)`, "total")
+      .select(`COALESCE(SUM(CAST(p.amount AS REAL) + CAST(COALESCE(p.feeAmount, 0) AS REAL)), 0)`, "total")
       .where("p.tenantId = :tid", { tid: tenantId })
       .andWhere("p.status IN (:...states)", {
         states: [

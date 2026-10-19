@@ -37,17 +37,17 @@ export const adminApi = apiSlice.injectEndpoints({
       any,
       { status?: string; search?: string; page?: number; limit?: number } | void
     >({
-      query: (p) => `admin/jobs${qs(p as any)}`,
+      query: (p) => `saas/jobs${qs(p as any)}`,
       transformResponse: unwrap,
       providesTags: ["AdminJobs"],
     }),
     requeueJob: builder.mutation<any, string>({
-      query: (id) => ({ url: `admin/jobs/${id}/requeue`, method: "PATCH" }),
+      query: (id) => ({ url: `saas/jobs/${id}/requeue`, method: "PATCH" }),
       invalidatesTags: ["AdminJobs", "AdminStats"],
     }),
     updateJobStatus: builder.mutation<any, { id: string; status: string }>({
       query: ({ id, status }) => ({
-        url: `admin/jobs/${id}/status`,
+        url: `saas/jobs/${id}/status`,
         method: "PATCH",
         body: { status },
       }),
@@ -188,13 +188,13 @@ export const adminApi = apiSlice.injectEndpoints({
     // One-tap print (V2-57): operator releases a READY job to the
     // tenant's first active kiosk; the on-site agent silent-prints it.
     releaseJob: builder.mutation<any, string>({
-      query: (id) => ({ url: `admin/jobs/${id}/release`, method: "POST" }),
+      query: (id) => ({ url: `saas/jobs/${id}/release`, method: "POST" }),
       invalidatesTags: ["AdminJobs"],
     }),
     // Accept window (V2-58): the operator accepts an awaiting_accept
     // job → READY. Rerouted jobs get their ledger credit here.
     acceptJob: builder.mutation<any, string>({
-      query: (id) => ({ url: `admin/jobs/${id}/accept`, method: "POST" }),
+      query: (id) => ({ url: `saas/jobs/${id}/accept`, method: "POST" }),
       invalidatesTags: ["AdminJobs"],
     }),
 

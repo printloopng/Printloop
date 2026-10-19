@@ -1,8 +1,7 @@
 import ipp from 'ipp';
-import axios from 'axios';
+import { loadDocumentBytes } from '@/core/utils/fileStore';
 import fs from 'node:fs';
 import net from 'node:net';
-import { fileURLToPath } from 'node:url';
 
 export interface PrintOptions {
   copies?: number;
@@ -101,27 +100,8 @@ export class IppService {
       const b64 = src.base64.replace(/^data:.*?;base64,/, '');
       return Buffer.from(b64, 'base64');
     }
-    const url = src.url || '';
-    if (url.startsWith('file://')) {
-      try {
-        return fs.readFileSync(fileURLToPath(url));
-      } catch {
-        return null;
-      }
-    }
-    if (/^([a-zA-Z]:[\\/]|\/)/.test(url) && fs.existsSync(url)) {
-      try {
-        return fs.readFileSync(url);
-      } catch {
-        return null;
-      }
-    }
-    if (!/^https?:\/\//i.test(url)) {
-      console.warn(`[IPP] Non-fetchable file URL "${url}" — skipping byte fetch (dev mode).`);
-      return null;
-    }
-    const res = await axios.get(url, { responseType: 'arraybuffer' });
-    return Buffer.from(res.data);
+    // Only documents PrintLoop stored itself (see loadDocumentBytes).
+    return loadDocumentBytes(src.url || '');
   }
 
   private buildJobAttributes(opts: PrintOptions) {

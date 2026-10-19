@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import { DataSource } from 'typeorm';
 import { authenticate } from '@/common/middleware/auth.middleware';
-import { resolveTenant } from '@/common/middleware/tenant.middleware';
+import { resolveTenant, requireTenantRole } from '@/common/middleware/tenant.middleware';
+import { TenantMemberRole } from '@/database/entities/tenantMember.entity';
 import { requireVerifiedEmail } from '@/common/middleware/verifiedEmail.middleware';
 import { OnboardingController } from '@/modules/saas/controllers/onboarding.controller';
 
@@ -18,6 +19,7 @@ export function createOnboardingRoutes(ds: DataSource): Router {
     authenticate,
     requireVerifiedEmail,
     resolveTenant,
+    requireTenantRole(TenantMemberRole.OWNER, TenantMemberRole.ADMIN),
     ctrl.setupPaystackSubaccount,
   );
   router.post(
@@ -25,6 +27,7 @@ export function createOnboardingRoutes(ds: DataSource): Router {
     authenticate,
     requireVerifiedEmail,
     resolveTenant,
+    requireTenantRole(TenantMemberRole.OWNER, TenantMemberRole.ADMIN),
     ctrl.setupBankAccount,
   );
 

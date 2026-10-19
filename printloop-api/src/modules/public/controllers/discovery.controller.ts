@@ -470,6 +470,11 @@ export class DiscoveryController {
 
   seedDemoNearby = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
+    // Creates real, discoverable tenants — demo/dev environments only.
+    if (process.env.SEED_DEMO !== '1' || process.env.NODE_ENV === 'production') {
+      res.status(404).json({ success: false, message: 'Not found' });
+      return;
+    }
     const lat = Number(req.body.lat);
     const lng = Number(req.body.lng);
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) {

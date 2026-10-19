@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import { DataSource } from 'typeorm';
 import { authenticate } from '@/common/middleware/auth.middleware';
-import { resolveTenant } from '@/common/middleware/tenant.middleware';
+import { resolveTenant, requireTenantRole } from '@/common/middleware/tenant.middleware';
+import { TenantMemberRole } from '@/database/entities/tenantMember.entity';
 import { requireVerifiedEmail } from '@/common/middleware/verifiedEmail.middleware';
 import { GdprController } from '@/modules/saas/controllers/gdpr.controller';
 
@@ -14,6 +15,7 @@ export function createGdprRoutes(ds: DataSource): Router {
     authenticate,
     requireVerifiedEmail,
     resolveTenant,
+    requireTenantRole(TenantMemberRole.OWNER, TenantMemberRole.ADMIN),
     ctrl.exportTenant,
   );
   router.delete(
@@ -21,6 +23,7 @@ export function createGdprRoutes(ds: DataSource): Router {
     authenticate,
     requireVerifiedEmail,
     resolveTenant,
+    requireTenantRole(TenantMemberRole.OWNER, TenantMemberRole.ADMIN),
     ctrl.deleteTenant,
   );
 

@@ -20,7 +20,7 @@ export default function RegisterPage() {
     email: Yup.string().email("Invalid email").required("Email is required"),
     phoneNumber: Yup.string().min(10, "At least 10 digits").required("Phone is required"),
     password: Yup.string()
-      .min(8, "At least 8 characters")
+      .min(10, "At least 10 characters")
       .matches(/[A-Z]/, "Include uppercase")
       .matches(/[a-z]/, "Include lowercase")
       .matches(/[0-9]/, "Include a number")

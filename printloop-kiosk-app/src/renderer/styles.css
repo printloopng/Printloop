@@ -496,3 +496,25 @@ body {
 
 .queue-strip .dot.warn { background: #c7944a; }
 .queue-strip .dot.down { background: #d14b2c; }
+
+/* Full code alphabet keypad: 8 columns, last row Clear / ⌫ / Continue */
+.keypad.alnum {
+  grid-template-columns: repeat(8, 1fr);
+  gap: 8px;
+}
+
+.keypad.alnum .key {
+  aspect-ratio: auto;
+  min-height: 64px;
+  font-size: 1.375rem;
+}
+
+.keypad.alnum .key.wide { grid-column: span 2; font-size: 1.125rem; }
+.keypad.alnum .key.enter {
+  grid-column: span 4;
+  background: #d14b2c;
+  border-color: #d14b2c;
+  color: #fff;
+}
+
+.code-entry .card { max-width: 760px; }

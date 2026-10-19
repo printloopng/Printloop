@@ -6,7 +6,7 @@ import { PrintJob, PrintJobStatus } from '@/database/entities/printJob.entity';
 import { PrintJobItem } from '@/database/entities/printJobItem.entity';
 import { File } from '@/database/entities/file.entity';
 import { SystemSetting } from '@/database/entities/systemSetting.entity';
-import { UPLOAD_DIR } from '@/core/utils/fileStore';
+import { UPLOAD_DIR, storageKeyFromUrl, insideUploadDir } from '@/core/utils/fileStore';
 
 const TERMINAL_STATUSES = [
   PrintJobStatus.DONE,
@@ -32,10 +32,9 @@ async function getRetentionHours(): Promise<number> {
 }
 
 function diskPathFor(url: string | null | undefined): string | null {
-  if (!url) return null;
-  const m = url.match(/\/api\/files\/([^/?#]+)/);
-  if (!m) return null;
-  return path.join(UPLOAD_DIR, decodeURIComponent(m[1]));
+  if (!url || !/\/api\/files\//.test(url)) return null;
+  const key = storageKeyFromUrl(url);
+  return key ? insideUploadDir(path.join(UPLOAD_DIR, key)) : null;
 }
 
 function unlinkIfExists(p: string): boolean {

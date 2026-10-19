@@ -1,13 +1,12 @@
 import { type Request, type Response, type NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import path from 'node:path';
 import { IsNull } from 'typeorm';
 import { AppDataSource } from '@/config/data-source';
 import { PrintJob, PrintJobStatus } from '@/database/entities/printJob.entity';
 import { PrintJobItem } from '@/database/entities/printJobItem.entity';
 import { File } from '@/database/entities/file.entity';
 import { Kiosk } from '@/database/entities/kiosk.entity';
-import { loadDocumentBytes, UPLOAD_DIR } from '@/core/utils/fileStore';
+import { loadDocumentBytes, loadStoredObject } from '@/core/utils/fileStore';
 import {
   ensurePdf,
   extractPages,
@@ -287,13 +286,7 @@ export class KioskAgentController {
       }
 
       if (!req.query.item && printJob.renderedKey) {
-        const s3Bucket = process.env.S3_BUCKET;
-        const s3Region = process.env.AWS_REGION || 'us-east-1';
-        const fileURL = s3Bucket
-          ? `https://${s3Bucket}.s3.${s3Region}.amazonaws.com/${printJob.renderedKey}`
-          : path.join(UPLOAD_DIR, printJob.renderedKey);
-
-        const rawBytes = await loadDocumentBytes(fileURL);
+        const rawBytes = await loadStoredObject(printJob.renderedKey);
         if (!rawBytes) {
           res.status(502).json({ success: false, message: 'Rendered file not retrievable' });
           return;

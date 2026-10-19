@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { AppDataSource } from '@/config/data-source';
 import { Tenant, TenantStatus } from '@/database/entities/tenant.entity';
 import { UserRole } from '@/database/entities/user.entity';
+import { TenantMemberRole } from '@/database/entities/tenantMember.entity';
 
 export const LEGACY_TENANT_SLUG = 'legacy';
 
@@ -124,6 +125,30 @@ export const optionalTenant = async (
     next();
   }
 };
+
+/**
+ * After resolveTenant: only members with one of `roles` in this tenant (or
+ * platform super admins) may continue. Used on money and data-export
+ * actions so future STAFF members can't move funds or data.
+ */
+export const requireTenantRole =
+  (...roles: TenantMemberRole[]) =>
+  (req: Request, res: Response, next: NextFunction): void => {
+    const user = (req as any).user;
+    const tenantId = req.tenant?.id;
+    if (user?.role === UserRole.SUPER_ADMIN) return next();
+    const memberships = (req.tenantMemberships || []).filter((m) => m.tenantId === tenantId);
+    const allowed =
+      memberships.some((m) => roles.includes(m.role)) ||
+      // Tenant admins created before memberships existed have none for this tenant.
+      (memberships.length === 0 && user?.role === UserRole.ADMIN && user?.tenantId === tenantId);
+    if (allowed) return next();
+    res.status(403).json({
+      success: false,
+      message: 'Only the shop owner or an admin can do this.',
+      code: 'TENANT_ROLE_REQUIRED',
+    });
+  };
 
 export function requestCanAccessTenant(req: Request, tenant: Tenant): boolean {
   const user = (req as any).user;

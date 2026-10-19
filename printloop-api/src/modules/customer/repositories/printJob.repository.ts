@@ -109,7 +109,7 @@ export class PrintJobRepository extends BaseRepository<PrintJob> {
   async completePrintJobPayment(
     jobId: string,
     reference: string,
-    opts?: { authorizationCode?: string | null },
+    opts: { authorizationCode?: string | null; paidKobo: number; currency?: string | null },
     computeCommission?: (tenant: Tenant, cost: number) => number,
   ): Promise<{
     success: boolean;
@@ -117,6 +117,7 @@ export class PrintJobRepository extends BaseRepository<PrintJob> {
     job?: PrintJob;
     commissionAmount?: number;
     completedPayment?: boolean;
+    reason?: string;
   }> {
     return this.manager.transaction(async (em) => {
       const job = await em.findOne(PrintJob, {
@@ -133,6 +134,20 @@ export class PrintJobRepository extends BaseRepository<PrintJob> {
           job,
           completedPayment: false,
         };
+      }
+
+      // The charge must actually cover this job: anyone can start a Paystack
+      // transaction with the public key and arbitrary metadata.jobId.
+      const dueKobo = Math.round(Number(job.cost) * 100);
+      if (!(Number(opts.paidKobo) >= dueKobo) || (opts.currency && opts.currency !== "NGN")) {
+        console.error(
+          `[payments] job ${jobId}: charge ${reference} paid ${opts.paidKobo} ${opts.currency ?? ""} kobo, due ${dueKobo} — not marking paid`,
+        );
+        return { success: false, job, completedPayment: false, reason: "amount-mismatch" };
+      }
+      if (await em.findOne(Payment, { where: { reference } })) {
+        console.error(`[payments] job ${jobId}: reference ${reference} already settled another payment`);
+        return { success: false, job, completedPayment: false, reason: "reference-reused" };
       }
 
       const code = job.code || makeCode(6);

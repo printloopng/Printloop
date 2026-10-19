@@ -25,7 +25,9 @@ async function updateQueueDepth(queue: Queue) {
 
 export interface RenderJobData {
   printJobId: string;
-  fileId: string;
+  fileId?: string;
+  // S3 object key of the uploaded document (the API sends this; fileId is a DB id).
+  sourceStorageKey?: string | null;
   tenantId: string;
   printerProfileId?: string;
   sourceFileUrl?: string;
@@ -102,7 +104,7 @@ async function callbackFailureToBackend(payload: RenderFailurePayload): Promise<
 }
 
 async function processRenderJob(job: Job<RenderJobData>) {
-  const { printJobId, fileId, tenantId, printerProfileId, printerProfile, sourceFileUrl, fileName, printConfiguration } = job.data;
+  const { printJobId, fileId, sourceStorageKey, tenantId, printerProfileId, printerProfile, sourceFileUrl, fileName, printConfiguration } = job.data;
   const attempt = job.attemptsMade + 1; // BullMQ tracks attemptsMade (0-indexed)
   const log = logger.child({ printJobId, tenantId, printerProfileId, attempt });
   
@@ -118,7 +120,9 @@ async function processRenderJob(job: Job<RenderJobData>) {
   
   await job.updateProgress(5);
   
-  const pdfBuffer = await downloadFromS3(fileId);
+  const sourceKey = sourceStorageKey || fileId;
+  if (!sourceKey) throw new Error("Render job has no source storage key");
+  const pdfBuffer = await downloadFromS3(sourceKey);
   log.info({ size: pdfBuffer.length }, 'Downloaded PDF from S3');
   
   await job.updateProgress(10);

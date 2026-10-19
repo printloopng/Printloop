@@ -1,4 +1,5 @@
 import { repos } from '@/config/repos';
+import { AppDataSource } from '@/config/data-source';
 import { TenantStatus } from '@/database/entities/tenant.entity';
 import { TransactionType } from '@/database/entities/transaction.entity';
 import {
@@ -44,23 +45,13 @@ export async function processDuePayouts(now: Date = new Date()): Promise<{
         skipped++;
         continue;
       }
-      if (!schedule.recipientCode) {
-        skipped++;
-        continue;
-      }
-      const available = await getAvailableBalance(schedule.tenantId);
-      if (available < Number(schedule.minPayoutAmount)) {
-        skipped++;
-        continue;
-      }
-      await initiatePayout({
-        tenantId: schedule.tenantId,
-        amount: available,
-        recipientCode: schedule.recipientCode,
-        trigger: PayoutTrigger.SCHEDULED,
-      });
+      await requestPayout({ tenantId: schedule.tenantId, trigger: PayoutTrigger.SCHEDULED });
       processed++;
     } catch (err) {
+      if (err instanceof PayoutError) {
+        skipped++;
+        continue;
+      }
       console.error(
         `[payouts] failed for tenant ${schedule.tenantId}:`,
         err,
@@ -77,31 +68,105 @@ export async function processDuePayouts(now: Date = new Date()): Promise<{
   };
 }
 
-export async function initiatePayout(opts: {
+export class PayoutError extends Error {
+  constructor(
+    public code: 'SPLIT_SETTLED' | 'NO_BANK_ACCOUNT' | 'INSUFFICIENT_BALANCE',
+    message: string,
+    public data?: Record<string, unknown>,
+  ) {
+    super(message);
+  }
+}
+
+const localPayoutLocks = new Map<string, Promise<void>>();
+
+/**
+ * One payout decision per tenant at a time: in-process queue plus a Postgres
+ * advisory lock (held until the reservation is committed) across replicas.
+ * Without it two simultaneous requests both see the full balance.
+ */
+async function withTenantPayoutLock<T>(tenantId: string, fn: () => Promise<T>): Promise<T> {
+  const prev = localPayoutLocks.get(tenantId) ?? Promise.resolve();
+  let release!: () => void;
+  const mine = new Promise<void>((r) => (release = r));
+  const tail = prev.then(() => mine);
+  localPayoutLocks.set(tenantId, tail);
+  await prev;
+  try {
+    if (AppDataSource.options.type === 'postgres') {
+      return await AppDataSource.transaction(async (em) => {
+        await em.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`payout:${tenantId}`]);
+        return fn();
+      });
+    }
+    return await fn();
+  } finally {
+    release();
+    if (localPayoutLocks.get(tenantId) === tail) localPayoutLocks.delete(tenantId);
+  }
+}
+
+/**
+ * Pays out a tenant's whole available balance (minus `feeAmount`) to its
+ * bank account. Balance check and PENDING reservation happen under the
+ * tenant lock; the Paystack transfer runs after.
+ */
+export async function requestPayout(opts: {
   tenantId: string;
-  amount: number;
-  recipientCode: string;
   trigger: PayoutTrigger;
+  feeAmount?: number;
   notes?: string;
 }): Promise<Payout> {
+  const fee = opts.feeAmount ?? 0;
+  const { payout, recipientCode } = await withTenantPayoutLock(opts.tenantId, async () => {
+    const tenant = await repos.tenant().findOne({ where: { id: opts.tenantId } });
+    // Split-settled shops already receive their share directly from Paystack
+    // on every charge; paying the ledger balance again would double-pay them.
+    if (tenant?.paystackSubaccountCode) {
+      throw new PayoutError(
+        'SPLIT_SETTLED',
+        'Earnings for this shop are settled automatically to its bank by Paystack; manual payouts are disabled.',
+      );
+    }
+    const schedule = await repos.payoutSchedule().findOne({ where: { tenantId: opts.tenantId } });
+    if (!schedule?.recipientCode) {
+      throw new PayoutError('NO_BANK_ACCOUNT', 'Add a bank account before requesting a payout');
+    }
+    const available = await getAvailableBalance(opts.tenantId);
+    const minRequired = Number(schedule.minPayoutAmount) + fee;
+    if (available < minRequired || available - fee <= 0) {
+      throw new PayoutError(
+        'INSUFFICIENT_BALANCE',
+        `Available balance is ₦${available}; minimum for this payout is ₦${minRequired}${fee ? ` (includes ₦${fee} fee)` : ''}`,
+        { available, minRequired, fee },
+      );
+    }
+    const payoutRepo = repos.payout();
+    const reserved = await payoutRepo.save(
+      payoutRepo.create({
+        tenantId: opts.tenantId,
+        amount: Math.round((available - fee) * 100) / 100,
+        feeAmount: fee,
+        currency: 'NGN',
+        status: PayoutStatus.PENDING,
+        trigger: opts.trigger,
+        paystackTransferReference: null,
+        failureReason: null,
+        requestedAt: new Date(),
+        paidAt: null,
+        notes: opts.notes ?? null,
+      }),
+    );
+    return { payout: reserved, recipientCode: schedule.recipientCode };
+  });
+  return sendTransfer(payout, recipientCode);
+}
+
+async function sendTransfer(reserved: Payout, recipientCode: string): Promise<Payout> {
   const paystack = new PaystackService();
   const payoutRepo = repos.payout();
-
-  let payout = await payoutRepo.save(
-    payoutRepo.create({
-      tenantId: opts.tenantId,
-      amount: opts.amount,
-      feeAmount: 0,
-      currency: 'NGN',
-      status: PayoutStatus.PENDING,
-      trigger: opts.trigger,
-      paystackTransferReference: null,
-      failureReason: null,
-      requestedAt: new Date(),
-      paidAt: null,
-      notes: opts.notes ?? null,
-    }),
-  );
+  let payout = reserved;
+  const opts = { tenantId: payout.tenantId, amount: Number(payout.amount), recipientCode };
 
   const previousStatus = PayoutStatus.PENDING;
   try {

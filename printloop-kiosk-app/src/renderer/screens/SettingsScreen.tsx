@@ -3,12 +3,13 @@ import React, { useState, useEffect } from 'react';
 interface SettingsScreenProps {
   onSave: () => void;
   settings: {
+    apiUrl: string;
     apiKey: string;
     printerUri: string;
     pollInterval: number;
     kioskName: string;
   };
-  onUpdateSetting: (key: string, value: unknown) => void;
+  onUpdateSetting: (key: string, value: unknown) => Promise<void>;
   printers: Array<{ uri: string; name: string; makeAndModel: string; state: string; isDefault: boolean }>;
   onRefreshPrinters: () => void;
   onTestPrinter: (printerUri: string) => Promise<{ success: boolean; error?: string }>;
@@ -25,6 +26,7 @@ export function SettingsScreen({
   const [formData, setFormData] = useState(settings);
   const [testingPrinter, setTestingPrinter] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<{ success: boolean; error?: string } | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
     setFormData(settings);
@@ -35,10 +37,16 @@ export function SettingsScreen({
   };
 
   const handleSave = async () => {
-    for (const [key, value] of Object.entries(formData)) {
-      await onUpdateSetting(key, value);
+    setSaveError(null);
+    try {
+      for (const [key, value] of Object.entries(formData)) {
+        await onUpdateSetting(key, value);
+      }
+      onSave();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Could not save settings';
+      setSaveError(msg.replace(/^Error invoking remote method '[^']+': (Error: )?/, ''));
     }
-    onSave();
   };
 
   const handleTest = async (printerUri: string) => {
@@ -61,6 +69,17 @@ export function SettingsScreen({
         <div className="card">
           <section className="settings-section">
             <h2>Cloud Connection</h2>
+            <div className="form-group">
+              <label htmlFor="apiUrl">Server address</label>
+              <input
+                id="apiUrl"
+                type="url"
+                value={formData.apiUrl}
+                onChange={(e) => handleChange('apiUrl', e.target.value.trim())}
+                placeholder="https://api.printloop.app"
+              />
+              <p className="form-hint">The PrintLoop API this kiosk talks to (from your PrintLoop admin).</p>
+            </div>
             <div className="form-group">
               <label htmlFor="apiKey">API Key</label>
               <input
@@ -151,6 +170,7 @@ export function SettingsScreen({
             </div>
           </section>
 
+          {saveError && <div className="error">{saveError}</div>}
           <div className="actions">
             <button className="btn btn-primary btn-large" onClick={handleSave}>
               Save Settings

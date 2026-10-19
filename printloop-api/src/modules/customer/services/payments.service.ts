@@ -6,7 +6,7 @@ import { computeCommissionSplit } from '@/modules/saas/services/commission.servi
 export async function completePrintJobPayment(
   jobId: string,
   reference: string,
-  opts?: { authorizationCode?: string | null },
+  opts: { authorizationCode?: string | null; paidKobo: number; currency?: string | null },
 ): Promise<{ success: boolean; code?: string }> {
   const result = await repos.printJob().completePrintJobPayment(
     jobId,

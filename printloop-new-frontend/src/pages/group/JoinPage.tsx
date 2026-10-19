@@ -155,31 +155,33 @@ export default function JoinPage() {
     if (!file) return toast.error("Choose a document.");
     setBusy(true);
     try {
+      // The document itself goes up; the server counts its pages and prices it.
+      const body = new FormData();
+      body.append("file", file, file.name);
+      body.append("fileName", file.name);
+      body.append("mimeType", file.type || "application/pdf");
+      // Copies (and the rest) always travel — the server ignores
+      // output-style overrides on enforced sessions but copies stay
+      // participant-controlled either way.
+      body.append(
+        "printConfiguration",
+        JSON.stringify({
+          copies: cfg.copies,
+          ...(enforced
+            ? {}
+            : {
+                paper: cfg.paper,
+                color: cfg.color,
+                sided: cfg.sided,
+                qualityDpi: cfg.qualityDpi,
+                orientation: cfg.orientation,
+              }),
+        }),
+      );
       const r = await fetch(`${API}/participant-upload/upload`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "X-Upload-Token": token },
-        body: JSON.stringify({
-          fileURL: `local://${encodeURIComponent(file.name)}`,
-          fileName: file.name,
-          pageCount: printed,
-          mimeType: file.type || "application/pdf",
-          sizeBytes: file.size,
-          // Copies (and the rest) always travel — the server ignores
-          // output-style overrides on enforced sessions but copies stay
-          // participant-controlled either way.
-          printConfiguration: {
-            copies: cfg.copies,
-            ...(enforced
-              ? {}
-              : {
-                  paper: cfg.paper,
-                  color: cfg.color,
-                  sided: cfg.sided,
-                  qualityDpi: cfg.qualityDpi,
-                  orientation: cfg.orientation,
-                }),
-          },
-        }),
+        headers: { "X-Upload-Token": token },
+        body,
       });
       const j = await r.json();
       if (!r.ok || !j.success) throw new Error(j?.message || "Upload failed.");

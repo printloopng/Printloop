@@ -1,12 +1,13 @@
 import axios, { AxiosError, AxiosInstance } from 'axios';
-import { getApiUrl } from '../config';
 import { getSettings } from './settings';
 
 /** Axios client for the PrintLoop API, authenticated with this kiosk's key. */
 export function kioskApi(): AxiosInstance {
+  const { apiUrl, apiKey } = getSettings();
+  if (!apiUrl) throw new Error('Set the PrintLoop server address in kiosk settings');
   return axios.create({
-    baseURL: `${getApiUrl()}/api`,
-    headers: { 'X-Kiosk-Key': getSettings().apiKey },
+    baseURL: `${apiUrl}/api`,
+    headers: { 'X-Kiosk-Key': apiKey },
     timeout: 15_000,
   });
 }

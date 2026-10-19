@@ -12,7 +12,7 @@ import { authenticate } from '@/common/middleware/auth.middleware';
 import { resolveTenant } from '@/common/middleware/tenant.middleware';
 import { config } from '@/config';
 import { notificationQueue } from '@/workers/queues';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID as uuidv4 } from 'node:crypto';
 import * as crypto from 'crypto';
 
 const router = Router();

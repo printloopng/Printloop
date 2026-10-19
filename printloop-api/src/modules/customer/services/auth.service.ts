@@ -28,6 +28,9 @@ async function resolveTenantId(req: Request): Promise<string | null> {
   return tenantId;
 }
 
+// Matches password reset and shop-owner signup.
+const MIN_PASSWORD_LENGTH = 10;
+
 export class CustomerAuthService {
   async register(req: Request, body: RegisterInput) {
     const firstName = String(body.firstName);
@@ -36,6 +39,12 @@ export class CustomerAuthService {
     const password = String(body.password);
     const repo = repos.user();
     const normEmail = String(body.email).trim().toLowerCase();
+    if (password.length < MIN_PASSWORD_LENGTH) {
+      return {
+        status: 400 as const,
+        body: { success: false, message: `Password must be at least ${MIN_PASSWORD_LENGTH} characters` },
+      };
+    }
 
     const tenantId = await resolveTenantId(req);
     if (!tenantId) {
@@ -201,6 +210,13 @@ export class CustomerAuthService {
       return {
         status: 400 as const,
         body: { success: false, message: 'Incorrect old password' },
+      };
+    }
+
+    if (String(newPassword ?? '').length < MIN_PASSWORD_LENGTH) {
+      return {
+        status: 400 as const,
+        body: { success: false, message: `New password must be at least ${MIN_PASSWORD_LENGTH} characters` },
       };
     }
 

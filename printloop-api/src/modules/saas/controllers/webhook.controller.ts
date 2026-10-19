@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { assertPublicUrl, UnsafeUrlError } from '@/core/utils/outboundUrl';
 import { AppDataSource } from '@/config/data-source';
 import {
   createWebhookBodySchema,
@@ -34,6 +35,13 @@ export class WebhookController {
         '@/modules/saas/services/tenantWebhook.service'
       );
       const { name, url, events } = parsed.data;
+      try {
+        await assertPublicUrl(String(url));
+      } catch (e: any) {
+        if (!(e instanceof UnsafeUrlError)) throw e;
+        res.status(400).json({ success: false, message: e.message, code: 'UNSAFE_WEBHOOK_URL' });
+        return;
+      }
       const allowed = Object.values(WebhookEvent) as string[];
       const cleaned: any[] = Array.isArray(events)
         ? events.filter((e: string) => allowed.includes(e))

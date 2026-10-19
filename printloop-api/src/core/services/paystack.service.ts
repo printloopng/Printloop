@@ -262,8 +262,12 @@ export class PaystackService {
         );
         const authorizationCode: string | null =
           data.authorization?.authorization_code ?? null;
+        // data.amount is what Paystack actually charged (kobo) — checked
+        // against the job's price before it is marked paid.
         const res = await completePrintJobPayment(metadata.jobId, reference, {
           authorizationCode,
+          paidKobo: Number(data.amount),
+          currency: data.currency ?? null,
         });
         return {
           handled: true,

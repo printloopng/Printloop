@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { assertPublicUrl } from '@/core/utils/outboundUrl';
 import { repos } from '@/config/repos';
 import {
   TenantWebhook,
@@ -78,6 +79,8 @@ export async function deliverWebhook(job: {
 
   const repo = repos.tenantWebhook();
   try {
+    // Re-checked at delivery: the host's DNS may now point somewhere internal.
+    await assertPublicUrl(job.url);
     const res = await fetch(job.url, {
       method: 'POST',
       headers: {
@@ -86,6 +89,8 @@ export async function deliverWebhook(job: {
         'X-PrintLoop-Event': job.event,
       },
       body: raw,
+      redirect: 'manual',
+      signal: AbortSignal.timeout(10_000),
     });
     if (!res.ok) {
       await stampFailure(repo, job.webhookId, `HTTP ${res.status}`);

@@ -22,7 +22,16 @@ export function validateDeployEnv(): EnvIssue[] {
 
   required('DATABASE_URL', 'missing (DATABASE_URL) — Postgres required in production');
   required('REDIS_URL', 'missing (REDIS_URL) — queues/accept-window depend on Redis');
-  required('RENDER_CALLBACK_SECRET');
+  if (process.env.RENDER_ENABLED === '1') required('RENDER_CALLBACK_SECRET');
+  const objectStorage = Boolean(
+    (process.env.S3_BUCKET && process.env.S3_ACCESS_KEY_ID) || process.env.CLOUDINARY_CLOUD_NAME,
+  );
+  if (!objectStorage) {
+    required(
+      'PUBLIC_BASE_URL',
+      'missing (PUBLIC_BASE_URL) — local-disk file links would point at localhost',
+    );
+  }
   required('PAYSTACK_SECRET_KEY');
   required('PRINTLOOP_APEX_DOMAINS');
 
