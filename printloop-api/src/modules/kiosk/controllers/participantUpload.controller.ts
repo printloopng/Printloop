@@ -16,6 +16,10 @@ import { getUploadLimits } from '@/core/utils/limits';
 import { applyPromotion } from '@/modules/customer/services/promotion.service';
 import { computeCost } from '@/modules/public/services/pricing.service';
 import { makeCode } from '@/core/utils/releaseCode';
+import { Tenant } from '@/database/entities/tenant.entity';
+import { GroupParticipant } from '@/database/entities/groupParticipant.entity';
+import { PaystackService } from '@/core/services/paystack.service';
+import { isTrustedReturnUrl } from '@/core/utils/appUrls';
 
 const groupService = new GroupSessionService();
 
@@ -136,6 +140,7 @@ export class KioskParticipantUploadController {
       );
 
       const baseCost = await computeCost({
+        tenantId: session.tenantId,
         pageCount: authoritativePages,
         paper: effective.paper,
         color: effective.color,
@@ -144,6 +149,7 @@ export class KioskParticipantUploadController {
         copies: requestedCopies,
       });
       const promo = await applyPromotion(baseCost, req.body?.promotionCode, {
+        tenantId: session.tenantId,
         pageCount: authoritativePages,
         perPageBw: 5,
       });
@@ -200,6 +206,84 @@ export class KioskParticipantUploadController {
     } catch (error: any) {
       console.error('Participant upload error:', error);
       next(error);
+    }
+  };
+
+  private async participantFrom(req: Request, res: Response) {
+    const uploadToken = String(req.headers['x-upload-token'] || '');
+    const found = uploadToken ? await groupService.getParticipantByToken(uploadToken) : null;
+    if (!found) {
+      res.status(401).json({ success: false, message: 'Invalid upload token' });
+      return null;
+    }
+    const job = found.participant.printJobId
+      ? await AppDataSource.getRepository(PrintJob).findOne({ where: { id: found.participant.printJobId } })
+      : null;
+    return { ...found, job };
+  }
+
+  status = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const found = await this.participantFrom(req, res);
+      if (!found) return;
+      const { participant, session, job } = found;
+      res.json({
+        success: true,
+        data: {
+          participant: { id: participant.id, name: participant.name, status: participant.status },
+          session: { groupName: session.groupName, status: session.status, deadline: session.deadline },
+          printJob: job
+            ? { id: job.id, code: job.code, cost: Number(job.cost), status: job.status, totalPages: job.totalPages }
+            : null,
+        },
+      });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  pay = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const found = await this.participantFrom(req, res);
+      if (!found) return;
+      const { participant, session, job } = found;
+      if (!job) {
+        res.status(409).json({ success: false, message: 'Upload your document first', code: 'NOTHING_TO_PAY' });
+        return;
+      }
+      if (job.status !== PrintJobStatus.PENDING) {
+        res.status(409).json({ success: false, message: 'This document is already paid for', code: 'ALREADY_PAID' });
+        return;
+      }
+      const email = String(req.body?.email || participant.email || '').trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        res.status(400).json({ success: false, message: 'Enter an email address for your payment receipt', code: 'EMAIL_REQUIRED' });
+        return;
+      }
+      if (!participant.email) {
+        participant.email = email;
+        await AppDataSource.getRepository(GroupParticipant).save(participant);
+      }
+      const tenant = session.tenantId
+        ? await AppDataSource.getRepository(Tenant).findOne({ where: { id: session.tenantId } })
+        : null;
+      const callbackUrl = isTrustedReturnUrl(req.body?.callbackUrl, tenant?.customDomain) ? req.body.callbackUrl : undefined;
+      if (!process.env.PAYSTACK_SECRET_KEY) {
+        const reference = `DEV_JOB_${job.id}_${Date.now()}`;
+        res.json({ success: true, data: { authorizationUrl: `https://checkout.paystack.com/mock_${reference}`, reference, mock: true } });
+        return;
+      }
+      const data = await new PaystackService().initializeJobPayment(
+        participant.userId ?? `guest:${participant.id}`,
+        job.id,
+        Number(job.cost),
+        email,
+        tenant ?? undefined,
+        callbackUrl,
+      );
+      res.json({ success: true, data });
+    } catch (err) {
+      next(err);
     }
   };
 }

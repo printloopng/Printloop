@@ -15,8 +15,8 @@ const configSchema = z.object({
     .enum(["development", "production", "staging", "test"])
     .default("development"),
   appUrl: z.string().default("http://localhost:4000"),
-  frontendUrl: z.string().default("http://localhost:5173"),
-  allowedOrigins: z.array(z.string()).default(["http://localhost:5173"]),
+  frontendUrl: z.string().default("http://localhost:3001"),
+  allowedOrigins: z.array(z.string()).default(["http://localhost:3000", "http://localhost:3001", "http://localhost:3002", "http://localhost:3003"]),
   database: z.object({
     url: z.string().optional(),
     file: z.string().default("./data/printloop.sqlite"),
@@ -60,8 +60,8 @@ const parsed = configSchema.parse({
   port: process.env.PORT ?? "4000",
   nodeEnv: process.env.NODE_ENV ?? "development",
   appUrl: process.env.APP_URL ?? process.env.FRONTEND_URL ?? "http://localhost:4000",
-  frontendUrl: process.env.FRONTEND_URL ?? "http://localhost:5173",
-  allowedOrigins: (process.env.ALLOWED_ORIGINS || "http://localhost:5173")
+  frontendUrl: process.env.FRONTEND_URL ?? "http://localhost:3001",
+  allowedOrigins: (process.env.ALLOWED_ORIGINS || "http://localhost:3000,http://localhost:3001,http://localhost:3002,http://localhost:3003")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean),
@@ -201,7 +201,7 @@ export const config = {
     univerLibreOfficeUrl:
       process.env.LIBREOFFICE_UNO_URL ||
       "socket,host=libreoffice,port=2002;urp;StarOffice.ComponentContext",
-    univerExportUrl: process.env.UNIVER_EXPORT_URL || "http://localhost:3001/export",
+    univerExportUrl: process.env.UNIVER_EXPORT_URL || "",
     coturnPassword: process.env.COTURN_PASSWORD || "changeme",
     turnServer: process.env.TURN_SERVER || "",
     turnTlsServer: process.env.TURN_TLS_SERVER || "",

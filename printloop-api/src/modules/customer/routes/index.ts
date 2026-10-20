@@ -9,8 +9,10 @@ import {
   loginLimiter,
   signupLimiter,
   passwordResetLimiter,
+  otpLimiter,
 } from "@/common/middleware/rateLimit.middleware";
 import authRoutes from "./auth.routes";
+import { allowUploadTicket } from "@/common/middleware/uploadTicket.middleware";
 import printRoutes from "./print.routes";
 import paymentsRoutes from "./payments.routes";
 import groupsRoutes from "./groups.routes";
@@ -23,8 +25,14 @@ export const createCustomerRoutes = (_dataSource: DataSource) => {
 
   router.use("/auth/login", loginLimiter);
   router.use("/auth/register", signupLimiter);
+  router.use("/auth/verify-email", otpLimiter);
+  router.use("/auth/resend-verification", otpLimiter);
   router.use("/auth", optionalTenant, authRoutes);
 
+  router.use(
+    "/print-jobs",
+    allowUploadTicket("print-document", (r) => r.method === "POST" && (r.path === "/" || r.path === "/batch")),
+  );
   router.use(authenticate, resolveTenant, printRoutes);
   return router;
 };

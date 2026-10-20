@@ -19,6 +19,24 @@ export class CustomerAuthController {
     }
   };
 
+  verifyEmail = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const result = await authService.verifyEmail(req, req.body || {});
+      res.status(result.status).json(result.body);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  resendVerification = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const result = await authService.resendVerification(req, req.body || {});
+      res.status(result.status).json(result.body);
+    } catch (error) {
+      next(error);
+    }
+  };
+
   login = async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
     try {
       const result = await authService.login(req, req.body);

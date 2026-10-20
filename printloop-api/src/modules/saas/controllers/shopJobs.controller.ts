@@ -5,6 +5,9 @@ import { Kiosk, KioskStatus } from '@/database/entities/kiosk.entity';
 import { WebhookEvent } from '@/database/entities/tenantWebhook.entity';
 import { emitTenantEvent } from '@/modules/saas/services/tenantWebhook.service';
 import { acceptJob } from '@/modules/customer/services/acceptWindow.service';
+import { releaseJobToKiosk } from '@/modules/kiosk/services/release.service';
+import { printDispatchMode } from '@/modules/saas/services/printPolicy.service';
+import { writeAudit } from '@/core/services/audit.service';
 
 const LIVE_STATUSES = [
   PrintJobStatus.PENDING,
@@ -103,6 +106,7 @@ export class ShopJobsController {
       }
       const result = await acceptJob(job.id);
       if (!result.accepted) return conflict(res, `Job can't be accepted (${result.reason})`);
+      await writeAudit(req, 'job.accepted', `job:${job.id}`, { code: job.code });
       res.json({ success: true, data: { status: PrintJobStatus.READY } });
     } catch (err) {
       next(err);
@@ -116,12 +120,20 @@ export class ShopJobsController {
         where: { tenantId, status: KioskStatus.ACTIVE },
         order: { lastSeenAt: 'DESC' },
       });
-      const ok = await transition(tenantId, req.params.id, [PrintJobStatus.READY], {
-        status: PrintJobStatus.RELEASING,
-        kioskId: (kiosk?.id ?? null) as any,
-        pagesCompleted: 0,
-      });
-      if (!ok) return conflict(res, 'Only jobs that are ready can be sent to the printer');
+      if ((await printDispatchMode()) !== 'kiosk-pull') {
+        return conflict(res, 'Releasing from the console needs kiosk-pull dispatch mode');
+      }
+      const job = await AppDataSource.getRepository(PrintJob).findOne({ where: { id: req.params.id, tenantId } });
+      if (!job) {
+        res.status(404).json({ success: false, message: 'Job not found' });
+        return;
+      }
+      const result = await releaseJobToKiosk(job, kiosk?.id ?? null);
+      if (!result.ok) {
+        res.status(result.status).json({ success: false, message: result.message, code: result.code, amountDue: result.amountDue });
+        return;
+      }
+      await writeAudit(req, 'job.released', `job:${job.id}`, { code: job.code, kioskId: kiosk?.id ?? null });
       res.json({ success: true, data: { status: PrintJobStatus.RELEASING, kioskId: kiosk?.id ?? null } });
     } catch (err) {
       next(err);
@@ -145,6 +157,7 @@ export class ShopJobsController {
         pagesCompleted: 0,
       });
       if (!ok) return conflict(res, 'Only failed jobs can be requeued');
+      await writeAudit(req, 'job.requeued', `job:${job.id}`, { code: job.code });
       res.json({ success: true, data: { status: PrintJobStatus.READY } });
     } catch (err) {
       next(err);
@@ -166,6 +179,7 @@ export class ShopJobsController {
         { status: PrintJobStatus.DONE, completedAt },
       );
       if (!ok) return conflict(res, 'Only ready or printing jobs can be marked collected');
+      await writeAudit(req, 'job.collected', `job:${req.params.id}`, {});
       const job = await AppDataSource.getRepository(PrintJob).findOne({ where: { id: req.params.id } });
       emitTenantEvent(tenantId, WebhookEvent.JOB_COMPLETED, {
         printJobId: req.params.id,

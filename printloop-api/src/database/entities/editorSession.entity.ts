@@ -68,10 +68,10 @@ export class EditorSession {
   @Column({ type: 'uuid' })
   tenantId: string;
 
-  @Column({ type: 'simple-json', default: {} })
+  @Column({ type: 'simple-json', default: () => "'{}'" })
   univerDocument: Record<string, any>;
 
-  @Column({ type: 'simple-json', default: { shop: 'rw', customer: 'r' } })
+  @Column({ type: 'simple-json', default: () => `'{"shop":"rw","customer":"r"}'` })
   permissions: EditorPermissions;
 
   @Column({ type: 'text' })
@@ -84,7 +84,7 @@ export class EditorSession {
   })
   status: EditorSessionStatus;
 
-  @Column({ type: 'simple-json', default: {} })
+  @Column({ type: 'simple-json', default: () => "'{}'" })
   webrtcSignaling: WebRTCSignalingData;
 
   @Column({
@@ -106,19 +106,19 @@ export class EditorSession {
   @Column({ type: 'datetime' })
   expiresAt: Date;
 
-  @Column({ type: 'datetime', default: () => 'now()' })
+  @Column({ type: 'datetime', default: () => 'CURRENT_TIMESTAMP' })
   lastActivityAt: Date;
 
   @ManyToOne(() => DocumentEdit, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'document_edit_id' })
+  @JoinColumn({ name: 'documentEditId' })
   documentEdit: DocumentEdit;
 
   @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
-  @JoinColumn({ name: 'shop_user_id' })
+  @JoinColumn({ name: 'shopUserId' })
   shopUser: User | null;
 
   @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
-  @JoinColumn({ name: 'customer_user_id' })
+  @JoinColumn({ name: 'customerUserId' })
   customerUser: User | null;
 
   @ManyToOne(() => Tenant)

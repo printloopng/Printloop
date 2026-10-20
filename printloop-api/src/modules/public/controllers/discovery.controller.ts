@@ -29,7 +29,7 @@ interface HandoffPayload {
 const MAX_RADIUS_KM = 50;
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 50;
-const ONLINE_WINDOW_MS = 5 * 60 * 1000; // 5 min
+const ONLINE_WINDOW_MS = 5 * 60 * 1000;
 
 interface PublicShop {
   id: string;
@@ -470,7 +470,6 @@ export class DiscoveryController {
 
   seedDemoNearby = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    // Creates real, discoverable tenants — demo/dev environments only.
     if (process.env.SEED_DEMO !== '1' || process.env.NODE_ENV === 'production') {
       res.status(404).json({ success: false, message: 'Not found' });
       return;

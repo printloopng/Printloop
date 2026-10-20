@@ -205,6 +205,7 @@ export class KioskCupsController {
         orientation: cups.orientation,
       };
       const baseCost = await computeCost({
+        tenantId: req.tenant?.id ?? user.tenantId,
         pageCount,
         copies: printConfiguration.copies,
         paper: printConfiguration.paper,
@@ -213,6 +214,7 @@ export class KioskCupsController {
         qualityDpi: printConfiguration.qualityDpi,
       });
       const promo = await applyPromotion(baseCost, req.body?.promotionCode, {
+        tenantId: req.tenant?.id ?? user.tenantId,
         pageCount,
         perPageBw: 5,
       });

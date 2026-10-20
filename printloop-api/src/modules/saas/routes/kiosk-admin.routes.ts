@@ -10,25 +10,27 @@ import {
   deleteKiosk,
   testKioskConnection,
 } from '@/modules/saas/controllers/kiosk.controller';
-import { Permission, requirePermission } from '@/common/middleware/rbac.middleware';
+import { requireTenantRole } from '@/common/middleware/tenant.middleware';
+import { TenantMemberRole } from '@/database/entities/tenantMember.entity';
 import { AppDataSource } from '@/config/data-source';
 import { Kiosk } from '@/database/entities/kiosk.entity';
 
 const router = Router();
+const manager = requireTenantRole(TenantMemberRole.OWNER, TenantMemberRole.ADMIN);
 
-router.get('/', requirePermission(Permission.VIEW_KIOSKS), listKiosks);
-router.get('/offline', requirePermission(Permission.VIEW_KIOSKS), getOfflineKiosks);
-router.get('/:id', requirePermission(Permission.VIEW_KIOSKS), getKiosk);
+router.get('/', listKiosks);
+router.get('/offline', getOfflineKiosks);
+router.get('/:id', getKiosk);
 
-router.post('/', requirePermission(Permission.MANAGE_KIOSKS), createKiosk);
-router.patch('/:id/status', requirePermission(Permission.MANAGE_KIOSKS), updateKioskStatus);
-router.patch('/:id', requirePermission(Permission.MANAGE_KIOSKS), updateKiosk);
-router.post('/:id/regenerate-key', requirePermission(Permission.MANAGE_KIOSKS), regenerateApiKey);
-router.post('/:id/test-connection', requirePermission(Permission.VIEW_KIOSKS), testKioskConnection);
+router.post('/', manager, createKiosk);
+router.patch('/:id/status', manager, updateKioskStatus);
+router.patch('/:id', manager, updateKiosk);
+router.post('/:id/regenerate-key', manager, regenerateApiKey);
+router.post('/:id/test-connection', testKioskConnection);
 
 router.post(
   '/:id/test-print-pass',
-  requirePermission(Permission.MANAGE_KIOSKS),
+  manager,
   async (req: Request, res: Response) => {
     try {
       const repo = AppDataSource.getRepository(Kiosk);
@@ -59,6 +61,6 @@ router.post(
   },
 );
 
-router.delete('/:id', requirePermission(Permission.MANAGE_KIOSKS), deleteKiosk);
+router.delete('/:id', manager, deleteKiosk);
 
 export default router;

@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import { tenantRoleOf } from '@/common/middleware/tenant.middleware';
 import { Request, Response } from 'express';
 import { DataSource } from 'typeorm';
 import { User } from '@/database/entities/user.entity';
@@ -52,6 +53,7 @@ export class ShopController {
         lng: tenant.lng,
         isDiscoverable: Boolean(tenant.isDiscoverable),
         availability: tenant.availability,
+        myRole: tenantRoleOf(req, tenant.id),
         onboarding: {
           subaccountSet: Boolean(tenant.paystackSubaccountCode),
           bankAccountSet: Boolean(schedule?.recipientCode),

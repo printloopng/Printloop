@@ -1,240 +1,93 @@
-import { repos } from '@/config/repos';
-import { EditorSession, EditorSessionStatus } from '@/database/entities/editorSession.entity';
-import { DocumentEdit, DocumentEditStatus } from '@/database/entities/documentEdit.entity';
-import { PrintJob, PrintJobStatus } from '@/database/entities/printJob.entity';
-import { config } from '@/config';
 import axios from 'axios';
-import FormData from 'form-data';
+import { repos } from '@/config/repos';
+import { saveBuffer } from '@/core/utils/fileStore';
+import { EditorSession, EditorSessionStatus } from '@/database/entities/editorSession.entity';
+import { DocumentEditStatus } from '@/database/entities/documentEdit.entity';
+import { PrintJobStatus } from '@/database/entities/printJob.entity';
+import { conversionEnabled, convertOfficeToPdf } from '@/modules/public/services/documentConversion.service';
+import { countPages } from '@/modules/public/services/documentConvert.service';
+import { EditorSessionError, storedDocument } from '@/modules/saas/services/documentEditor.service';
+import { univerToHtml, univerToPdf, type UniverDocumentData } from '@/modules/saas/services/univerDocument';
+import { notificationQueue } from '@/workers/queues';
 
 export interface ExportResult {
   documentUrl: string;
   pageCount: number;
   fileSize: number;
-  format: 'pdf' | 'pwg';
-}
-
-export interface UniverExportPayload {
-  document: any;
-  format: 'pdf' | 'pwg';
-  options?: {
-    dpi?: number;
-    color?: boolean;
-    pageSize?: string;
-    margins?: { top: number; bottom: number; left: number; right: number };
-  };
+  renderer: 'external' | 'converter' | 'builtin';
 }
 
 export class EditorExportService {
-  private univerExportUrl: string;
-  private libreofficeUrl: string;
-
-  constructor() {
-    this.univerExportUrl = config.editor?.univerExportUrl || 'http://localhost:3001/export';
-    this.libreofficeUrl = config.editor?.libreofficeUrl || 'http://localhost:9980';
+  async renderPdf(document: UniverDocumentData): Promise<{ pdf: Buffer; renderer: ExportResult['renderer'] }> {
+    const external = process.env.UNIVER_EXPORT_URL;
+    if (external) {
+      try {
+        const response = await axios.post(external, { document, format: 'pdf' }, {
+          responseType: 'arraybuffer',
+          timeout: 120000,
+          maxContentLength: 100 * 1024 * 1024,
+        });
+        const pdf = Buffer.from(response.data);
+        if (pdf.subarray(0, 5).toString('latin1') === '%PDF-') return { pdf, renderer: 'external' };
+      } catch (err: any) {
+        console.error('[EditorExport] external renderer failed:', err?.message);
+      }
+    }
+    if (conversionEnabled()) {
+      try {
+        const pdf = await convertOfficeToPdf(Buffer.from(univerToHtml(document), 'utf8'), 'edited.html');
+        return { pdf, renderer: 'converter' };
+      } catch (err: any) {
+        console.error('[EditorExport] converter failed, using built-in renderer:', err?.message);
+      }
+    }
+    return { pdf: await univerToPdf(document), renderer: 'builtin' };
   }
 
-  async exportDocument(
-    sessionId: string,
-    format: 'pdf' | 'pwg',
-    shopUserId: string
-  ): Promise<ExportResult> {
-    const sessionRepo = repos.editorSession();
-    const editRepo = repos.documentEdit();
-    const jobRepo = repos.printJob();
-
-    const session = await sessionRepo.findOne({
-      where: { id: sessionId },
-      relations: ['documentEdit', 'documentEdit.printJob'],
-    });
-
-    if (!session) {
-      throw new Error('Session not found');
-    }
-
-    if (session.shopUserId !== shopUserId) {
-      throw new Error('Only shop operator can export');
-    }
-
-    if (session.status !== EditorSessionStatus.ACTIVE && session.status !== EditorSessionStatus.COMPLETED) {
-      throw new Error(`Cannot export: session is ${session.status}`);
-    }
-
-    let exportResult: ExportResult;
-    try {
-      exportResult = await this.exportViaUniver(session.univerDocument, format);
-    } catch (univerError) {
-      console.warn('[EditorExport] Univer export failed, falling back to LibreOffice:', univerError);
-      exportResult = await this.exportViaLibreOffice(session.univerDocument, format);
-    }
-
+  async exportSession(session: EditorSession, shopName: string): Promise<ExportResult> {
     const edit = session.documentEdit;
-    edit.editedDocumentUrl = exportResult.documentUrl;
-    edit.editedDocumentMeta = {
-      pageCount: exportResult.pageCount,
-      fileSize: exportResult.fileSize,
-    };
-    edit.status = DocumentEditStatus.PENDING_CUSTOMER;
+    if (!edit?.printJob) throw new EditorSessionError(404, 'Edit job not found');
+    if (session.status !== EditorSessionStatus.ACTIVE) {
+      throw new EditorSessionError(409, `This editor session is ${session.status}.`, 'SESSION_CLOSED');
+    }
+    if (edit.status !== DocumentEditStatus.IN_PROGRESS) {
+      throw new EditorSessionError(409, `Edit job is ${edit.status}, start it before sending.`, 'EDIT_NOT_IN_PROGRESS');
+    }
+    const stored = storedDocument(session);
+    if (!stored) throw new EditorSessionError(409, 'The document is still being prepared.', 'NOT_READY');
+
+    const { pdf, renderer } = await this.renderPdf(stored.document);
+    const pageCount = await countPages(pdf, 'edited.pdf');
+    const file = await saveBuffer(pdf, `edited-${edit.id}.pdf`);
+
+    edit.editedDocumentUrl = file.url;
+    edit.editedDocumentMeta = { pageCount, fileSize: pdf.length };
     edit.editOperations = [
       ...(edit.editOperations || []),
-      {
-        type: 'exported',
-        format,
-        exportedAt: new Date().toISOString(),
-        pageCount: exportResult.pageCount,
-        fileSize: exportResult.fileSize,
-      },
+      { type: 'exported', at: new Date().toISOString(), version: stored.version, pageCount, renderer },
     ];
-    await editRepo.save(edit);
+    edit.status = DocumentEditStatus.PENDING_CUSTOMER;
+    await repos.documentEdit().save(edit);
 
     const job = edit.printJob;
-    if (job) {
-      job.editedDocumentUrl = exportResult.documentUrl;
-      job.status = PrintJobStatus.EDIT_COMPLETE;
-      job.totalPages = exportResult.pageCount;
-      await jobRepo.save(job);
-    }
+    job.editedDocumentUrl = file.url;
+    job.status = PrintJobStatus.EDIT_COMPLETE;
+    await repos.printJob().save(job);
 
     session.status = EditorSessionStatus.COMPLETED;
     session.lastActivityAt = new Date();
-    await sessionRepo.save(session);
+    await repos.editorSession().save(session);
 
-    return {
-      documentUrl: exportResult.documentUrl,
-      pageCount: exportResult.pageCount,
-      fileSize: exportResult.fileSize,
-      format: exportResult.format,
-    };
-  }
+    await notificationQueue.add('edit-complete', {
+      userId: job.userId,
+      printJobId: job.id,
+      editId: edit.id,
+      editedDocumentUrl: file.url,
+      shopName,
+      totalEditFee: edit.totalEditFee,
+    });
 
-  private async exportViaUniver(
-    univerDocument: any,
-    format: 'pdf' | 'pwg'
-  ): Promise<ExportResult> {
-    const payload: UniverExportPayload = {
-      document: univerDocument,
-      format,
-      options: {
-        dpi: 300,
-        color: true,
-        pageSize: 'A4',
-        margins: { top: 20, bottom: 20, left: 20, right: 20 },
-      },
-    };
-
-    try {
-      const response = await axios.post(`${this.univerExportUrl}`, payload, {
-        responseType: 'arraybuffer',
-        timeout: 120000,
-        maxContentLength: 100 * 1024 * 1024,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      const buffer = Buffer.from(response.data);
-      const pageCount = this.estimatePageCount(buffer, format);
-
-      const { saveBuffer } = await import('@/core/utils/fileStore');
-      const extension = format === 'pdf' ? 'pdf' : 'pwg';
-      const stored = await saveBuffer(buffer, `temp-export-${Date.now()}.${extension}`);
-
-      return {
-        documentUrl: stored.url,
-        pageCount,
-        fileSize: buffer.length,
-        format,
-      };
-    } catch (error: any) {
-      console.error('[EditorExport] Univer export failed:', error?.message);
-      throw error;
-    }
-  }
-
-  private async exportViaLibreOffice(
-    univerDocument: any,
-    format: 'pdf' | 'pwg'
-  ): Promise<ExportResult> {
-    const htmlContent = this.univerToHtml(univerDocument);
-
-    const formData = new FormData();
-    formData.append('html', htmlContent);
-    formData.append('format', format);
-
-    try {
-      const response = await axios.post(`${this.libreofficeUrl}/export`, formData, {
-        headers: {
-          ...formData.getHeaders(),
-        },
-        responseType: 'arraybuffer',
-        timeout: 120000,
-        maxContentLength: 100 * 1024 * 1024,
-      });
-
-      const buffer = Buffer.from(response.data);
-      const pageCount = this.estimatePageCount(buffer, format);
-
-      const { saveBuffer } = await import('@/core/utils/fileStore');
-      const extension = format === 'pdf' ? 'pdf' : 'pwg';
-      const stored = await saveBuffer(buffer, `temp-export-${Date.now()}.${extension}`);
-
-      return {
-        documentUrl: stored.url,
-        pageCount,
-        fileSize: buffer.length,
-        format,
-      };
-    } catch (error: any) {
-      console.error('[EditorExport] LibreOffice export failed:', error?.message);
-      throw error;
-    }
-  }
-
-  private univerToHtml(doc: any): string {
-    const bodyContent = doc.data?.documents?.[Object.keys(doc.data.documents || {})[0]]?.body?.dataStream
-      ?.map((segment: any) => segment.text || '')
-      .join('') || 'Untitled Document';
-
-    return `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <style>
-            body { font-family: Arial, sans-serif; margin: 2cm; }
-            @page { size: A4; margin: 2cm; }
-          </style>
-        </head>
-        <body>${bodyContent}</body>
-      </html>
-    `;
-  }
-
-  private estimatePageCount(buffer: Buffer, format: 'pdf' | 'pwg'): number {
-    if (format === 'pwg') {
-      const header = buffer.toString('ascii', 0, Math.min(1024, buffer.length));
-      const match = header.match(/PWG-Raster-Page-Count:\s*(\d+)/i);
-      if (match) return parseInt(match[1], 10);
-    } else {
-      const content = buffer.toString('ascii', 0, Math.min(50000, buffer.length));
-      const matches = content.match(/\/Page\b/g);
-      if (matches) return matches.length;
-    }
-    return Math.max(1, Math.ceil(buffer.length / 50000));
-  }
-
-  getAvailableFormats(): Array<{ format: 'pdf' | 'pwg'; name: string; description: string }> {
-    return [
-      {
-        format: 'pdf',
-        name: 'PDF',
-        description: 'Standard PDF for review and archival',
-      },
-      {
-        format: 'pwg',
-        name: 'PWG Raster',
-        description: 'Print-ready raster format for direct printing',
-      },
-    ];
+    return { documentUrl: file.url, pageCount, fileSize: pdf.length, renderer };
   }
 }
 

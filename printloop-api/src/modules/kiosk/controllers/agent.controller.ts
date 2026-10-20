@@ -7,14 +7,7 @@ import { PrintJobItem } from '@/database/entities/printJobItem.entity';
 import { File } from '@/database/entities/file.entity';
 import { Kiosk } from '@/database/entities/kiosk.entity';
 import { loadDocumentBytes, loadStoredObject } from '@/core/utils/fileStore';
-import {
-  ensurePdf,
-  extractPages,
-  parsePageRange,
-  toGrayscale,
-  fitToOrientation,
-  UnsupportedDocumentError,
-} from '@/modules/public/services/documentConvert.service';
+import { ensurePdf, extractPages, parsePageRange, toGrayscale, fitToOrientation, UnsupportedDocumentError, billablePages } from '@/modules/public/services/documentConvert.service';
 import { PrinterServiceExtensions } from '@/modules/saas/services/printerExtensions.service';
 import { JWT_SECRET } from '@/core/utils/jwt';
 import { emitTenantEvent } from '@/modules/saas/services/tenantWebhook.service';
@@ -68,10 +61,7 @@ function releasableWhere(kiosk: Kiosk) {
 }
 
 function effectivePages(docTotal: number, cfg: any): number {
-  const total = Math.max(1, Number(docTotal) || 1);
-  if (!cfg || cfg.pages !== 'range' || !cfg.pageRange) return total;
-  const picked = parsePageRange(String(cfg.pageRange), total);
-  return picked.length > 0 ? picked.length : total;
+  return billablePages(docTotal, cfg);
 }
 
 async function serializeJobForKiosk(job: PrintJob, kiosk: Kiosk, base: string) {

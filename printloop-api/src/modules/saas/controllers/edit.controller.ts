@@ -1,9 +1,12 @@
 import { Request, Response } from 'express';
+import { tenantRoleOf } from '@/common/middleware/tenant.middleware';
 import { DataSource } from 'typeorm';
 import { DocumentEdit, DocumentEditStatus } from '@/database/entities/documentEdit.entity';
 import { PrintJob, PrintJobStatus } from '@/database/entities/printJob.entity';
 import { EditPricingConfig } from '@/database/entities/editPricingConfig.entity';
-import { etherpadService } from '@/modules/saas/services/etherpad.service';
+import { loadDocumentBytes, storageKeyFromUrl } from '@/core/utils/fileStore';
+import { countPages } from '@/modules/public/services/documentConvert.service';
+import { approveEdit } from '@/modules/saas/services/editApproval.service';
 import { notificationQueue } from '@/workers/queues';
 import {
   editRejectBodySchema,
@@ -96,6 +99,7 @@ export class EditController {
         .createQueryBuilder('de')
         .leftJoinAndSelect('de.printJob', 'pj')
         .leftJoinAndSelect('pj.user', 'u')
+        .leftJoinAndSelect('pj.file', 'f')
         .where('de.shopId = :tid', { tid: tenant.id });
 
       if (status) {
@@ -133,7 +137,8 @@ export class EditController {
                     ? `${e.printJob.user.firstName} ${e.printJob.user.lastName}`
                     : 'Unknown',
                   customerEmail: e.printJob.user?.email,
-                  originalDocumentUrl: e.printJob.renderedPdfUrl,
+                  originalDocumentUrl: e.printJob.file?.fileURL ?? e.printJob.renderedPdfUrl ?? null,
+                  fileName: e.printJob.file?.fileName ?? e.printJob.fileName ?? null,
                   editingInstructions: e.printJob.editingInstructions,
                   pageCount: e.printJob.totalPages,
                   colorMode: e.printJob.printConfiguration?.color,
@@ -149,64 +154,45 @@ export class EditController {
     }
   };
 
+  private async findShopEdit(req: Request): Promise<DocumentEdit | null> {
+    return this.ds.getRepository(DocumentEdit).findOne({
+      where: { printJobId: req.params.jobId, shopId: req.tenant!.id },
+      relations: ['printJob'],
+    });
+  }
+
+  private async findCustomerEdit(req: Request): Promise<DocumentEdit | null> {
+    const edit = await this.ds.getRepository(DocumentEdit).findOne({
+      where: { printJobId: req.params.jobId },
+      relations: ['printJob'],
+    });
+    return edit && edit.printJob?.userId === (req as any).user.id ? edit : null;
+  }
+
   startEdit = async (req: Request, res: Response) => {
     try {
-      const tenant = req.tenant!;
       const user = (req as any).user as any;
-      const { jobId } = req.params;
-
-      const editRepo = this.ds.getRepository(DocumentEdit);
-      const jobRepo = this.ds.getRepository(PrintJob);
-
-      const edit = await editRepo.findOne({
-        where: { printJobId: jobId, shopId: tenant.id },
-        relations: ['printJob'],
-      });
-
+      const edit = await this.findShopEdit(req);
       if (!edit) {
         res.status(404).json({ success: false, message: 'Edit job not found' });
         return;
       }
-
-      if (edit.status !== DocumentEditStatus.PENDING_SHOP) {
-        res.status(400).json({ success: false, message: `Edit job is ${edit.status}, cannot start` });
+      if (![DocumentEditStatus.PENDING_SHOP, DocumentEditStatus.REJECTED].includes(edit.status)) {
+        res.status(409).json({ success: false, message: `Edit job is ${edit.status}, cannot start` });
         return;
       }
-
       edit.status = DocumentEditStatus.IN_PROGRESS;
       edit.editedBy = user.id;
-      await editRepo.save(edit);
-
-      const job = edit.printJob;
-      job.status = PrintJobStatus.AWAITING_EDIT;
-      await jobRepo.save(job);
-
-      const padId = `edit-${edit.id}`;
-      let editorUrl = '';
-      try {
-        const initialText = edit.printJob.editingInstructions
-          ? `Editing Instructions:\n${edit.printJob.editingInstructions}\n\n---\nOriginal Document: ${edit.printJob.fileName || 'document.pdf'}\nPages: ${edit.printJob.totalPages}\n\n[Document content would be extracted from PDF here]`
-          : `Editing document: ${edit.printJob.fileName || 'document.pdf'}\nPages: ${edit.printJob.totalPages}\n\n[Document content would be extracted from PDF here]`;
-
-        await etherpadService.createPad(padId, initialText);
-
-        const etherpadUrl = process.env.ETHERPAD_URL || 'http://localhost:9001';
-        editorUrl = `${etherpadUrl}/p/${padId}?showControls=true&showChat=true&showLineNumbers=true&useMonospaceFont=false`;
-
-        edit.editOperations = [{ type: 'etherpad_created', padId, createdAt: new Date().toISOString() }];
-        await editRepo.save(edit);
-      } catch (e: any) {
-        console.error('[saas/edit/start] Etherpad error:', e);
-      }
-
+      await this.ds.getRepository(DocumentEdit).save(edit);
+      edit.printJob.status = PrintJobStatus.AWAITING_EDIT;
+      await this.ds.getRepository(PrintJob).save(edit.printJob);
       await notificationQueue.add('edit-started', {
-        userId: job.userId,
-        printJobId: job.id,
+        userId: edit.printJob.userId,
+        printJobId: edit.printJobId,
         editId: edit.id,
-        shopName: tenant.name,
+        shopName: req.tenant!.name,
       });
-
-      res.json({ success: true, data: { editId: edit.id, status: edit.status, editorUrl } });
+      res.json({ success: true, data: { editId: edit.id, status: edit.status } });
     } catch (err: any) {
       console.error('[saas/edit/start] error:', err);
       res.status(500).json({ success: false, message: 'Failed to start edit' });
@@ -215,54 +201,35 @@ export class EditController {
 
   uploadEdit = async (req: Request, res: Response) => {
     try {
-      const tenant = req.tenant!;
-      const { jobId } = req.params;
       const parsed = editUploadBodySchema.safeParse(req.body ?? {});
       if (!parsed.success) {
         res.status(400).json({ success: false, message: 'Edited document URL is required' });
         return;
       }
-      const { documentUrl, pageCount, fileSize, editOperations, shopNotes } = parsed.data;
-
-      const editRepo = this.ds.getRepository(DocumentEdit);
-      const jobRepo = this.ds.getRepository(PrintJob);
-
-      const edit = await editRepo.findOne({
-        where: { printJobId: jobId, shopId: tenant.id },
-        relations: ['printJob'],
-      });
-
+      const { documentUrl, editOperations, shopNotes } = parsed.data;
+      const edit = await this.findShopEdit(req);
       if (!edit) {
         res.status(404).json({ success: false, message: 'Edit job not found' });
         return;
       }
-
       if (edit.status !== DocumentEditStatus.IN_PROGRESS) {
-        res.status(400).json({ success: false, message: `Edit job is ${edit.status}, cannot upload` });
+        res.status(409).json({ success: false, message: `Edit job is ${edit.status}, cannot upload` });
         return;
       }
-
-      edit.editedDocumentMeta = { pageCount: pageCount || 0, fileSize: fileSize || 0 };
-      edit.editOperations = (editOperations as any[]) || [];
-      edit.shopNotes = shopNotes || null;
+      const bytes = storageKeyFromUrl(documentUrl) ? await loadDocumentBytes(documentUrl) : null;
+      if (!bytes) {
+        res.status(400).json({ success: false, message: 'Upload the edited document to PrintLoop first' });
+        return;
+      }
+      const pageCount = await countPages(bytes, 'edited.pdf');
+      edit.editedDocumentUrl = documentUrl;
+      edit.editedDocumentMeta = { pageCount, fileSize: bytes.length };
+      edit.editOperations = [...(edit.editOperations || []), ...((editOperations as any[]) || []), { type: 'uploaded', at: new Date().toISOString() }];
+      edit.shopNotes = shopNotes || edit.shopNotes || null;
       edit.status = DocumentEditStatus.PENDING_CUSTOMER;
-      await editRepo.save(edit);
-
-      const job = edit.printJob;
-      job.editedDocumentUrl = documentUrl;
-      job.status = PrintJobStatus.EDIT_COMPLETE;
-      await jobRepo.save(job);
-
-      await notificationQueue.add('edit-complete', {
-        userId: job.userId,
-        printJobId: job.id,
-        editId: edit.id,
-        editedDocumentUrl: documentUrl,
-        shopName: tenant.name,
-        totalEditFee: edit.totalEditFee,
-      });
-
-      res.json({ success: true, data: { editId: edit.id, status: edit.status } });
+      await this.ds.getRepository(DocumentEdit).save(edit);
+      await this.markReadyForReview(req, edit, documentUrl);
+      res.json({ success: true, data: { editId: edit.id, status: edit.status, pageCount } });
     } catch (err: any) {
       console.error('[saas/edit/upload] error:', err);
       res.status(500).json({ success: false, message: 'Failed to upload edited document' });
@@ -271,128 +238,68 @@ export class EditController {
 
   completeEdit = async (req: Request, res: Response) => {
     try {
-      const tenant = req.tenant!;
-      const { jobId } = req.params;
-
-      const editRepo = this.ds.getRepository(DocumentEdit);
-      const jobRepo = this.ds.getRepository(PrintJob);
-
-      const edit = await editRepo.findOne({
-        where: { printJobId: jobId, shopId: tenant.id },
-        relations: ['printJob'],
-      });
-
+      const edit = await this.findShopEdit(req);
       if (!edit) {
         res.status(404).json({ success: false, message: 'Edit job not found' });
         return;
       }
-
-      if (edit.status !== DocumentEditStatus.IN_PROGRESS && edit.status !== DocumentEditStatus.PENDING_CUSTOMER) {
-        res.status(400).json({ success: false, message: `Edit job is ${edit.status}, cannot complete` });
+      if (edit.status === DocumentEditStatus.PENDING_CUSTOMER) {
+        res.json({ success: true, data: { editId: edit.id, status: edit.status, documentUrl: edit.editedDocumentUrl } });
         return;
       }
-
-      const job = edit.printJob;
-
-      const padId = `edit-${edit.id}`;
-      let documentUrl = job.editedDocumentUrl;
-      let pageCount = 0;
-      let fileSize = 0;
-
-      try {
-        const pdfBuffer = await etherpadService.exportAsPDF(padId);
-
-        const { saveBuffer } = await import('@/core/utils/fileStore');
-        const stored = await saveBuffer(pdfBuffer, `edited-${edit.printJobId}.pdf`);
-        documentUrl = stored.url;
-        fileSize = pdfBuffer.length;
-
-        pageCount = Math.max(1, Math.ceil(fileSize / 3000));
-
-        edit.editedDocumentMeta = { pageCount, fileSize };
-      } catch (e: any) {
-        console.error('[saas/edit/complete] Etherpad export error:', e);
-        if (!job.editedDocumentUrl) {
-          res.status(400).json({
-            success: false,
-            message: 'Could not export from Etherpad. Please upload the edited PDF manually.',
-          });
-          return;
-        }
+      if (edit.status !== DocumentEditStatus.IN_PROGRESS || !edit.editedDocumentUrl) {
+        res.status(409).json({
+          success: false,
+          message: 'Upload the edited document or export it from the editor before sending it to the customer.',
+        });
+        return;
       }
-
-      edit.editOperations = [
-        ...(edit.editOperations || []),
-        { type: 'etherpad_exported', padId, exportedAt: new Date().toISOString() },
-      ];
       edit.status = DocumentEditStatus.PENDING_CUSTOMER;
-      await editRepo.save(edit);
-
-      job.editedDocumentUrl = documentUrl;
-      job.status = PrintJobStatus.EDIT_COMPLETE;
-      await jobRepo.save(job);
-
-      await notificationQueue.add('edit-complete', {
-        userId: job.userId,
-        printJobId: job.id,
-        editId: edit.id,
-        editedDocumentUrl: documentUrl,
-        shopName: tenant.name,
-        totalEditFee: edit.totalEditFee,
-      });
-
-      res.json({ success: true, data: { editId: edit.id, status: edit.status, documentUrl } });
+      await this.ds.getRepository(DocumentEdit).save(edit);
+      await this.markReadyForReview(req, edit, edit.editedDocumentUrl);
+      res.json({ success: true, data: { editId: edit.id, status: edit.status, documentUrl: edit.editedDocumentUrl } });
     } catch (err: any) {
       console.error('[saas/edit/complete] error:', err);
       res.status(500).json({ success: false, message: 'Failed to complete edit' });
     }
   };
 
+  private async markReadyForReview(req: Request, edit: DocumentEdit, documentUrl: string) {
+    const job = edit.printJob;
+    job.editedDocumentUrl = documentUrl;
+    job.status = PrintJobStatus.EDIT_COMPLETE;
+    await this.ds.getRepository(PrintJob).save(job);
+    await notificationQueue.add('edit-complete', {
+      userId: job.userId,
+      printJobId: job.id,
+      editId: edit.id,
+      editedDocumentUrl: documentUrl,
+      shopName: req.tenant!.name,
+      totalEditFee: edit.totalEditFee,
+    });
+  }
+
   confirmEdit = async (req: Request, res: Response) => {
     try {
       const user = (req as any).user as any;
-      const { jobId } = req.params;
-
-      const editRepo = this.ds.getRepository(DocumentEdit);
-      const jobRepo = this.ds.getRepository(PrintJob);
-
-      const edit = await editRepo.findOne({
-        where: { printJobId: jobId },
-        relations: ['printJob'],
-      });
-
+      const edit = await this.findCustomerEdit(req);
       if (!edit) {
         res.status(404).json({ success: false, message: 'Edit job not found' });
         return;
       }
-
-      if (edit.printJob.userId !== user.id) {
-        res.status(403).json({ success: false, message: 'Not authorized' });
+      if (edit.status !== DocumentEditStatus.PENDING_CUSTOMER || !edit.editedDocumentUrl) {
+        res.status(409).json({ success: false, message: `Edit job is ${edit.status}, cannot confirm` });
         return;
       }
-
-      if (edit.status !== DocumentEditStatus.PENDING_CUSTOMER) {
-        res.status(400).json({ success: false, message: `Edit job is ${edit.status}, cannot confirm` });
+      const result = await approveEdit(this.ds, edit, user);
+      if (!result.ok) {
+        res.status(result.status).json({ success: false, message: result.message });
         return;
       }
-
-      edit.status = DocumentEditStatus.APPROVED;
-      edit.approvedBy = user.id;
-      edit.approvedAt = new Date();
-      await editRepo.save(edit);
-
-      const job = edit.printJob;
-      job.status = PrintJobStatus.AWAITING_PAYMENT;
-      await jobRepo.save(job);
-
-      await notificationQueue.add('edit-approved', {
-        shopId: edit.shopId,
-        printJobId: job.id,
-        editId: edit.id,
-        customerName: user ? `${user.firstName} ${user.lastName}` : 'Unknown',
+      res.json({
+        success: true,
+        data: { editId: edit.id, status: DocumentEditStatus.APPROVED, printJobStatus: PrintJobStatus.PENDING, amountDue: result.amountDue, pageCount: result.pageCount },
       });
-
-      res.json({ success: true, data: { editId: edit.id, status: edit.status, printJobStatus: job.status } });
     } catch (err: any) {
       console.error('[saas/edit/confirm] error:', err);
       res.status(500).json({ success: false, message: 'Failed to confirm edit' });
@@ -401,49 +308,27 @@ export class EditController {
 
   rejectEdit = async (req: Request, res: Response) => {
     try {
-      const user = (req as any).user as any;
-      const { jobId } = req.params;
       editRejectBodySchema.safeParse(req.body ?? {});
-      const { reason } = req.body || {};
-
-      const editRepo = this.ds.getRepository(DocumentEdit);
-      const jobRepo = this.ds.getRepository(PrintJob);
-
-      const edit = await editRepo.findOne({
-        where: { printJobId: jobId },
-        relations: ['printJob'],
-      });
-
+      const edit = await this.findCustomerEdit(req);
       if (!edit) {
         res.status(404).json({ success: false, message: 'Edit job not found' });
         return;
       }
-
-      if (edit.printJob.userId !== user.id) {
-        res.status(403).json({ success: false, message: 'Not authorized' });
-        return;
-      }
-
       if (edit.status !== DocumentEditStatus.PENDING_CUSTOMER) {
-        res.status(400).json({ success: false, message: `Edit job is ${edit.status}, cannot reject` });
+        res.status(409).json({ success: false, message: `Edit job is ${edit.status}, cannot reject` });
         return;
       }
-
       edit.status = DocumentEditStatus.REJECTED;
-      edit.customerRejectionReason = reason || 'Customer rejected the edited document';
-      await editRepo.save(edit);
-
-      const job = edit.printJob;
-      job.status = PrintJobStatus.AWAITING_EDIT;
-      await jobRepo.save(job);
-
+      edit.customerRejectionReason = String(req.body?.reason || '').slice(0, 2000) || 'Customer asked for changes';
+      await this.ds.getRepository(DocumentEdit).save(edit);
+      edit.printJob.status = PrintJobStatus.AWAITING_EDIT;
+      await this.ds.getRepository(PrintJob).save(edit.printJob);
       await notificationQueue.add('edit-rejected', {
         shopId: edit.shopId,
-        printJobId: job.id,
+        printJobId: edit.printJobId,
         editId: edit.id,
         reason: edit.customerRejectionReason,
       });
-
       res.json({ success: true, data: { editId: edit.id, status: edit.status } });
     } catch (err: any) {
       console.error('[saas/edit/reject] error:', err);
@@ -451,53 +336,12 @@ export class EditController {
     }
   };
 
-  confirmPayment = async (req: Request, res: Response) => {
-    try {
-      const tenant = req.tenant!;
-      const { jobId } = req.params;
-
-      const editRepo = this.ds.getRepository(DocumentEdit);
-      const jobRepo = this.ds.getRepository(PrintJob);
-
-      const edit = await editRepo.findOne({
-        where: { printJobId: jobId, shopId: tenant.id },
-        relations: ['printJob'],
-      });
-
-      if (!edit) {
-        res.status(404).json({ success: false, message: 'Edit job not found' });
-        return;
-      }
-
-      if (edit.status !== DocumentEditStatus.APPROVED) {
-        res.status(400).json({ success: false, message: `Edit job is ${edit.status}, cannot confirm payment` });
-        return;
-      }
-
-      const job = edit.printJob;
-      if (job.status !== PrintJobStatus.AWAITING_PAYMENT) {
-        res.status(400).json({ success: false, message: `Print job is ${job.status}, cannot confirm payment` });
-        return;
-      }
-
-      edit.status = DocumentEditStatus.COMPLETED;
-      edit.completedAt = new Date();
-      await editRepo.save(edit);
-
-      job.status = PrintJobStatus.PAID;
-      await jobRepo.save(job);
-
-      await notificationQueue.add('edit-payment-confirmed', {
-        userId: job.userId,
-        printJobId: job.id,
-        editId: edit.id,
-      });
-
-      res.json({ success: true, data: { editId: edit.id, status: edit.status, printJobStatus: job.status } });
-    } catch (err: any) {
-      console.error('[saas/edit/confirm-payment] error:', err);
-      res.status(500).json({ success: false, message: 'Failed to confirm payment' });
-    }
+  confirmPayment = async (_req: Request, res: Response) => {
+    res.status(410).json({
+      success: false,
+      message: 'Edit fees are now paid by the customer at checkout together with the print.',
+      code: 'EDIT_PAYMENT_AT_CHECKOUT',
+    });
   };
 
   getEditJob = async (req: Request, res: Response) => {
@@ -508,7 +352,7 @@ export class EditController {
       const editRepo = this.ds.getRepository(DocumentEdit);
       const edit = await editRepo.findOne({
         where: { printJobId: jobId },
-        relations: ['printJob', 'printJob.user', 'shop'],
+        relations: ['printJob', 'printJob.user', 'printJob.file'],
       });
 
       if (!edit) {
@@ -516,26 +360,12 @@ export class EditController {
         return;
       }
 
-      const isShop = edit.shopId === req.tenant?.id;
+      const isShop = tenantRoleOf(req, edit.shopId) !== null;
       const isCustomer = edit.printJob.userId === user.id;
 
       if (!isShop && !isCustomer) {
         res.status(403).json({ success: false, message: 'Not authorized' });
         return;
-      }
-
-      let bankDetails = null;
-      if (isCustomer && edit.printJob.status === PrintJobStatus.AWAITING_PAYMENT) {
-        const pricingRepo = this.ds.getRepository(EditPricingConfig);
-        const pricing = await pricingRepo.findOne({ where: { tenantId: edit.shopId } });
-        if (pricing) {
-          bankDetails = {
-            accountName: pricing.bankAccountName,
-            accountNumber: pricing.bankAccountNumber,
-            bankName: pricing.bankName,
-            sortCode: pricing.bankSortCode,
-          };
-        }
       }
 
       res.json({
@@ -557,16 +387,13 @@ export class EditController {
           approvedAt: edit.approvedAt,
           completedAt: edit.completedAt,
           createdAt: edit.createdAt,
-          bankDetails,
-          editorUrl: isShop && (edit.status === DocumentEditStatus.IN_PROGRESS || edit.status === DocumentEditStatus.PENDING_CUSTOMER)
-            ? `${process.env.ETHERPAD_URL || 'http://localhost:9001'}/p/edit-${edit.id}?showControls=true&showChat=true&showLineNumbers=true&useMonospaceFont=false`
-            : null,
           printJob: edit.printJob
             ? {
                 id: edit.printJob.id,
                 code: edit.printJob.code,
                 status: edit.printJob.status,
-                documentUrl: edit.printJob.renderedPdfUrl,
+                fileName: edit.printJob.file?.fileName ?? edit.printJob.fileName ?? null,
+                documentUrl: edit.printJob.file?.fileURL ?? edit.printJob.renderedPdfUrl ?? null,
                 editedDocumentUrl: edit.printJob.editedDocumentUrl,
                 editingInstructions: edit.printJob.editingInstructions,
                 pageCount: edit.printJob.totalPages,

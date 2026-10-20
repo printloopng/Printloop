@@ -23,9 +23,9 @@ export class Payment {
   @Column({ type: 'uuid', nullable: true })
   tenantId: string | null;
 
-  @Column({ type: 'uuid' })
+  @Column({ type: 'uuid', nullable: true })
   @Index('idx_payment_user_id')
-  userId: string;
+  userId: string | null;
 
   @ManyToOne(() => User, { onDelete: 'SET NULL', nullable: true })
   @JoinColumn({ name: 'userId' })

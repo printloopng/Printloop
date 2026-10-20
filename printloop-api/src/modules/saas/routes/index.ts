@@ -9,6 +9,7 @@ import {
 import editorRoutes from './editor.routes';
 import kioskAdminRoutes from './kiosk-admin.routes';
 import shopJobsRoutes from './shop-jobs.routes';
+import shopAdminRoutes from './shop-admin.routes';
 import { createOnboardingRoutes } from './onboarding.routes';
 import { createShopRoutes } from './shop.routes';
 import { createBrandingRoutes } from './branding.routes';
@@ -40,6 +41,7 @@ export const createSaasRoutes = (dataSource: DataSource) => {
 
   router.use('/kiosks', authenticate, resolveTenant, kioskAdminRoutes);
   router.use('/jobs', authenticate, resolveTenant, shopJobsRoutes);
+  router.use(authenticate, resolveTenant, shopAdminRoutes);
 
   return router;
 };

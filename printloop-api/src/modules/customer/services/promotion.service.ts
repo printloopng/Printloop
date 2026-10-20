@@ -1,4 +1,5 @@
 import { repos } from '@/config/repos';
+import { pricingTenantId } from '@/modules/public/services/pricing.service';
 
 export interface PromotionApplyResult {
   cost: number;
@@ -16,14 +17,15 @@ export interface PromotionApplyResult {
 export async function applyPromotion(
   baseCost: number,
   rawCode: string | undefined | null,
-  opts: { pageCount?: number; perPageBw?: number } = {},
+  opts: { tenantId: string | null | undefined; pageCount?: number; perPageBw?: number; dryRun?: boolean },
 ): Promise<PromotionApplyResult> {
   const cost = Math.max(0, Math.floor(Number(baseCost) || 0));
   const code = String(rawCode || '').trim().toUpperCase();
   if (!code) return { cost, discount: 0, reason: 'no_code' };
 
   const repo = repos.promotion();
-  const promo = await repo.findOne({ where: { code } });
+  const tenantId = await pricingTenantId(opts.tenantId);
+  const promo = tenantId ? await repo.findOne({ where: { code, tenantId } }) : null;
   if (!promo) return { cost, discount: 0, reason: 'not_found' };
 
   if (promo.status !== 'active') {
@@ -56,7 +58,7 @@ export async function applyPromotion(
   discount = Math.max(0, Math.min(cost, discount));
   if (discount <= 0) return { cost, discount: 0, code: promo.code };
 
-  if (!(await repo.incrementUsageIfAvailable(promo.id))) {
+  if (!opts.dryRun && !(await repo.incrementUsageIfAvailable(promo.id))) {
     return { cost, discount: 0, code: promo.code, reason: 'exhausted' };
   }
 

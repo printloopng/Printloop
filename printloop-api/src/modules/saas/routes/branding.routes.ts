@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { allowUploadTicket } from '@/common/middleware/uploadTicket.middleware';
 import { DataSource } from 'typeorm';
 import { authenticate } from '@/common/middleware/auth.middleware';
 import { resolveTenant } from '@/common/middleware/tenant.middleware';
@@ -22,6 +23,7 @@ export function createBrandingRoutes(ds: DataSource): Router {
   );
   router.post(
     '/me/photos',
+    allowUploadTicket('branding-photo'),
     authenticate,
     resolveTenant,
     photoUpload.single('photo'),

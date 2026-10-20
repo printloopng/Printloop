@@ -21,6 +21,9 @@ router.post(
 
 router.post('/login', validateAuthBody(loginSchema), customerAuthController.login);
 
+router.post('/verify-email', customerAuthController.verifyEmail);
+router.post('/resend-verification', customerAuthController.resendVerification);
+
 router.get('/me', authenticate, customerAuthController.me);
 
 router.put(

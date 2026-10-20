@@ -43,7 +43,7 @@ export class EditPricingConfig {
 
   @Column({
     type: 'simple-json',
-    default: {},
+    default: () => "'{}'",
   })
   complexityTierFees: Record<EditComplexityTier, number>;
 

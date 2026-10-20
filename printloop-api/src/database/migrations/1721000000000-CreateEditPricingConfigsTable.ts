@@ -4,6 +4,27 @@ export class CreateEditPricingConfigsTable1721000000000 implements MigrationInte
     name = 'CreateEditPricingConfigsTable1721000000000';
 
     public async up(queryRunner: QueryRunner): Promise<void> {
+        if (queryRunner.connection.options.type === 'postgres') {
+            await queryRunner.query(`
+                CREATE TABLE IF NOT EXISTS "edit_pricing_configs" (
+                    "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+                    "tenantId" uuid NOT NULL,
+                    "baseFee" numeric(10,2) NOT NULL DEFAULT 500,
+                    "perPageFee" numeric(10,2) NOT NULL DEFAULT 100,
+                    "complexityTierFees" text NOT NULL DEFAULT '{}',
+                    "maxShopAdjustmentPct" numeric(5,2) NOT NULL DEFAULT 0,
+                    "editingEnabled" boolean NOT NULL DEFAULT true,
+                    "bankAccountName" text,
+                    "bankAccountNumber" text,
+                    "bankName" text,
+                    "bankSortCode" text,
+                    "createdAt" timestamptz NOT NULL DEFAULT now(),
+                    "updatedAt" timestamptz NOT NULL DEFAULT now()
+                )
+            `);
+            await queryRunner.query(`CREATE UNIQUE INDEX IF NOT EXISTS "idx_edit_pricing_config_tenant" ON "edit_pricing_configs" ("tenantId")`);
+            return;
+        }
         await queryRunner.query(`
             CREATE TABLE "edit_pricing_configs" (
                 "id" TEXT NOT NULL PRIMARY KEY,

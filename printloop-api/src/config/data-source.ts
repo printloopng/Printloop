@@ -1,5 +1,5 @@
 import "reflect-metadata";
-import { DataSource, type DataSourceOptions } from "typeorm";
+import { DataSource, getMetadataArgsStorage, type DataSourceOptions } from "typeorm";
 import path from "path";
 import fs from "fs";
 import { Config } from "./index";
@@ -66,6 +66,10 @@ import { CreateDocumentEditsTable1720900000000 } from "@/database/migrations/172
 import { CreateEditPricingConfigsTable1721000000000 } from "@/database/migrations/1721000000000-CreateEditPricingConfigsTable";
 import { CreateEditorSessionsTable1721100000000 } from "@/database/migrations/1721100000000-CreateEditorSessionsTable";
 import { AddTenantIdToDocumentEditAndEditorSession1721200000000 } from "@/database/migrations/1721200000000-AddTenantIdToDocumentEditAndEditorSession";
+import { AlignEditTablesWithEntities1721300000000 } from "@/database/migrations/1721300000000-AlignEditTablesWithEntities";
+import { PostgresParity1721400000000 } from "@/database/migrations/1721400000000-PostgresParity";
+import { WidenStatusChecks1721500000000 } from "@/database/migrations/1721500000000-WidenStatusChecks";
+import { NullablePaymentUser1721600000000 } from "@/database/migrations/1721600000000-NullablePaymentUser";
 
 const ENTITIES = [
   Kiosk,
@@ -131,6 +135,10 @@ const SQLITE_MIGRATIONS = [
   CreateEditPricingConfigsTable1721000000000,
   CreateEditorSessionsTable1721100000000,
   AddTenantIdToDocumentEditAndEditorSession1721200000000,
+  AlignEditTablesWithEntities1721300000000,
+  PostgresParity1721400000000,
+  WidenStatusChecks1721500000000,
+  NullablePaymentUser1721600000000,
 ];
 
 const POSTGRES_MIGRATIONS = [
@@ -149,6 +157,10 @@ const POSTGRES_MIGRATIONS = [
   CreateEditPricingConfigsTable1721000000000,
   CreateEditorSessionsTable1721100000000,
   AddTenantIdToDocumentEditAndEditorSession1721200000000,
+  AlignEditTablesWithEntities1721300000000,
+  PostgresParity1721400000000,
+  WidenStatusChecks1721500000000,
+  NullablePaymentUser1721600000000,
 ];
 
 const dbUrl = (Config.database.url || process.env.DATABASE_URL || "").toLowerCase();
@@ -160,6 +172,20 @@ const dbFile = Config.database.file;
 
 if (!usePostgres) {
   fs.mkdirSync(path.dirname(path.resolve(dbFile)), { recursive: true });
+}
+
+const decimalAsNumber = {
+  to: (value: unknown) => value,
+  from: (value: unknown) => (value === null || value === undefined ? value : Number(value)),
+};
+
+if (usePostgres) {
+  for (const column of getMetadataArgsStorage().columns) {
+    if (column.options.type === "datetime") column.options.type = "timestamptz";
+    if ((column.options.type === "decimal" || column.options.type === "numeric") && !column.options.transformer) {
+      column.options.transformer = decimalAsNumber;
+    }
+  }
 }
 
 const dataSourceOptions: DataSourceOptions = usePostgres

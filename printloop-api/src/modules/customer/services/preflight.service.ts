@@ -1,6 +1,7 @@
 import { PDFDocument, PDFPage, rgb, StandardFonts } from 'pdf-lib';
 import sharp from 'sharp';
 import { createHash } from 'node:crypto';
+import { extractPdfText } from '@/core/utils/pdfText';
 import { config } from '@/config';
 import { uploadToS3, getPresignedUrl, generatePreflightKey } from '@/core/utils/s3';
 import {
@@ -98,18 +99,24 @@ export async function analyzePreflight(
   mimeType: string,
   printConfig: PrintConfig
 ): Promise<PreflightResult> {
-  const isOffice = isOfficeDocument(fileName, mimeType);
-  const officeConversionEnabled = conversionEnabled();
-  
-  if (isOffice) {
+  if (isOfficeDocument(fileName, mimeType)) {
     if (!conversionEnabled()) {
       throw new Error('Office document conversion is not enabled on this server. Please upload a PDF instead.');
     }
     const pdfBuffer = await convertOfficeToPdf(fileBuffer, fileName);
-    return await analyzePreflightPdf(fileBuffer, fileName, printConfig);
+    return await analyzePreflightPdf(pdfBuffer, fileName, printConfig);
   }
   
   return await analyzePreflightPdf(fileBuffer, fileName, printConfig);
+}
+
+async function extractText(pdf: Buffer): Promise<string> {
+  try {
+    const pages = await extractPdfText(pdf, 200);
+    return pages.map((p) => p.items.map((i) => i.str + (i.hasEOL ? '\n' : '')).join('')).join('\n');
+  } catch {
+    return '';
+  }
 }
 
 async function analyzePreflightPdf(
@@ -123,8 +130,7 @@ async function analyzePreflightPdf(
   if (cached) return cached;
 
   const pdfDoc = await PDFDocument.load(pdfBuffer);
-  const pdfParse = require('pdf-parse');
-  const parseResult = await pdfParse(pdfBuffer);
+  const parseResult = { text: await extractText(pdfBuffer) };
   
   const pageCount = pdfDoc.getPageCount();
   const pages = pdfDoc.getPages();

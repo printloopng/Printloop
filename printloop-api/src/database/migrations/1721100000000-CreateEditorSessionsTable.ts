@@ -4,6 +4,39 @@ export class CreateEditorSessionsTable1721100000000 implements MigrationInterfac
     name = 'CreateEditorSessionsTable1721100000000';
 
     public async up(queryRunner: QueryRunner): Promise<void> {
+        if (queryRunner.connection.options.type === 'postgres') {
+            await queryRunner.query(`
+                CREATE TABLE IF NOT EXISTS "editor_sessions" (
+                    "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+                    "documentEditId" uuid NOT NULL REFERENCES "document_edits"("id") ON DELETE CASCADE,
+                    "shopUserId" uuid REFERENCES "users"("id") ON DELETE SET NULL,
+                    "customerUserId" uuid REFERENCES "users"("id") ON DELETE SET NULL,
+                    "tenantId" uuid NOT NULL,
+                    "univerDocument" text NOT NULL DEFAULT '{}',
+                    "permissions" text NOT NULL DEFAULT '{"shop":"rw","customer":"r"}',
+                    "tokenHash" text NOT NULL,
+                    "status" varchar NOT NULL DEFAULT 'active',
+                    "webrtcSignaling" text NOT NULL DEFAULT '{}',
+                    "conversionStatus" varchar NOT NULL DEFAULT 'pending',
+                    "conversionError" text,
+                    "createdAt" timestamptz NOT NULL DEFAULT now(),
+                    "updatedAt" timestamptz NOT NULL DEFAULT now(),
+                    "expiresAt" timestamptz NOT NULL,
+                    "lastActivityAt" timestamptz NOT NULL DEFAULT now()
+                )
+            `);
+            for (const [name, col] of [
+                ['IDX_editor_sessions_document_edit', 'documentEditId'],
+                ['IDX_editor_sessions_status', 'status'],
+                ['IDX_editor_sessions_expires_at', 'expiresAt'],
+                ['IDX_editor_sessions_shop_user', 'shopUserId'],
+                ['IDX_editor_sessions_customer_user', 'customerUserId'],
+                ['IDX_editor_sessions_tenant', 'tenantId'],
+            ]) {
+                await queryRunner.query(`CREATE INDEX IF NOT EXISTS "${name}" ON "editor_sessions" ("${col}")`);
+            }
+            return;
+        }
         await queryRunner.query(`
             CREATE TABLE "editor_sessions" (
                 "id" TEXT NOT NULL PRIMARY KEY,

@@ -9,6 +9,7 @@ import { GroupParticipant, ParticipantStatus } from '@/database/entities/groupPa
 import { PrintJob } from '@/database/entities/printJob.entity';
 import { File } from '@/database/entities/file.entity';
 import { makeCode } from '@/core/utils/releaseCode';
+import { appUrls } from '@/core/utils/appUrls';
 
 export interface SessionOptions {
   paper: string;
@@ -77,8 +78,7 @@ export class GroupSessionService {
     }
 
     const shareId = makeCode(8);
-    const baseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-    const shareUrl = `${baseUrl}/join/${shareId}`;
+    const shareUrl = `${appUrls.customer}/join/${shareId}`;
 
     const session = this.sessionRepo.create({
       hostUserId: input.hostId,
@@ -253,6 +253,17 @@ export class GroupSessionService {
 
     const saved = await this.sessionRepo.save(session);
     return { session: saved, batchToken, batchCode };
+  }
+
+  async paidBatchJobs(batchCode: string): Promise<{ session: GroupSession; jobs: PrintJob[] } | null> {
+    const session = await this.sessionRepo.findOne({ where: { batchCode } });
+    if (!session || session.status !== GroupSessionStatus.CLOSED) return null;
+    const paid = await this.participantRepo.find({
+      where: { groupSessionId: session.id, status: ParticipantStatus.PAID },
+    });
+    const ids = paid.map((p) => p.printJobId).filter(Boolean) as string[];
+    const jobs = ids.length ? await this.printJobRepo.findByIds(ids) : [];
+    return { session, jobs };
   }
 
   async getBatchPrintData(batchCode: string): Promise<{

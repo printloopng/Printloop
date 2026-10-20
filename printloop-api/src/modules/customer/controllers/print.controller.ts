@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { In } from 'typeorm';
 import { type Request, type Response, type NextFunction } from 'express';
 import { LEGACY_TENANT_SLUG } from '@/common/middleware/tenant.middleware';
 import multer from 'multer';
@@ -15,6 +16,8 @@ import {
   countPages,
   flattenAnnotations,
   UnsupportedDocumentError,
+  parsePageRange,
+  billablePages,
 } from '@/modules/public/services/documentConvert.service';
 import {
   isOfficeDocument,
@@ -33,6 +36,7 @@ import { Tenant } from '@/database/entities/tenant.entity';
 import { ShopReview } from '@/database/entities/shopReview.entity';
 import { Dispute, DisputeStatus } from '@/database/entities/dispute.entity';
 import { Payment } from '@/database/entities/payment.entity';
+import { shopPriceList } from '@/modules/public/services/priceList.service';
 
 function formatJob(j: PrintJob) {
   const title = (j.fileName || 'Document').replace(/\.[^.]+$/, '');
@@ -195,9 +199,27 @@ export class CustomerPrintController {
       req.body.jobType === 'personal_batch' ? JobType.PERSONAL_BATCH : JobType.SINGLE;
     const editingRequired = req.body.editingRequired === 'true' || req.body.editingRequired === true;
     const editingInstructions = req.body.editingInstructions?.trim() || null;
+    const editPricing = editingRequired && req.tenant?.id
+      ? await AppDataSource.getRepository(EditPricingConfig).findOne({ where: { tenantId: req.tenant.id } })
+      : null;
+    if (editingRequired && !editPricing?.editingEnabled) {
+      res.status(409).json({
+        success: false,
+        message: "This shop doesn't offer document editing. Upload the final version to print it as-is.",
+        code: 'EDITING_NOT_OFFERED',
+      });
+      return;
+    }
 
+    const range = cfg.pages === 'range' && typeof cfg.pageRange === 'string' ? parsePageRange(cfg.pageRange, pageCount) : [];
+    if (range.length) {
+      printConfiguration.pages = 'range';
+      printConfiguration.pageRange = String(cfg.pageRange).slice(0, 200);
+    }
+    const billable = range.length || pageCount;
     const baseCost = await computeCost({
-      pageCount,
+      tenantId: req.tenant?.id,
+      pageCount: billable,
       copies: printConfiguration.copies,
       paper: printConfiguration.paper,
       color: printConfiguration.color,
@@ -205,7 +227,8 @@ export class CustomerPrintController {
       qualityDpi: printConfiguration.qualityDpi,
     });
     const promo = await applyPromotion(baseCost, req.body.promotionCode, {
-      pageCount,
+      tenantId: req.tenant?.id,
+      pageCount: billable,
       perPageBw: 5,
     });
     const cost = promo.cost;
@@ -241,17 +264,15 @@ export class CustomerPrintController {
     });
     const saved = await jobRepo.save(job);
 
-    if (editingRequired && req.tenant?.id) {
+    if (editingRequired && req.tenant?.id && editPricing) {
       try {
-        const editPricingRepo = AppDataSource.getRepository(EditPricingConfig);
-        const editPricing = await editPricingRepo.findOne({ where: { tenantId: req.tenant.id } });
-
-        if (editPricing?.editingEnabled) {
+        {
           const editRepo = AppDataSource.getRepository(DocumentEdit);
           const edit = editRepo.create({
             printJobId: saved.id,
             shopId: req.tenant.id,
-            editedBy: '',
+            tenantId: req.tenant.id,
+            editedBy: null,
             editOperations: [],
             originalDocumentMeta: {
               pageCount,
@@ -424,7 +445,7 @@ export class CustomerPrintController {
       };
       const pages = perFile[i].pages;
       const bytes = perFile[i].bytes;
-      const cost = await computeCost({ pageCount: pages, ...cfg });
+      const cost = await computeCost({ tenantId: req.tenant?.id, pageCount: pages, ...cfg });
       totalCost += cost;
       totalPages += pages;
 
@@ -454,6 +475,7 @@ export class CustomerPrintController {
     }
 
     const promo = await applyPromotion(totalCost, req.body.promotionCode, {
+      tenantId: req.tenant?.id,
       pageCount: totalPages,
       perPageBw: 5,
     });
@@ -463,7 +485,7 @@ export class CustomerPrintController {
 
     res.status(201).json({
       success: true,
-      data: { job: { ...formatJob(savedJob), items: files.length } },
+      data: { job: formatJob(savedJob), itemCount: files.length },
     });
   } catch (error) {
     console.error('Customer batch job error:', error);
@@ -476,17 +498,16 @@ export class CustomerPrintController {
     const user = (req as any).user;
     const status = req.query.status?.toString();
     const where: any = { userId: user.id };
-    if (req.tenant) where.tenantId = req.tenant.id;
-    const [jobs, tenants] = await Promise.all([
-      AppDataSource.getRepository(PrintJob).find({
-        where,
-        order: { createdAt: 'DESC' },
-        take: 100,
-      }),
-      AppDataSource.getRepository(Tenant).find({
-        select: ['id', 'slug', 'name'],
-      }),
-    ]);
+    if (req.query.scope === 'shop' && req.tenant) where.tenantId = req.tenant.id;
+    const jobs = await AppDataSource.getRepository(PrintJob).find({
+      where,
+      order: { createdAt: 'DESC' },
+      take: 100,
+    });
+    const tenantIds = [...new Set(jobs.map((j) => j.tenantId).filter(Boolean))] as string[];
+    const tenants = tenantIds.length
+      ? await AppDataSource.getRepository(Tenant).find({ select: ['id', 'slug', 'name'], where: { id: In(tenantIds) } })
+      : [];
 
     const tenantMap = new Map<string, { slug: string; name: string }>();
     for (const t of tenants) {
@@ -521,7 +542,7 @@ export class CustomerPrintController {
     });
     res.json({
       success: true,
-      data: { hasToken: !!fresh?.printToken, token: fresh?.printToken || null },
+      data: { hasToken: !!fresh?.printToken, hint: fresh?.printToken ? `…${fresh.printToken.slice(-4)}` : null },
     });
   } catch (err) {
     console.error('Print-token read error:', err);
@@ -542,42 +563,19 @@ export class CustomerPrintController {
   }
 };
 
-  getPricing = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
-  try {
-    const rows = await AppDataSource.getRepository(PricingConfig).find({
-      where: { isActive: true },
-    });
-    res.json({
-      success: true,
-      data: {
-        currency: 'NGN',
-        floor: 5,
-        officeConversion: conversionEnabled(),
-        configs: rows.map((r) => ({
-          paperSize: r.paperSize,
-          colorType: r.colorType,
-          pricePerPage: Number(r.pricePerPage),
-          duplexMultiplier: Number(r.duplexMultiplier),
-          highResolutionMultiplier: Number(r.highResolutionMultiplier),
-          price100Simplex: r.price100Simplex == null ? null : Number(r.price100Simplex),
-          price300Simplex: r.price300Simplex == null ? null : Number(r.price300Simplex),
-          price600Simplex: r.price600Simplex == null ? null : Number(r.price600Simplex),
-          price100Duplex: r.price100Duplex == null ? null : Number(r.price100Duplex),
-          price300Duplex: r.price300Duplex == null ? null : Number(r.price300Duplex),
-          price600Duplex: r.price600Duplex == null ? null : Number(r.price600Duplex),
-        })),
-      },
-    });
-  } catch (err) {
-    console.error('Customer pricing read error:', err);
-    res.status(500).json({ success: false, message: 'Failed to read pricing' });
-  }
-};
+  getPricing = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      res.json({ success: true, data: await shopPriceList(req.tenant) });
+    } catch (err) {
+      next(err);
+    }
+  };
 
   quotePrintJob = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const b = req.body || {};
-    const pageCount = Math.max(1, Number(b.pageCount) || 1);
+    const body = req.body || {};
+    const b = body.printConfiguration && typeof body.printConfiguration === 'object' ? { ...body, ...body.printConfiguration } : body;
+    const pageCount = billablePages(Math.max(1, Number(b.pageCount) || 1), b);
     const copies = Math.max(1, Number(b.copies) || 1);
     const paper = b.paper || 'A4';
     const color: 'bw' | 'color' = b.color === 'color' ? 'color' : 'bw';
@@ -585,8 +583,10 @@ export class CustomerPrintController {
     const qualityDpi: 100 | 300 | 600 = [100, 300, 600].includes(Number(b.qualityDpi))
       ? (Number(b.qualityDpi) as 100 | 300 | 600)
       : 300;
-    const baseCost = await computeCost({ pageCount, copies, paper, color, sided, qualityDpi });
+    const baseCost = await computeCost({ tenantId: req.tenant?.id, pageCount, copies, paper, color, sided, qualityDpi });
     const promo = await applyPromotion(baseCost, b.promotionCode, {
+      tenantId: req.tenant?.id,
+      dryRun: true,
       pageCount,
       perPageBw: 5,
     });
@@ -608,12 +608,25 @@ export class CustomerPrintController {
   }
 };
 
-  listStations = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
+  listStations = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const rows = await AppDataSource.getRepository(Kiosk).find({
-      where: { isPublic: true },
-      order: { name: 'ASC' },
-    });
+    const rows = req.tenant?.id
+      ? await AppDataSource.getRepository(Kiosk).find({
+          where: { isPublic: true, tenantId: req.tenant.id },
+          order: { name: 'ASC' },
+        })
+      : [];
+    const queued = rows.length
+      ? await AppDataSource.getRepository(PrintJob)
+          .createQueryBuilder('j')
+          .select('j.kioskId', 'kioskId')
+          .addSelect('COUNT(*)', 'count')
+          .where('j.kioskId IN (:...ids)', { ids: rows.map((k) => k.id) })
+          .andWhere('j.status IN (:...statuses)', { statuses: [PrintJobStatus.RELEASING, PrintJobStatus.PRINTING] })
+          .groupBy('j.kioskId')
+          .getRawMany<{ kioskId: string; count: string }>()
+      : [];
+    const queueByKiosk = new Map(queued.map((r) => [r.kioskId, Number(r.count)]));
     const now = Date.now();
     const fiveMin = 5 * 60 * 1000;
     res.json({
@@ -634,7 +647,7 @@ export class CustomerPrintController {
             campus: k.campus || null,
             status,
             mapsUrl: k.mapsUrl || null,
-            queue: 0,
+            queue: queueByKiosk.get(k.id) ?? 0,
             lastSeenAt: k.lastSeenAt,
           };
         }),
@@ -707,6 +720,20 @@ export class CustomerPrintController {
   }
 };
 
+  listMyDisputes = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const user = (req as any).user;
+      const disputes = await AppDataSource.getRepository(Dispute).find({
+        where: { userId: user.id },
+        order: { createdAt: 'DESC' },
+        take: 100,
+      });
+      res.json({ success: true, data: { disputes } });
+    } catch (err) {
+      next(err);
+    }
+  };
+
   createDispute = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const user = (req as any).user;
@@ -741,7 +768,7 @@ export class CustomerPrintController {
       tenantId: job.tenantId!,
       userId: user.id,
       printJobId,
-      reason,
+      reason: String(reason).trim().slice(0, 2000),
       status: DisputeStatus.PENDING,
     });
 

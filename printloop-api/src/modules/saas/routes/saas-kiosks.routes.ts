@@ -1,13 +1,15 @@
 import { Router } from 'express';
 import { DataSource } from 'typeorm';
 import { authenticate } from '@/common/middleware/auth.middleware';
-import { resolveTenant } from '@/common/middleware/tenant.middleware';
+import { requireTenantRole, resolveTenant } from '@/common/middleware/tenant.middleware';
+import { TenantMemberRole } from '@/database/entities/tenantMember.entity';
 import { requireVerifiedEmail } from '@/common/middleware/verifiedEmail.middleware';
 import { SaasKioskController } from '@/modules/saas/controllers/saasKiosk.controller';
 
 export function createSaasKioskRoutes(ds: DataSource): Router {
   const router = Router();
   const ctrl = new SaasKioskController(ds);
+  const manager = requireTenantRole(TenantMemberRole.OWNER, TenantMemberRole.ADMIN);
 
   router.get('/kiosks', authenticate, resolveTenant, ctrl.listKiosks);
   router.post(
@@ -15,6 +17,7 @@ export function createSaasKioskRoutes(ds: DataSource): Router {
     authenticate,
     requireVerifiedEmail,
     resolveTenant,
+    manager,
     ctrl.createKiosk,
   );
   router.patch(
@@ -22,6 +25,7 @@ export function createSaasKioskRoutes(ds: DataSource): Router {
     authenticate,
     requireVerifiedEmail,
     resolveTenant,
+    manager,
     ctrl.updateStatus,
   );
   router.post(
@@ -29,6 +33,7 @@ export function createSaasKioskRoutes(ds: DataSource): Router {
     authenticate,
     requireVerifiedEmail,
     resolveTenant,
+    manager,
     ctrl.regenerateKey,
   );
   router.post(
@@ -36,6 +41,7 @@ export function createSaasKioskRoutes(ds: DataSource): Router {
     authenticate,
     requireVerifiedEmail,
     resolveTenant,
+    manager,
     ctrl.testPrint,
   );
   router.delete(
@@ -43,6 +49,7 @@ export function createSaasKioskRoutes(ds: DataSource): Router {
     authenticate,
     requireVerifiedEmail,
     resolveTenant,
+    manager,
     ctrl.deleteKiosk,
   );
 

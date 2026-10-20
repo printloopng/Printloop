@@ -1,22 +1,20 @@
 import { Server as HttpServer } from 'http';
+import { verifyEditorToken } from '@/core/utils/editorToken';
 import { Server as SocketIOServer, Socket } from 'socket.io';
 import { createAdapter } from '@socket.io/redis-adapter';
 import { createClient } from 'redis';
-import { EditorSessionStatus } from '@/database/entities/editorSession.entity';
+import { EditorSession } from '@/database/entities/editorSession.entity';
+import { AppDataSource } from '@/config/data-source';
 import { config } from '@/config';
+import { isAllowedOrigin } from '@/config/origins';
 
+type Role = 'shop' | 'customer';
 type RtcSdp = { type: string; sdp?: string };
 type RtcIce = { candidate?: string; sdpMid?: string | null; sdpMLineIndex?: number | null };
 
-interface SignalingData {
-  offer?: RtcSdp;
-  answer?: RtcSdp;
-  candidate?: RtcIce;
-}
-
 interface AwarenessState {
   userId: string;
-  role: 'shop' | 'customer';
+  role: Role;
   userName: string;
   color: string;
   cursor?: { x: number; y: number; page: number };
@@ -34,60 +32,83 @@ interface SessionRoom {
   documentVersion: number;
 }
 
+interface EditorClaims {
+  userId: string;
+  sessionId: string;
+  role: Role;
+}
+
 export class EditorCollaborationService {
   private io: SocketIOServer | null = null;
-  private redisClient: ReturnType<typeof createClient> | null = null;
+  private redisClients: Array<ReturnType<typeof createClient>> = [];
   private rooms: Map<string, SessionRoom> = new Map();
-  private userSockets: Map<string, { sessionId: string; role: 'shop' | 'customer' }> = new Map();
 
   async initialize(httpServer: HttpServer): Promise<void> {
-    const redisUrl = config.redis?.url || 'redis://localhost:6379';
-    this.redisClient = createClient({ url: redisUrl });
-    this.redisClient.on('error', (err) => console.error('[EditorCollab] Redis error:', err));
-    await this.redisClient.connect();
-
-    const pubClient = this.redisClient.duplicate();
-    await pubClient.connect();
-
     this.io = new SocketIOServer(httpServer, {
+      path: '/editor-socket',
       cors: {
-        origin: config.frontendUrl || 'http://localhost:5173',
+        origin: (origin, callback) => callback(null, origin && isAllowedOrigin(origin) ? origin : false),
         methods: ['GET', 'POST'],
         credentials: true,
       },
       transports: ['websocket', 'polling'],
+      maxHttpBufferSize: 5_000_000,
       pingTimeout: 60000,
       pingInterval: 25000,
     });
 
-    this.io.adapter(createAdapter(this.redisClient, pubClient));
+    if (config.redis?.enabled && config.redis.url) {
+      try {
+        const pub = createClient({ url: config.redis.url });
+        const sub = pub.duplicate();
+        pub.on('error', (err) => console.error('[EditorCollab] Redis error:', err));
+        sub.on('error', (err) => console.error('[EditorCollab] Redis error:', err));
+        await Promise.all([pub.connect(), sub.connect()]);
+        this.redisClients = [pub, sub];
+        this.io.adapter(createAdapter(pub, sub));
+      } catch (err) {
+        console.error('[EditorCollab] Redis adapter unavailable, using in-memory rooms:', err);
+      }
+    }
 
     this.io.use(async (socket, next) => {
       try {
-        const token = socket.handshake.auth.token || socket.handshake.query.token;
-        if (!token) {
-          return next(new Error('Authentication required'));
+        const token = socket.handshake.auth?.token;
+        if (!token || typeof token !== 'string') return next(new Error('Authentication required'));
+        const claims = verifyEditorToken(token);
+        const session = await AppDataSource.getRepository(EditorSession).findOne({ where: { id: claims.sessionId } });
+        if (!session || new Date(session.expiresAt).getTime() < Date.now()) {
+          return next(new Error('Session expired'));
         }
-        const payload = this.verifyToken(token as string);
-        socket.data.user = payload;
+        socket.data.user = { userId: claims.userId, sessionId: claims.sessionId, role: claims.role } satisfies EditorClaims;
         next();
-      } catch (err) {
+      } catch {
         next(new Error('Invalid token'));
       }
     });
 
     this.io.on('connection', (socket) => this.handleConnection(socket));
+  }
 
-    console.log('[EditorCollab] Socket.io server initialized');
+  private claims(socket: Socket): EditorClaims {
+    return socket.data.user as EditorClaims;
+  }
+
+  private peerOf(socket: Socket): string | null {
+    const { sessionId, role } = this.claims(socket);
+    const room = this.rooms.get(sessionId);
+    if (!room) return null;
+    return role === 'shop' ? room.customerSocketId : room.shopSocketId;
+  }
+
+  private relay(socket: Socket, event: string, payload: unknown): void {
+    const target = this.peerOf(socket);
+    if (target) this.io?.to(target).emit(event, payload);
   }
 
   private handleConnection(socket: Socket): void {
-    const { userId, sessionId, role } = socket.data.user;
-
-    console.log(`[EditorCollab] User ${userId} (${role}) connected to session ${sessionId}`);
-
+    const { sessionId, role } = this.claims(socket);
     socket.join(sessionId);
-    this.userSockets.set(socket.id, { sessionId, role });
 
     let room = this.rooms.get(sessionId);
     if (!room) {
@@ -102,11 +123,10 @@ export class EditorCollaborationService {
       this.rooms.set(sessionId, room);
     }
 
-    if (role === 'shop') {
-      room.shopSocketId = socket.id;
-    } else {
-      room.customerSocketId = socket.id;
-    }
+    const previous = role === 'shop' ? room.shopSocketId : room.customerSocketId;
+    if (previous && previous !== socket.id) this.io?.sockets.sockets.get(previous)?.disconnect(true);
+    if (role === 'shop') room.shopSocketId = socket.id;
+    else room.customerSocketId = socket.id;
 
     socket.emit('room-state', {
       sessionId,
@@ -115,115 +135,51 @@ export class EditorCollaborationService {
       peerAwareness: role === 'shop' ? room.customerAwareness : room.shopAwareness,
       peerConnected: role === 'shop' ? !!room.customerSocketId : !!room.shopSocketId,
     });
+    this.relay(socket, 'peer-joined', { role });
 
-    const peerSocketId = role === 'shop' ? room.customerSocketId : room.shopSocketId;
-    if (peerSocketId) {
-      this.io?.to(peerSocketId).emit('peer-joined', { role });
-    }
-
-    socket.on('offer', (data) => this.handleOffer(socket, data));
-    socket.on('answer', (data) => this.handleAnswer(socket, data));
-    socket.on('ice-candidate', (data) => this.handleIceCandidate(socket, data));
-    socket.on('awareness', (data) => this.handleAwareness(socket, data));
-    socket.on('snapshot', (data) => this.handleSnapshot(socket, data));
-    socket.on('document-version', (data) => this.handleDocumentVersion(socket, data));
-
+    socket.on('offer', (data: { offer?: RtcSdp }) => this.relay(socket, 'offer', { offer: data?.offer, fromRole: role }));
+    socket.on('answer', (data: { answer?: RtcSdp }) => this.relay(socket, 'answer', { answer: data?.answer, fromRole: role }));
+    socket.on('ice-candidate', (data: { candidate?: RtcIce }) =>
+      this.relay(socket, 'ice-candidate', { candidate: data?.candidate, fromRole: role }),
+    );
+    socket.on('awareness', (data: AwarenessState) => this.handleAwareness(socket, data));
+    socket.on('snapshot', (data: { snapshot: unknown; version: number }) => this.handleSnapshot(socket, data));
+    socket.on('document-version', (data: { version: number }) => this.handleDocumentVersion(socket, data));
     socket.on('disconnect', () => this.handleDisconnect(socket));
   }
 
-  private handleOffer(socket: Socket, data: { sessionId: string; offer: RtcSdp }): void {
-    const room = this.rooms.get(data.sessionId);
-    if (!room) return;
-
-    const targetSocketId = socket.data.user.role === 'shop' ? room.customerSocketId : room.shopSocketId;
-    if (targetSocketId) {
-      this.io?.to(targetSocketId).emit('offer', {
-        offer: data.offer,
-        fromRole: socket.data.user.role,
-      });
-    }
-  }
-
-  private handleAnswer(socket: Socket, data: { sessionId: string; answer: RtcSdp }): void {
-    const room = this.rooms.get(data.sessionId);
-    if (!room) return;
-
-    const targetSocketId = socket.data.user.role === 'shop' ? room.customerSocketId : room.shopSocketId;
-    if (targetSocketId) {
-      this.io?.to(targetSocketId).emit('answer', {
-        answer: data.answer,
-        fromRole: socket.data.user.role,
-      });
-    }
-  }
-
-  private handleIceCandidate(socket: Socket, data: { sessionId: string; candidate: RtcIce }): void {
-    const room = this.rooms.get(data.sessionId);
-    if (!room) return;
-
-    const targetSocketId = socket.data.user.role === 'shop' ? room.customerSocketId : room.shopSocketId;
-    if (targetSocketId) {
-      this.io?.to(targetSocketId).emit('ice-candidate', {
-        candidate: data.candidate,
-        fromRole: socket.data.user.role,
-      });
-    }
-  }
-
   private handleAwareness(socket: Socket, awareness: AwarenessState): void {
-    const { sessionId, role } = socket.data.user;
+    const { sessionId, role, userId } = this.claims(socket);
     const room = this.rooms.get(sessionId);
-    if (!room) return;
-
-    if (role === 'shop') {
-      room.shopAwareness = awareness;
-    } else {
-      room.customerAwareness = awareness;
-    }
-
-    const targetSocketId = role === 'shop' ? room.customerSocketId : room.shopSocketId;
-    if (targetSocketId) {
-      this.io?.to(targetSocketId).emit('awareness', awareness);
-    }
+    if (!room || !awareness || typeof awareness !== 'object') return;
+    const state: AwarenessState = { ...awareness, userId, role, lastActive: Date.now() };
+    if (role === 'shop') room.shopAwareness = state;
+    else room.customerAwareness = state;
+    this.relay(socket, 'awareness', state);
   }
 
-  private handleSnapshot(socket: Socket, data: { sessionId: string; snapshot: any; version: number }): void {
-    const room = this.rooms.get(data.sessionId);
-    if (!room) return;
-
+  private handleSnapshot(socket: Socket, data: { snapshot: unknown; version: number }): void {
+    const { sessionId, role } = this.claims(socket);
+    const room = this.rooms.get(sessionId);
+    if (!room || role !== 'shop' || !Number.isFinite(data?.version)) return;
     room.documentVersion = data.version;
-
-    const targetSocketId = socket.data.user.role === 'shop' ? room.customerSocketId : room.shopSocketId;
-    if (targetSocketId) {
-      this.io?.to(targetSocketId).emit('snapshot', {
-        snapshot: data.snapshot,
-        version: data.version,
-        fromRole: socket.data.user.role,
-      });
-    }
+    this.relay(socket, 'snapshot', { snapshot: data.snapshot, version: data.version, fromRole: role });
   }
 
-  private handleDocumentVersion(socket: Socket, data: { sessionId: string; version: number }): void {
-    const room = this.rooms.get(data.sessionId);
-    if (!room) return;
-
+  private handleDocumentVersion(socket: Socket, data: { version: number }): void {
+    const { sessionId, role } = this.claims(socket);
+    const room = this.rooms.get(sessionId);
+    if (!room || role !== 'shop' || !Number.isFinite(data?.version)) return;
     room.documentVersion = data.version;
-
-    const targetSocketId = socket.data.user.role === 'shop' ? room.customerSocketId : room.shopSocketId;
-    if (targetSocketId) {
-      this.io?.to(targetSocketId).emit('document-version', { version: data.version });
-    }
+    this.relay(socket, 'document-version', { version: data.version });
   }
 
   private handleDisconnect(socket: Socket): void {
-    const userData = this.userSockets.get(socket.id);
-    if (!userData) return;
-
-    const { sessionId, role } = userData;
+    const { sessionId, role } = this.claims(socket);
     const room = this.rooms.get(sessionId);
     if (!room) return;
-
-    console.log(`[EditorCollab] User ${socket.data.user.userId} (${role}) disconnected from session ${sessionId}`);
+    const current = role === 'shop' ? room.shopSocketId : room.customerSocketId;
+    if (current !== socket.id) return;
 
     if (role === 'shop') {
       room.shopSocketId = null;
@@ -232,35 +188,15 @@ export class EditorCollaborationService {
       room.customerSocketId = null;
       room.customerAwareness = null;
     }
-
-    const peerSocketId = role === 'shop' ? room.customerSocketId : room.shopSocketId;
-    if (peerSocketId) {
-      this.io?.to(peerSocketId).emit('peer-left', { role });
-    }
+    this.relay(socket, 'peer-left', { role });
 
     if (!room.shopSocketId && !room.customerSocketId) {
       setTimeout(() => {
         const currentRoom = this.rooms.get(sessionId);
         if (currentRoom && !currentRoom.shopSocketId && !currentRoom.customerSocketId) {
           this.rooms.delete(sessionId);
-          console.log(`[EditorCollab] Cleaned up empty room ${sessionId}`);
         }
-      }, 60000);
-    }
-
-    this.userSockets.delete(socket.id);
-  }
-
-  private verifyToken(token: string): { userId: string; sessionId: string; role: 'shop' | 'customer' } {
-    try {
-      const payload = JSON.parse(Buffer.from(token, 'base64url').toString());
-      return {
-        userId: payload.uid,
-        sessionId: payload.sid,
-        role: payload.role || 'shop',
-      };
-    } catch {
-      throw new Error('Invalid token format');
+      }, 60000).unref?.();
     }
   }
 
@@ -275,28 +211,17 @@ export class EditorCollaborationService {
   async closeSession(sessionId: string): Promise<boolean> {
     const room = this.rooms.get(sessionId);
     if (!room) return false;
-
     this.io?.to(sessionId).emit('session-closed', { reason: 'closed_by_admin' });
-
-    if (room.shopSocketId) {
-      this.io?.sockets.sockets.get(room.shopSocketId)?.disconnect();
+    for (const id of [room.shopSocketId, room.customerSocketId]) {
+      if (id) this.io?.sockets.sockets.get(id)?.disconnect();
     }
-    if (room.customerSocketId) {
-      this.io?.sockets.sockets.get(room.customerSocketId)?.disconnect();
-    }
-
     this.rooms.delete(sessionId);
     return true;
   }
 
   async shutdown(): Promise<void> {
-    if (this.io) {
-      await this.io.close();
-    }
-    if (this.redisClient) {
-      await this.redisClient.quit();
-    }
-    console.log('[EditorCollab] Server shutdown complete');
+    if (this.io) await this.io.close();
+    await Promise.all(this.redisClients.map((c) => c.quit().catch(() => undefined)));
   }
 }
 

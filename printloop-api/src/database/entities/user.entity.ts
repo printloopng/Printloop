@@ -69,10 +69,10 @@ export class User {
   @Column({ type: 'boolean', default: false })
   isEmailVerified: boolean;
 
-  @Column({ type: 'varchar', length: 10, nullable: true })
+  @Column({ type: 'varchar', length: 64, nullable: true })
   verificationToken: string;
 
-  @Column({ type: 'varchar', length: 10, nullable: true })
+  @Column({ type: 'varchar', length: 128, nullable: true })
   resetToken: string;
 
   @OneToOne(() => Wallet, wallet => wallet.user)

@@ -1,0 +1,184 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --pl-brand-rgb: 209 75 44;
+  }
+  body {
+    @apply font-sans bg-paper text-ink antialiased;
+  }
+  ::selection { background: #d14b2c; color: #f8f4ed; }
+  @media (prefers-reduced-motion: no-preference) {
+    html { scroll-behavior: smooth; }
+  }
+}
+
+@layer components {
+  .editorial-label {
+    @apply uppercase tracking-editorial font-bold text-[10px];
+  }
+  .editorial-folio {
+    @apply font-serif italic text-ochre font-semibold;
+  }
+  .editorial-rule {
+    @apply border-t-2 border-ink;
+  }
+
+  .pl-btn {
+    @apply inline-flex items-center justify-center gap-2 border-2 border-ink rounded-md
+           px-5 py-3 font-bold text-sm tracking-wider uppercase cursor-pointer
+           transition-all duration-150 ease-out select-none;
+  }
+  .pl-btn:hover { transform: translate(-3px, -3px); box-shadow: 5px 5px 0 #1a1410; }
+  .pl-btn:active { transform: translate(0, 0); box-shadow: none; }
+
+  .pl-btn-primary { @apply pl-btn bg-persimmon text-paper; }
+  .pl-btn-primary:hover { box-shadow: 5px 5px 0 #1a1410; }
+
+  .pl-btn-dark { @apply pl-btn bg-ink text-paper; }
+  .pl-btn-dark:hover { box-shadow: 5px 5px 0 #d14b2c; }
+
+  .pl-btn-ghost { @apply pl-btn bg-transparent text-ink; }
+
+  .pl-btn-sm { @apply px-3 py-1.5 text-xs; }
+  .pl-btn-lg { @apply px-7 py-4 text-base; }
+
+  .pl-input {
+    @apply w-full px-3.5 py-2.5 border-2 border-ink rounded-md bg-paper-light
+           text-ink font-medium text-sm transition-all duration-150 outline-none;
+  }
+  .pl-input:hover { background-color: #f8f4ed; }
+  .pl-input:focus { transform: translate(-2px, -2px); box-shadow: 3px 3px 0 #d14b2c; }
+  .pl-input.error { border-color: #d14b2c; }
+
+  .pl-card {
+    @apply border-2 border-ink rounded-lg bg-paper-light p-5 transition-all duration-150 cursor-pointer;
+  }
+  .pl-card:hover { transform: translate(-3px, -3px); box-shadow: 5px 5px 0 #1a1410; }
+
+  .pl-chip {
+    @apply inline-flex items-center gap-1.5 border border-ink rounded-full px-3 py-1.5
+           text-xs font-semibold cursor-pointer transition-colors duration-150;
+  }
+  .pl-chip:hover { background: #1a1410; color: #f8f4ed; }
+  .pl-chip-active { background: #d14b2c; color: #f8f4ed; border-color: #d14b2c; }
+
+  .pl-pill { @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] tracking-editorial font-bold uppercase; }
+  .pl-pill-ready { @apply bg-persimmon text-paper; }
+  .pl-pill-done  { @apply text-fog border border-fog; }
+
+  .pl-slider { accent-color: #d14b2c; }
+  .pl-slider::-webkit-slider-thumb { cursor: pointer; }
+  .pl-slider::-moz-range-thumb     { cursor: pointer; }
+
+  .pl-mono  { @apply font-mono; }
+  .pl-serif { @apply font-serif; }
+
+  .pl-reveal {
+    transition:
+      opacity 700ms cubic-bezier(0.16, 1, 0.3, 1),
+      transform 700ms cubic-bezier(0.16, 1, 0.3, 1),
+      clip-path 700ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .pl-reveal-rise  { opacity: 0; transform: translateY(24px); }
+  .pl-reveal-left  { opacity: 0; transform: translateX(-32px); }
+  .pl-reveal-right { opacity: 0; transform: translateX(32px); }
+  .pl-reveal-stamp { opacity: 0; transform: scale(1.12) rotate(-1deg); }
+  .pl-reveal-wipe  { clip-path: inset(-12px 100% -12px -12px); }
+  .pl-reveal-fade  { opacity: 0; }
+  .pl-reveal-flip  { opacity: 0; transform: perspective(600px) rotateY(90deg); }
+  .pl-reveal-scale { opacity: 0; transform: scale(0.88); }
+  .pl-reveal-blur  { opacity: 0; filter: blur(8px); }
+  .pl-reveal-rotate-in { opacity: 0; transform: rotate(-12deg) scale(0.9); }
+  .pl-reveal-slide-up { opacity: 0; transform: translateY(36px) scale(0.95); }
+  .pl-reveal[data-shown] { opacity: 1; transform: none; filter: none; }
+  .pl-reveal-wipe[data-shown] { clip-path: inset(-12px); }
+  .pl-reveal-flip[data-shown] { transform: perspective(600px) rotateY(0); }
+  .pl-reveal-scale[data-shown] { transform: scale(1); }
+  .pl-reveal-blur[data-shown] { filter: none; }
+  .pl-reveal-rotate-in[data-shown] { transform: none; }
+  .pl-reveal-slide-up[data-shown] { transform: none; }
+
+  .pl-typeset .pl-word {
+    display: inline-block;
+    opacity: 0;
+    transform: translateY(0.38em) rotate(-1.2deg) scale(1.06);
+    transition:
+      opacity 480ms cubic-bezier(0.16, 1, 0.3, 1),
+      transform 480ms cubic-bezier(0.16, 1, 0.3, 1);
+    transition-delay: calc(120ms + var(--w, 0) * 65ms);
+  }
+  .pl-typeset[data-shown] .pl-word {
+    opacity: 1;
+    transform: none;
+  }
+
+  @keyframes pl-drop-in {
+    from { opacity: 0; transform: translateY(-14px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .pl-anim-header { animation: pl-drop-in 460ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+  .pl-nav-link {
+    transition: transform 150ms cubic-bezier(0.4, 0, 0.2, 1),
+                background-color 150ms, color 150ms, border-color 150ms;
+  }
+  .pl-nav-link:hover { transform: translateY(-2px); }
+  .pl-nav-link:active { transform: translateY(0); }
+
+  .pl-arrow { transition: transform 150ms cubic-bezier(0.4, 0, 0.2, 1); }
+  .pl-btn:hover .pl-arrow { transform: translateX(4px); }
+
+  .pl-btn:focus-visible,
+  .pl-nav-link:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px #f8f4ed, 0 0 0 4px #d14b2c;
+  }
+
+  .pl-ornament { display: inline-block; transition: transform 400ms cubic-bezier(0.16, 1, 0.3, 1); }
+  .pl-ornament:hover { transform: rotate(180deg); }
+
+  .pl-drawer-item {
+    transition: opacity 300ms cubic-bezier(0.16, 1, 0.3, 1),
+                transform 300ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .pl-drawer-item[data-open="false"] { opacity: 0; transform: translateX(14px); }
+  .pl-drawer-item[data-open="true"]  { opacity: 1; transform: translateX(0); }
+
+  .pl-3d { transform-style: preserve-3d; }
+  .pl-face {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    backface-visibility: hidden;
+    will-change: transform;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .pl-reveal, .pl-reveal[data-shown] {
+      transition: none;
+      opacity: 1;
+      transform: none;
+      clip-path: none;
+    }
+    .pl-typeset .pl-word {
+      transition: none;
+      opacity: 1;
+      transform: none;
+    }
+    .pl-anim-header { animation: none; }
+    .pl-drawer-item,
+    .pl-drawer-item[data-open="false"],
+    .pl-drawer-item[data-open="true"] {
+      transition: none;
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  .pl-skeleton { @apply bg-ink/10 rounded animate-pulse; }
+  .pl-table-head { @apply text-left px-4 py-3 text-[10px] font-bold tracking-editorial uppercase; }
+  .pl-link { @apply underline decoration-2 underline-offset-4 decoration-persimmon hover:text-persimmon; }
+}

@@ -19,6 +19,7 @@ import {
   UnsupportedDocumentError,
 } from '@/modules/public/services/documentConvert.service';
 import { settleShortfall } from '@/modules/saas/services/costReconciliation.service';
+import { releaseJobToKiosk } from '@/modules/kiosk/services/release.service';
 
 const printerExt = new PrinterServiceExtensions();
 const groupSvc = new GroupSessionService();
@@ -96,6 +97,34 @@ export class KioskPrinterController {
         return;
       }
 
+      if (dispatchMode === 'kiosk-pull') {
+        const result = await releaseJobToKiosk(job, kiosk.id, { totalPagesHint: Number(totalPages) || undefined });
+        if (!result.ok) {
+          res.status(result.status).json({
+            success: false,
+            message: result.message,
+            code: result.code,
+            ...(result.amountDue != null ? { amountDue: result.amountDue } : {}),
+          });
+          return;
+        }
+        res.json({
+          success: true,
+          message: 'Released to on-site agent. The kiosk will dispatch to the printer shortly.',
+          data: { mode: 'kiosk-pull', status: PrintJobStatus.RELEASING, batch: result.batch, total: result.total },
+        });
+        return;
+      }
+
+      if (job.status !== PrintJobStatus.READY) {
+        res.status(409).json({
+          success: false,
+          message: `This job is ${job.status} and can't be sent to the printer.`,
+          code: 'JOB_NOT_RELEASABLE',
+        });
+        return;
+      }
+
       const settlement = await settleShortfall(job.id);
       if (
         settlement.reason === 'charge-failed' ||
@@ -111,100 +140,6 @@ export class KioskPrinterController {
       }
 
       const cfg: any = job.printConfiguration || {};
-
-      if (dispatchMode === 'kiosk-pull') {
-        const items = await AppDataSource.getRepository(PrintJobItem).find({
-          where: { printJobId: job.id },
-          order: { order: 'ASC' },
-        });
-
-        if (items.length) {
-          for (const it of items) {
-            const ic: any = it.printConfiguration || {};
-            const pol = await evaluatePrintPolicy({
-              totalPages: it.totalPages || 1,
-              copies: ic.copies || 1,
-              color: ic.color === 'color' ? 'color' : 'bw',
-              sided: ic.sided === 'double' ? 'double' : 'single',
-              paper: ic.paper || 'A4',
-              fileName: it.fileName,
-              jobType: job.jobType,
-            });
-            if (!pol.allow) {
-              res.status(403).json({
-                success: false,
-                message: `${it.fileName}: ${pol.deniedReason || 'Blocked by print policy.'}`,
-                code: 'PRINT_POLICY_DENIED',
-              });
-              return;
-            }
-            it.printConfiguration = {
-              ...ic,
-              copies: pol.mutated.copies,
-              sided: pol.mutated.sided,
-              color: pol.mutated.color,
-              paper: pol.mutated.paper || ic.paper || 'A4',
-            };
-          }
-          await AppDataSource.getRepository(PrintJobItem).save(items);
-        } else {
-          const pol = await evaluatePrintPolicy({
-            totalPages: job.totalPages || Number(totalPages) || 1,
-            copies: cfg.copies || 1,
-            color: cfg.color === 'color' ? 'color' : 'bw',
-            sided: cfg.sided === 'double' ? 'double' : 'single',
-            paper: cfg.paper || 'A4',
-            fileName: job.fileName,
-            jobType: job.jobType,
-          });
-          if (!pol.allow) {
-            res.status(403).json({
-              success: false,
-              message: pol.deniedReason || 'Blocked by print policy.',
-              code: 'PRINT_POLICY_DENIED',
-            });
-            return;
-          }
-          job.printConfiguration = {
-            ...cfg,
-            copies: pol.mutated.copies,
-            sided: pol.mutated.sided,
-            color: pol.mutated.color,
-            paper: pol.mutated.paper || cfg.paper || 'A4',
-          };
-        }
-
-        const upd = await jobRepo
-          .createQueryBuilder()
-          .update(PrintJob)
-          .set({
-            status: PrintJobStatus.RELEASING,
-            kioskId: kiosk.id,
-            printConfiguration: job.printConfiguration,
-          })
-          .where('id = :id AND status = :ready', { id: job.id, ready: PrintJobStatus.READY })
-          .execute();
-        if ((upd.affected ?? 0) !== 1) {
-          res.status(409).json({
-            success: false,
-            message: 'Job is no longer releasable (already in flight or completed).',
-            code: 'JOB_NOT_RELEASABLE',
-          });
-          return;
-        }
-
-        res.json({
-          success: true,
-          message: 'Released to on-site agent. The kiosk will dispatch to the printer shortly.',
-          data: {
-            mode: 'kiosk-pull',
-            status: PrintJobStatus.RELEASING,
-            batch: !!items.length,
-            total: items.length || 1,
-          },
-        });
-        return;
-      }
 
       const items = await AppDataSource.getRepository(PrintJobItem).find({
         where: { printJobId: job.id },
@@ -443,11 +378,25 @@ export class KioskPrinterController {
 
       const dispatchMode = await printDispatchMode();
       if (dispatchMode === 'kiosk-pull') {
-        res.status(501).json({
-          success: false,
-          message:
-            'Group-batch release is not yet supported in kiosk-pull mode. Switch printDispatchMode to "cloud-push" for group sessions.',
-          code: 'GROUP_BATCH_PULL_UNSUPPORTED',
+        const batch = await groupSvc.paidBatchJobs(String(code).trim());
+        if (!batch) {
+          res.status(404).json({ success: false, message: 'Batch code not found, or the group is still open.', code: 'BATCH_NOT_FOUND' });
+          return;
+        }
+        if (batch.session.tenantId && kiosk?.tenantId && batch.session.tenantId !== kiosk.tenantId) {
+          res.status(403).json({ success: false, message: 'This group printed at a different shop.', code: 'WRONG_SHOP' });
+          return;
+        }
+        const skipped: Array<{ jobId: string; code: string; message: string }> = [];
+        let released = 0;
+        for (const job of batch.jobs) {
+          const result = await releaseJobToKiosk(job, kiosk.id);
+          if (result.ok) released++;
+          else skipped.push({ jobId: job.id, code: result.code, message: result.message });
+        }
+        res.json({
+          success: true,
+          data: { mode: 'kiosk-pull', groupName: batch.session.groupName, released, total: batch.jobs.length, skipped },
         });
         return;
       }

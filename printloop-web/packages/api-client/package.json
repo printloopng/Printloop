@@ -1,0 +1,34 @@
+{
+  "name": "@printloop/api-client",
+  "version": "0.0.0",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts",
+    "./react": "./src/react.tsx"
+  },
+  "scripts": {
+    "generate": "openapi-typescript ../../../printloop-api/openapi.json -o src/schema.ts && prettier --write src/schema.ts",
+    "check": "openapi-typescript ../../../printloop-api/openapi.json -o .schema.check.ts && prettier --write .schema.check.ts && node -e \"const fs=require('fs');const a=fs.readFileSync('src/schema.ts','utf8'),b=fs.readFileSync('.schema.check.ts','utf8');fs.rmSync('.schema.check.ts');if(a!==b){console.error('api-client schema is stale: run pnpm api:generate');process.exit(1)}\"",
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "5.104.5",
+    "openapi-fetch": "0.17.0",
+    "openapi-react-query": "0.5.4"
+  },
+  "peerDependencies": {
+    "react": "^19"
+  },
+  "devDependencies": {
+    "@printloop/config": "workspace:*",
+    "@types/react": "19.3.0",
+    "eslint": "9.39.5",
+    "openapi-typescript": "7.13.0",
+    "prettier": "3.9.10",
+    "react": "19.3.1",
+    "typescript": "5.9.3",
+    "vitest": "3.2.7"
+  }
+}

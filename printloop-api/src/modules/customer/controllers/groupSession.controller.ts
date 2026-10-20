@@ -130,7 +130,13 @@ export const getHostSessionDetails = async (req: Request, res: Response): Promis
       res.status(404).json({ success: false, message: 'Session not found or access denied' });
       return;
     }
-    res.json({ success: true, data: result });
+    res.json({
+      success: true,
+      data: {
+        ...result,
+        participants: result.participants.map(({ uploadToken: _secret, ...participant }) => participant),
+      },
+    });
   } catch (error) {
     console.error('Get host session error:', error);
     res.status(500).json({ success: false, message: 'Failed to get session details' });

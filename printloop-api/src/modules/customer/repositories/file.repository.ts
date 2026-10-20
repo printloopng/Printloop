@@ -14,8 +14,13 @@ export class FileRepository extends BaseRepository<File> {
 
   async findByPrintJobUserId(userId: string): Promise<File[]> {
     return this.createQueryBuilder("f")
-      .innerJoin("f.printJob", "pj")
-      .where("pj.userId = :uid", { uid: userId })
+      .where(
+        `f.id IN (SELECT pj."fileId" FROM print_jobs pj WHERE pj."userId" = :uid)
+         OR f.id IN (SELECT it."fileId" FROM print_job_items it
+                     INNER JOIN print_jobs pj2 ON pj2.id = it."printJobId"
+                     WHERE pj2."userId" = :uid)`,
+        { uid: userId },
+      )
       .getMany();
   }
 }

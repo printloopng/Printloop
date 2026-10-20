@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { openApiSpec } from '@/modules/platform/openapi.spec';
+import { openApiSpec } from '@/modules/platform/openapi/document';
 
 export class OpenApiController {
   getSpec = (_req: Request, res: Response): void => {

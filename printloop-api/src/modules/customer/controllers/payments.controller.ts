@@ -3,6 +3,8 @@ import { PaystackService } from '@/core/services/paystack.service';
 import { AppDataSource } from '@/config/data-source';
 import { PrintJob, PrintJobStatus } from '@/database/entities/printJob.entity';
 import { initializeJobPaymentBodySchema } from '@/modules/customer/validation/payments.validation';
+import { Tenant } from '@/database/entities/tenant.entity';
+import { isTrustedReturnUrl } from '@/core/utils/appUrls';
 import { paystackWebhookController } from '@/modules/public/controllers/paystackWebhook.controller';
 
 const paystack = new PaystackService();
@@ -50,12 +52,19 @@ export class CustomerPaymentsController {
         });
         return;
       }
+      const tenant = job.tenantId
+        ? await AppDataSource.getRepository(Tenant).findOne({ where: { id: job.tenantId } })
+        : null;
+      const callbackUrl = isTrustedReturnUrl(parsed.data.callbackUrl, tenant?.customDomain)
+        ? parsed.data.callbackUrl
+        : undefined;
       const data = await paystack.initializeJobPayment(
         user.id,
         job.id,
         amount,
         user.email,
-        req.tenant || undefined,
+        tenant ?? undefined,
+        callbackUrl,
       );
       res.json({ success: true, data });
     } catch (error) {

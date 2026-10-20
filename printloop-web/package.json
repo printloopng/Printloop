@@ -1,0 +1,23 @@
+{
+  "name": "printloop-web",
+  "private": true,
+  "packageManager": "pnpm@11.20.0",
+  "engines": {
+    "node": ">=20.9.0"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "e2e": "turbo run e2e --concurrency=1",
+    "api:generate": "pnpm --filter @printloop/api-client generate",
+    "format": "prettier --write \"**/*.{ts,tsx,css,json,md}\""
+  },
+  "devDependencies": {
+    "prettier": "3.9.10",
+    "turbo": "2.11.9",
+    "typescript": "5.9.3"
+  }
+}

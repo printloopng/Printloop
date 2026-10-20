@@ -1,13 +1,13 @@
 import { type Request, type Response, type NextFunction } from 'express';
 import bcrypt from 'bcryptjs';
-import { randomBytes, timingSafeEqual } from 'node:crypto';
+import { mintToken, parseToken, secretsMatch } from '@/core/utils/resetToken';
 import { AppDataSource } from '@/config/data-source';
-import { User } from '@/database/entities/user.entity';
+import { User, UserRole } from '@/database/entities/user.entity';
+import { appUrls } from '@/core/utils/appUrls';
 import { Tenant } from '@/database/entities/tenant.entity';
 import { LEGACY_TENANT_SLUG } from '@/common/middleware/tenant.middleware';
 import { EmailService } from '@/core/services/email.service';
 
-const RESET_TTL_MS = 60 * 60 * 1000;
 const ANTI_ENUMERATION_OK = {
   success: true,
   message:
@@ -22,29 +22,6 @@ async function resolveTenantId(req: Request): Promise<string | null> {
   return legacy?.id ?? null;
 }
 
-function mintToken(): { token: string; expiresAtMs: number } {
-  const secret = randomBytes(32).toString('hex');
-  const expiresAtMs = Date.now() + RESET_TTL_MS;
-  return { token: `${secret}.${expiresAtMs}`, expiresAtMs };
-}
-
-function parseToken(token: string): { secret: string; expiresAtMs: number } | null {
-  if (typeof token !== 'string') return null;
-  const dot = token.indexOf('.');
-  if (dot <= 0 || dot === token.length - 1) return null;
-  const secret = token.slice(0, dot);
-  const expiresAtMs = Number(token.slice(dot + 1));
-  if (!secret || !Number.isFinite(expiresAtMs)) return null;
-  return { secret, expiresAtMs };
-}
-
-function secretsMatch(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  const aBuf = Buffer.from(a, 'utf8');
-  const bBuf = Buffer.from(b, 'utf8');
-  return timingSafeEqual(aBuf, bBuf);
-}
-
 export class PasswordResetController {
 
   forgotPassword = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -56,9 +33,9 @@ export class PasswordResetController {
     }
     const tenantId = await resolveTenantId(req);
     const userRepo = AppDataSource.getRepository(User);
-    const user = await userRepo.findOne({
-      where: tenantId ? { email, tenantId } : { email },
-    });
+    const user =
+      (tenantId ? await userRepo.findOne({ where: { email, tenantId } }) : null) ??
+      (await userRepo.findOne({ where: { email } }));
 
     if (user && !user.isBlocked) {
       const { token } = mintToken();
@@ -66,9 +43,13 @@ export class PasswordResetController {
       await userRepo.save(user);
 
       const frontendUrl =
-        process.env.FRONTEND_URL || 'http://localhost:5173';
+        user.role === UserRole.SUPER_ADMIN
+          ? appUrls.backoffice
+          : user.role === UserRole.ADMIN
+            ? appUrls.shop
+            : appUrls.customer;
       const resetUrl =
-        `${frontendUrl.replace(/\/$/, '')}/reset-password` +
+        `${frontendUrl}/reset-password` +
         `?email=${encodeURIComponent(email)}&token=${encodeURIComponent(token)}`;
 
       try {
@@ -136,10 +117,10 @@ export class PasswordResetController {
       return;
     }
 
-    const tenantId = await resolveTenantId(req);
     const userRepo = AppDataSource.getRepository(User);
-    const user = await userRepo.findOne({
-      where: tenantId ? { email, tenantId } : { email },
+    const user = (await userRepo.find({ where: { email } })).find((candidate) => {
+      const stored = candidate.resetToken ? parseToken(candidate.resetToken) : null;
+      return Boolean(stored && secretsMatch(stored.secret, parsed.secret));
     });
     if (!user || !user.resetToken) {
       res.status(400).json({

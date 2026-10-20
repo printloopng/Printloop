@@ -1,4 +1,5 @@
 import bcrypt from 'bcryptjs';
+import { appUrls } from '@/core/utils/appUrls';
 import { randomInt } from 'node:crypto';
 import { repos } from '@/config/repos';
 import { User } from '@/database/entities/user.entity';
@@ -135,8 +136,8 @@ export async function signupTenant(input: SignupInput): Promise<SignupResult> {
     throw err;
   }
 
-  const loginUrl = buildLoginUrl(tenant.slug);
-  const verifyUrl = buildVerifyUrl(tenant.slug, verificationToken);
+  const loginUrl = `${appUrls.shop}/login`;
+  const verifyUrl = buildVerifyUrl(owner.email, verificationToken);
 
   process.nextTick(() => {
     const mailer = new EmailService();
@@ -238,9 +239,7 @@ export async function resendOwnerVerification(opts: {
   const tenant = user.tenantId
     ? await tenantRepo.findOne({ where: { id: user.tenantId } })
     : null;
-  const verifyUrl = tenant
-    ? buildVerifyUrl(tenant.slug, newToken)
-    : `https://printloop.app/verify-email?token=${newToken}`;
+  const verifyUrl = buildVerifyUrl(user.email, newToken);
 
   const mailer = new EmailService();
   await mailer.sendTenantOwnerVerification({
@@ -271,12 +270,8 @@ function generateVerificationToken(): string {
   return String(randomInt(100_000, 1_000_000));
 }
 
-function buildVerifyUrl(slug: string, token: string): string {
-  const apex = (process.env.PRINTLOOP_APEX_DOMAINS || 'printloop.app')
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean)[0];
-  return `https://${slug}.${apex}/verify-email?token=${token}`;
+function buildVerifyUrl(email: string, token: string): string {
+  return `${appUrls.shop}/verify-email?email=${encodeURIComponent(email)}&token=${encodeURIComponent(token)}`;
 }
 
 function validate(input: SignupInput): void {
@@ -309,10 +304,3 @@ function validate(input: SignupInput): void {
   }
 }
 
-function buildLoginUrl(slug: string): string {
-  const apex = (process.env.PRINTLOOP_APEX_DOMAINS || 'printloop.app')
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean)[0];
-  return `https://${slug}.${apex}/login`;
-}

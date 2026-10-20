@@ -1,0 +1,25 @@
+{
+  "name": "@printloop/config",
+  "version": "0.0.0",
+  "private": true,
+  "exports": {
+    "./tailwind": "./tailwind-preset.cjs",
+    "./postcss": "./postcss.config.cjs",
+    "./eslint": "./eslint.config.mjs",
+    "./tsconfig/base.json": "./tsconfig/base.json",
+    "./tsconfig/nextjs.json": "./tsconfig/nextjs.json",
+    "./tsconfig/library.json": "./tsconfig/library.json",
+    "./next": "./next.mjs"
+  },
+  "dependencies": {
+    "@tailwindcss/typography": "0.5.20",
+    "autoprefixer": "10.6.1",
+    "eslint-config-next": "16.4.2",
+    "postcss": "8.5.31",
+    "postcss-import": "17.0.1",
+    "tailwindcss": "3.4.19"
+  },
+  "peerDependencies": {
+    "eslint": "^9"
+  }
+}

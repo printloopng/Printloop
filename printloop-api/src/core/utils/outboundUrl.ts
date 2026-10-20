@@ -35,12 +35,12 @@ export async function assertPublicUrl(raw: string): Promise<URL> {
   } catch {
     throw new UnsafeUrlError('Invalid URL');
   }
-  const prod = process.env.NODE_ENV === 'production';
-  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && !prod)) {
-    throw new UnsafeUrlError(prod ? 'Webhook URL must use https://' : 'URL must be http(s)://');
+  const allowPrivate = process.env.ALLOW_PRIVATE_WEBHOOKS === '1' && process.env.NODE_ENV !== 'production';
+  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && allowPrivate)) {
+    throw new UnsafeUrlError('Webhook URL must use https://');
   }
   if (url.username || url.password) throw new UnsafeUrlError('URL must not contain credentials');
-  if (!prod) return url;
+  if (allowPrivate) return url;
 
   const host = url.hostname.replace(/^\[|\]$/g, '');
   const addrs = net.isIP(host)

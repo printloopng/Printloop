@@ -80,6 +80,13 @@ export async function ensurePdf(
   );
 }
 
+export function billablePages(docPages: number, cfg: { pages?: string; pageRange?: string } | null | undefined): number {
+  const total = Math.max(1, Number(docPages) || 1);
+  if (!cfg || cfg.pages !== 'range' || !cfg.pageRange) return total;
+  const picked = parsePageRange(String(cfg.pageRange), total);
+  return picked.length > 0 ? picked.length : total;
+}
+
 export function parsePageRange(rangeStr: string | undefined | null, totalPages: number): number[] {
   if (!rangeStr || typeof rangeStr !== 'string') return [];
   const cap = Math.max(0, Math.floor(totalPages) || 0);
@@ -131,7 +138,7 @@ export async function extractPages(input: Buffer, pageNumbers: number[]): Promis
 const RASTER_DPI = 200;
 
 let pdfjsModule: any;
-async function loadPdfjs(): Promise<any> {
+export async function loadPdfjs(): Promise<any> {
   if (pdfjsModule) return pdfjsModule;
   if (typeof (Promise as any).withResolvers !== 'function') {
     (Promise as any).withResolvers = function <T>() {
@@ -149,7 +156,7 @@ async function loadPdfjs(): Promise<any> {
 }
 
 let cachedFontUrl: string | undefined;
-function standardFontDataUrl(): string {
+export function standardFontDataUrl(): string {
   if (cachedFontUrl) return cachedFontUrl;
   const require = createRequire(__filename);
   const pkgJson = require.resolve('pdfjs-dist/package.json');
@@ -195,7 +202,7 @@ async function rasterizeAnnotatedPages(
   const doc = await pdfjs.getDocument({
     data: new Uint8Array(input),
     standardFontDataUrl: standardFontDataUrl(),
-    isEvalSupported: false, // keep it sandbox-safe; fine for our forms
+    isEvalSupported: false,
   }).promise;
 
   try {
@@ -216,8 +223,8 @@ async function rasterizeAnnotatedPages(
         continue;
       }
       const page = await doc.getPage(i + 1);
-      const ptsViewport = page.getViewport({ scale: 1 }); // page size in PDF points
-      const pxViewport = page.getViewport({ scale }); // render size in pixels
+      const ptsViewport = page.getViewport({ scale: 1 });
+      const pxViewport = page.getViewport({ scale });
       const canvas = createCanvas(Math.ceil(pxViewport.width), Math.ceil(pxViewport.height));
       const cctx = canvas.getContext('2d');
       cctx.fillStyle = 'white';
@@ -225,7 +232,7 @@ async function rasterizeAnnotatedPages(
       await page.render({
         canvasContext: cctx as any,
         viewport: pxViewport,
-        annotationMode: pdfjs.AnnotationMode.ENABLE, // bake annotations into pixels
+        annotationMode: pdfjs.AnnotationMode.ENABLE,
       }).promise;
       page.cleanup();
       const img = await out.embedPng(canvas.toBuffer('image/png'));
@@ -251,7 +258,7 @@ export async function flattenAnnotations(input: Buffer): Promise<Buffer> {
   }
 
   const annotated = annotatedPageIndices(src);
-  if (annotated.size === 0) return input; // nothing to bake → byte-exact
+  if (annotated.size === 0) return input;
 
   try {
     return await rasterizeAnnotatedPages(input, src, annotated);

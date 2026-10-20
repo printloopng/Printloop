@@ -183,10 +183,7 @@ export async function runSeed(): Promise<void> {
           completedAt: status === PrintJobStatus.DONE ? when : (null as any),
         })
       );
-      await AppDataSource.query(
-        'UPDATE print_jobs SET createdAt = ?, updatedAt = ? WHERE id = ?',
-        [when.toISOString(), when.toISOString(), job.id]
-      );
+      await AppDataSource.getRepository(PrintJob).update({ id: job.id }, { createdAt: when, updatedAt: when });
 
       if (status === PrintJobStatus.DONE) {
         const pay = await paymentRepo.save(
@@ -200,10 +197,7 @@ export async function runSeed(): Promise<void> {
             description: job.fileName,
           } as any) as any
         );
-        await AppDataSource.query(
-          'UPDATE payments SET createdAt = ?, updatedAt = ? WHERE id = ?',
-          [when.toISOString(), when.toISOString(), pay.id]
-        );
+        await AppDataSource.getRepository(Payment).update({ id: pay.id }, { createdAt: when, updatedAt: when } as any);
       }
     }
   }
@@ -336,10 +330,11 @@ export async function ensureLegacyTenant(): Promise<void> {
   ] as const;
   for (const table of BACKFILL_TABLES) {
     try {
-      await AppDataSource.query(
-        `UPDATE "${table}" SET "tenantId" = ? WHERE "tenantId" IS NULL`,
-        [legacy.id],
-      );
+      await AppDataSource.createQueryBuilder()
+        .update(table)
+        .set({ tenantId: legacy.id })
+        .where('"tenantId" IS NULL')
+        .execute();
     } catch (err) {
       console.warn(`[seed] tenantId backfill skipped for ${table}:`, err);
     }

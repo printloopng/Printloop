@@ -1,3 +1,5 @@
+import { In } from 'typeorm';
+import { mintOtp, verifyStoredToken } from '@/core/utils/resetToken';
 import { Request } from 'express';
 import bcrypt from 'bcryptjs';
 import { repos } from '@/config/repos';
@@ -12,7 +14,7 @@ import type {
 } from '@/modules/customer/validation/auth.validation';
 
 export function publicUser(user: User) {
-  const { passwordHash, salt, verificationToken, resetToken, ...safe } = user as any;
+  const { passwordHash, salt, verificationToken, resetToken, printToken, totpSecret, ...safe } = user as any;
   return { ...safe, role: user.role || UserRole.USER, adminPrivileges: user.adminPrivileges || [] };
 }
 
@@ -30,7 +32,61 @@ async function resolveTenantId(req: Request): Promise<string | null> {
 
 const MIN_PASSWORD_LENGTH = 10;
 
+async function sendVerificationCode(user: User, code: string): Promise<void> {
+  try {
+    const { EmailService } = await import('@/core/services/email.service');
+    await new EmailService().send({
+      to: user.email,
+      subject: 'Your PrintLoop verification code',
+      text: `Your PrintLoop verification code is ${code}. It expires in 30 minutes.`,
+      html: `<p>Your PrintLoop verification code is</p><p style="font-size:24px;font-weight:bold;letter-spacing:4px">${code}</p><p>It expires in 30 minutes.</p>`,
+    });
+  } catch (err) {
+    console.warn('[auth] verification email failed:', err);
+  }
+  if (process.env.NODE_ENV !== 'production') console.log(`[auth] verification code for ${user.email}: ${code}`);
+}
+
+const VERIFY_OK = { success: true, message: 'If that account exists and is unverified, a new code has been sent.' };
+
 export class CustomerAuthService {
+  async verifyEmail(req: Request, body: { email?: string; code?: string }) {
+    const email = String(body.email || '').trim().toLowerCase();
+    const code = String(body.code || '').trim();
+    const tenantId = await resolveTenantId(req);
+    const repo = repos.user();
+    const user =
+      (tenantId && (await repo.findOne({ where: { email, tenantId } }))) || (await repo.findOne({ where: { email } }));
+    if (!user || !/^\d{6}$/.test(code)) {
+      return { status: 400 as const, body: { success: false, message: 'Invalid or expired code' } };
+    }
+    if (user.isEmailVerified) {
+      return { status: 200 as const, body: { success: true, message: 'Email already verified', data: { user: publicUser(user) } } };
+    }
+    if (!verifyStoredToken(user.verificationToken, code)) {
+      return { status: 400 as const, body: { success: false, message: 'Invalid or expired code' } };
+    }
+    user.isEmailVerified = true;
+    user.verificationToken = null as any;
+    await repo.save(user);
+    return { status: 200 as const, body: { success: true, message: 'Email verified', data: { user: publicUser(user) } } };
+  }
+
+  async resendVerification(req: Request, body: { email?: string }) {
+    const email = String(body.email || '').trim().toLowerCase();
+    const tenantId = await resolveTenantId(req);
+    const repo = repos.user();
+    const user =
+      (tenantId && (await repo.findOne({ where: { email, tenantId } }))) || (await repo.findOne({ where: { email } }));
+    if (user && !user.isEmailVerified && !user.isBlocked) {
+      const otp = mintOtp();
+      user.verificationToken = otp.stored;
+      await repo.save(user);
+      await sendVerificationCode(user, otp.code);
+    }
+    return { status: 200 as const, body: VERIFY_OK };
+  }
+
   async register(req: Request, body: RegisterInput) {
     const firstName = String(body.firstName);
     const lastName = String(body.lastName);
@@ -61,6 +117,7 @@ export class CustomerAuthService {
     }
 
     const passwordHash = await bcrypt.hash(String(password), 12);
+    const otp = mintOtp();
     const user = repo.create({
       tenantId,
       firstName,
@@ -69,11 +126,13 @@ export class CustomerAuthService {
       phoneNumber,
       passwordHash,
       salt: 'bcrypt',
-      isEmailVerified: true,
+      isEmailVerified: false,
+      verificationToken: otp.stored,
       role: UserRole.USER,
       adminPrivileges: [],
     });
     const saved = await repo.save(user);
+    await sendVerificationCode(saved, otp.code);
 
     const walletRepo = repos.wallet();
     await walletRepo.save(
@@ -253,15 +312,9 @@ export class CustomerAuthService {
     ]);
 
     const printJobIds = printJobs.map((pj) => pj.id);
-    const printJobItems = printJobIds.length
-      ? await repos.printJobItem().find({
-          where: { printJobId: printJobIds[0] },
-        })
+    const userPrintJobItems = printJobIds.length
+      ? await repos.printJobItem().find({ where: { printJobId: In(printJobIds) } })
       : [];
-
-    const userPrintJobItems = printJobItems.filter((pji) =>
-      printJobIds.includes(pji.printJobId),
-    );
 
     const promotions = user.tenantId
       ? await repos.promotion().find({ where: { tenantId: user.tenantId } })
@@ -269,7 +322,7 @@ export class CustomerAuthService {
 
     const repo = repos.user();
     const freshUser = await repo.findOne({ where: { id: user.id } });
-    const { passwordHash, salt, verificationToken, resetToken, printToken, ...safeUser } =
+    const { passwordHash, salt, verificationToken, resetToken, printToken, totpSecret, ...safeUser } =
       freshUser!;
 
     await writeAudit(req, 'customer.export', `user:${user.id}`, {
@@ -284,7 +337,7 @@ export class CustomerAuthService {
       user: safeUser,
       printJobs,
       printJobItems: userPrintJobItems,
-      payments,
+      payments: payments.map(({ authorizationCode: _secret, ...rest }) => rest),
       transactions,
       files,
       promotions,

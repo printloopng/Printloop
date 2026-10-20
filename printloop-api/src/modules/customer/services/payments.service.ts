@@ -2,6 +2,8 @@ import { repos } from '@/config/repos';
 import { enqueueRenderOrReady } from '@/modules/public/services/renderEnqueue.service';
 import { applyTransactionDelta } from '@/modules/saas/services/tenantBalance.service';
 import { computeCommissionSplit } from '@/modules/saas/services/commission.service';
+import { GroupSessionService } from '@/modules/customer/services/groupSession.service';
+import { JobType } from '@/database/entities/printJob.entity';
 
 export async function completePrintJobPayment(
   jobId: string,
@@ -27,12 +29,9 @@ export async function completePrintJobPayment(
     }
   }
 
-  if (result.completedPayment && result.job) {
+  if (result.completedPayment && result.job?.user) {
     const job = result.job;
-    const user = job.user;
-    if (!user) {
-      return { success: result.success, code: result.code };
-    }
+    const user = job.user!;
     const code = result.code!;
     const message = `Your PrintLoop code is: ${code}. Release your print at the kiosk.`;
 
@@ -64,6 +63,14 @@ export async function completePrintJobPayment(
       } catch (emailErr) {
         console.warn('[notifications] Failed to send email:', emailErr);
       }
+    }
+  }
+
+  if (result.success && result.job?.jobType === JobType.GROUP_BATCH) {
+    try {
+      await new GroupSessionService().markParticipantPaid(jobId);
+    } catch (e) {
+      console.error('Failed to mark group participant paid:', e);
     }
   }
 

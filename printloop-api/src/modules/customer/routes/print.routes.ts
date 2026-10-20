@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { customerPrintController } from '@/modules/customer/controllers/print.controller';
+import { customerReleaseController } from '@/modules/customer/controllers/release.controller';
 
 const router = Router();
 const upload = multer({
@@ -21,6 +22,8 @@ router.post(
 );
 
 router.get('/print-jobs', customerPrintController.listPrintJobs);
+router.get('/print-jobs/:id/kiosks', customerReleaseController.kiosksForJob);
+router.post('/print-jobs/:id/release', customerReleaseController.release);
 
 router.get('/print-token', customerPrintController.getPrintToken);
 
@@ -36,6 +39,7 @@ router.get('/print-jobs/options', customerPrintController.getPrintJobOptions);
 
 router.post('/shops/:slug/reviews', customerPrintController.createShopReview);
 
+router.get('/disputes', customerPrintController.listMyDisputes);
 router.post('/disputes', customerPrintController.createDispute);
 
 export default router;

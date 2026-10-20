@@ -4,6 +4,7 @@ import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { AppDataSource } from '@/config/data-source';
 import { Tenant, TenantStatus } from '@/database/entities/tenant.entity';
 import { getJwtSecret } from '@/core/utils/jwt';
+import { appUrls } from '@/core/utils/appUrls';
 import { lmsHandoffQuerySchema } from '@/modules/public/validation/integrations.validation';
 
 const HANDOFF_TTL_SECONDS = 5 * 60;
@@ -53,9 +54,8 @@ export class IntegrationsController {
         { expiresIn: HANDOFF_TTL_SECONDS },
       );
 
-      const frontend = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/+$/, '');
       const url =
-        `${frontend}/auth/login?slug=${encodeURIComponent(tenant.slug)}` +
+        `${appUrls.customer}/login?shop=${encodeURIComponent(tenant.slug)}` +
         `&handoff=${encodeURIComponent(token)}`;
 
       if (format === 'json') {

@@ -21,6 +21,7 @@ export class PaystackService {
     amountNaira: number,
     email: string,
     tenant?: Tenant,
+    callbackUrl?: string,
   ): Promise<any> {
     if (!this.secretKey) throw new Error('Paystack secret key is missing');
 
@@ -45,6 +46,7 @@ export class PaystackService {
         rateUsed: split?.rateUsed ?? 0,
       },
     };
+    if (callbackUrl) body.callback_url = callbackUrl;
     if (useSplit && split) {
       body.subaccount = tenant!.paystackSubaccountCode;
       body.transaction_charge = commissionInKobo(split);

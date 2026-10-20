@@ -1,378 +1,163 @@
-import { repos } from '@/config/repos';
-import { EditorSession, EditorSessionStatus, ConversionStatus, EditorPermissions } from '@/database/entities/editorSession.entity';
-import { DocumentEdit, DocumentEditStatus } from '@/database/entities/documentEdit.entity';
-import { PrintJob, PrintJobStatus } from '@/database/entities/printJob.entity';
-import { User } from '@/database/entities/user.entity';
-import { config } from '@/config';
-import { randomUUID as uuidv4 } from 'node:crypto';
 import * as crypto from 'crypto';
-import axios from 'axios';
-import FormData from 'form-data';
+import { randomUUID } from 'node:crypto';
+import { repos } from '@/config/repos';
+import { config } from '@/config';
+import { signEditorToken, type EditorRole } from '@/core/utils/editorToken';
+import { appUrls } from '@/core/utils/appUrls';
+import { loadDocumentBytes } from '@/core/utils/fileStore';
+import { EditorSession, EditorSessionStatus, ConversionStatus } from '@/database/entities/editorSession.entity';
+import { DocumentEdit } from '@/database/entities/documentEdit.entity';
+import {
+  conversionEnabled,
+  convertOfficeToPdf,
+  isOfficeDocument,
+} from '@/modules/public/services/documentConversion.service';
+import {
+  emptyUniverDocument,
+  isUniverDocument,
+  pdfToUniver,
+  type StoredEditorDocument,
+  type UniverDocumentData,
+} from '@/modules/saas/services/univerDocument';
 
-interface ConversionResult {
-  univerDocument: any;
-  pageCount: number;
-}
-
-type RTCIceServer = {
+export type RTCIceServer = {
   urls: string | string[];
   username?: string;
   credential?: string;
 };
 
-interface ExportResult {
-  documentUrl: string;
-  pageCount: number;
-  fileSize: number;
+export class EditorSessionError extends Error {
+  constructor(public status: number, message: string, public code?: string) {
+    super(message);
+  }
+}
+
+export function storedDocument(session: EditorSession): StoredEditorDocument | null {
+  const raw = session.univerDocument as Partial<StoredEditorDocument> | null;
+  if (raw && isUniverDocument(raw.document)) return { version: Number(raw.version) || 0, document: raw.document };
+  return null;
 }
 
 export class DocumentEditorService {
-  private libreofficeUrl: string;
-  private univerLibreOfficeUrl: string;
-
-  constructor() {
-    this.libreofficeUrl = config.editor?.libreofficeUrl || 'http://localhost:9980';
-    this.univerLibreOfficeUrl = config.editor?.univerLibreOfficeUrl ||
-      'socket,host=libreoffice,port=2002;urp;StarOffice.ComponentContext';
-  }
-
-  async convertToUniver(
-    sourceUrl: string,
-    mimeType: string,
-    editId: string
-  ): Promise<ConversionResult> {
+  async openSession(edit: DocumentEdit, shopUserId: string): Promise<{ session: EditorSession; token: string }> {
     const sessionRepo = repos.editorSession();
-
-    let session = await sessionRepo.findOne({ where: { documentEditId: editId } });
-    if (!session) {
-      throw new Error(`No editor session found for edit ${editId}`);
+    const existing = await sessionRepo.findOne({
+      where: { documentEditId: edit.id, status: EditorSessionStatus.ACTIVE },
+      order: { createdAt: 'DESC' },
+    });
+    if (existing && new Date(existing.expiresAt).getTime() > Date.now()) {
+      if (existing.shopUserId !== shopUserId) {
+        existing.shopUserId = shopUserId;
+        await sessionRepo.save(existing);
+      }
+      if (existing.conversionStatus === ConversionStatus.FAILED) void this.importDocument(existing.id);
+      return { session: existing, token: this.token(existing, shopUserId, 'shop') };
     }
 
+    const sessionId = randomUUID();
+    const token = signEditorToken({ sessionId, editId: edit.id, userId: shopUserId, role: 'shop' });
+    const ttlHours = Math.max(1, config.editor?.sessionTtlHours || 24);
+    const session = sessionRepo.create({
+      id: sessionId,
+      documentEditId: edit.id,
+      tenantId: edit.tenantId ?? edit.shopId,
+      shopUserId,
+      univerDocument: {},
+      permissions: { shop: 'rw', customer: 'r' },
+      tokenHash: crypto.createHash('sha256').update(token).digest('hex'),
+      status: EditorSessionStatus.ACTIVE,
+      conversionStatus: ConversionStatus.PENDING,
+      expiresAt: new Date(Date.now() + ttlHours * 3600_000),
+      lastActivityAt: new Date(),
+    });
+    await sessionRepo.save(session);
+    void this.importDocument(session.id);
+    return { session, token };
+  }
+
+  token(session: EditorSession, userId: string, role: EditorRole): string {
+    const ttl = Math.max(60, Math.floor((new Date(session.expiresAt).getTime() - Date.now()) / 1000));
+    return signEditorToken({ sessionId: session.id, editId: session.documentEditId, userId, role }, ttl);
+  }
+
+  editorUrl(sessionId: string): string {
+    return `${appUrls.shop}/editor/${sessionId}`;
+  }
+
+  async importDocument(sessionId: string): Promise<void> {
+    const sessionRepo = repos.editorSession();
+    const session = await sessionRepo.findOne({
+      where: { id: sessionId },
+      relations: ['documentEdit', 'documentEdit.printJob', 'documentEdit.printJob.file'],
+    });
+    if (!session) return;
     try {
       session.conversionStatus = ConversionStatus.PROCESSING;
+      session.conversionError = null;
       await sessionRepo.save(session);
 
-      const response = await axios.get(sourceUrl, {
-        responseType: 'arraybuffer',
-        timeout: 60000,
-        maxContentLength: 50 * 1024 * 1024,
-      });
+      const file = session.documentEdit?.printJob?.file;
+      const title = file?.fileName || 'Document';
+      const docId = `edit-${session.documentEditId}`;
+      let document: UniverDocumentData;
+      const bytes = file?.fileURL ? await loadDocumentBytes(file.fileURL) : null;
+      if (!bytes) {
+        document = emptyUniverDocument(docId, title, 'The original document could not be loaded. Type the edited content here.');
+      } else {
+        let pdf: Buffer | null = null;
+        if (bytes.subarray(0, 5).toString('latin1') === '%PDF-') pdf = bytes;
+        else if (isOfficeDocument(file?.fileName, file?.mimeType) && conversionEnabled()) {
+          pdf = await convertOfficeToPdf(bytes, file?.fileName || 'document.docx');
+        }
+        document = pdf
+          ? await pdfToUniver(pdf, docId, title)
+          : emptyUniverDocument(docId, title, 'This file has no selectable text. Retype or paste the edited content here.');
+      }
 
-      const fileBuffer = Buffer.from(response.data);
-      const extension = this.getExtensionFromMime(mimeType);
-
-      const univerDoc = await this.convertViaLibreOffice(fileBuffer, extension, editId);
-
-      session.univerDocument = univerDoc;
+      session.univerDocument = { version: 1, document } satisfies StoredEditorDocument;
       session.conversionStatus = ConversionStatus.COMPLETED;
       session.lastActivityAt = new Date();
       await sessionRepo.save(session);
-
-      return {
-        univerDocument: univerDoc,
-        pageCount: this.estimatePageCount(univerDoc),
-      };
-    } catch (error: any) {
+    } catch (err: any) {
       session.conversionStatus = ConversionStatus.FAILED;
-      session.conversionError = error?.message || 'Conversion failed';
-      await sessionRepo.save(session);
-      throw error;
+      session.conversionError = String(err?.message || 'Conversion failed').slice(0, 500);
+      await sessionRepo.save(session).catch(() => undefined);
     }
   }
 
-  private async convertViaLibreOffice(
-    fileBuffer: Buffer,
-    extension: string,
-    editId: string
-  ): Promise<any> {
-    const formData = new FormData();
-    formData.append('file', fileBuffer, { filename: `document${extension}`, contentType: 'application/octet-stream' });
-    formData.append('format', 'univer');
-
-    try {
-      const response = await axios.post(`${this.libreofficeUrl}/convert`, formData, {
-        headers: {
-          ...formData.getHeaders(),
-        },
-        timeout: 120000,
-        maxContentLength: 100 * 1024 * 1024,
-      });
-
-      return response.data.univerDocument || this.getDefaultUniverDocument();
-    } catch (error: any) {
-      console.error('[DocumentEditor] LibreOffice conversion failed:', error?.message);
-      return this.getDefaultUniverDocument();
-    }
-  }
-
-  async createSession(
-    editId: string,
-    shopUserId: string,
-    sourceDocumentUrl: string,
-    mimeType: string
-  ): Promise<{
-    sessionId: string;
-    token: string;
-    editorUrl: string;
-    univerDocument: any;
-    permissions: EditorPermissions;
-    expiresAt: Date;
-    iceServers: RTCIceServer[];
-  }> {
-    const sessionRepo = repos.editorSession();
-    const editRepo = repos.documentEdit();
-
-    const edit = await editRepo.findOne({ where: { id: editId } });
-    if (!edit) {
-      throw new Error(`Document edit ${editId} not found`);
-    }
-
-    const sessionId = uuidv4();
-    const token = this.generateSessionToken(sessionId, editId, shopUserId);
-    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
-
-    const iceServers = this.getIceServers();
-
-    const session = sessionRepo.create({
-      id: sessionId,
-      documentEditId: editId,
-      shopUserId,
-      univerDocument: this.getDefaultUniverDocument(),
-      permissions: { shop: 'rw', customer: 'r' },
-      tokenHash,
-      status: EditorSessionStatus.ACTIVE,
-      conversionStatus: ConversionStatus.PENDING,
-      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-      lastActivityAt: new Date(),
-    });
-
-    await sessionRepo.save(session);
-
-    this.convertToUniver(sourceDocumentUrl, mimeType, editId).catch(err => {
-      console.error('[DocumentEditor] Background conversion failed:', err);
-    });
-
-    const frontendUrl = config.frontendUrl || 'http://localhost:5173';
-    const editorUrl = `${frontendUrl}/saas/editor/${sessionId}?token=${token}`;
-
-    return {
-      sessionId,
-      token,
-      editorUrl,
-      univerDocument: session.univerDocument,
-      permissions: session.permissions,
-      expiresAt: session.expiresAt,
-      iceServers,
-    };
-  }
-
-  async getSession(
-    sessionId: string,
-    userId: string,
-    role: 'shop' | 'customer'
-  ): Promise<{
-    session: EditorSession;
-    univerDocument: any;
-    permissions: EditorPermissions;
-    role: 'shop' | 'customer';
-    iceServers: RTCIceServer[];
-  }> {
-    const sessionRepo = repos.editorSession();
-
-    const session = await sessionRepo.findOne({
-      where: { id: sessionId },
-      relations: ['documentEdit', 'documentEdit.printJob'],
-    });
-
-    if (!session) {
-      throw new Error('Session not found');
-    }
-
+  async saveSnapshot(session: EditorSession, document: unknown, baseVersion?: number): Promise<StoredEditorDocument> {
     if (session.status !== EditorSessionStatus.ACTIVE) {
-      throw new Error(`Session is ${session.status}`);
+      throw new EditorSessionError(409, `This editor session is ${session.status}.`, 'SESSION_CLOSED');
     }
-
-    const isShop = session.shopUserId === userId;
-    const isCustomer = session.customerUserId === userId || session.documentEdit.printJob?.userId === userId;
-
-    if ((role === 'shop' && !isShop) || (role === 'customer' && !isCustomer)) {
-      throw new Error('Unauthorized for this session');
+    if (!isUniverDocument(document)) {
+      throw new EditorSessionError(400, 'That is not an editor document.', 'INVALID_DOCUMENT');
     }
-
-    if (role === 'customer' && !session.customerUserId) {
-      session.customerUserId = userId;
-      session.lastActivityAt = new Date();
-      await sessionRepo.save(session);
+    const current = storedDocument(session);
+    const currentVersion = current?.version ?? 0;
+    if (baseVersion !== undefined && baseVersion !== currentVersion) {
+      throw new EditorSessionError(409, 'The document changed since you loaded it. Reload to continue.', 'VERSION_CONFLICT');
     }
-
-    return {
-      session,
-      univerDocument: session.univerDocument,
-      permissions: session.permissions,
-      role,
-      iceServers: this.getIceServers(),
-    };
-  }
-
-  async saveSnapshot(
-    sessionId: string,
-    snapshot: any,
-    version: number
-  ): Promise<void> {
-    const sessionRepo = repos.editorSession();
-
-    const session = await sessionRepo.findOne({ where: { id: sessionId } });
-    if (!session) {
-      throw new Error('Session not found');
-    }
-
-    if (session.status !== EditorSessionStatus.ACTIVE) {
-      throw new Error(`Cannot save: session is ${session.status}`);
-    }
-
-    if (session.univerDocument.version && session.univerDocument.version !== version - 1) {
-      throw new Error('Version conflict: document was modified by another user');
-    }
-
-    session.univerDocument = { ...snapshot, version };
+    const next: StoredEditorDocument = { version: currentVersion + 1, document };
+    session.univerDocument = next;
     session.lastActivityAt = new Date();
-    await sessionRepo.save(session);
-  }
-
-  async exportDocument(
-    sessionId: string,
-    format: 'pdf' | 'pwg',
-    shopUserId: string
-  ): Promise<ExportResult> {
-    const sessionRepo = repos.editorSession();
-    const editRepo = repos.documentEdit();
-    const jobRepo = repos.printJob();
-
-    const session = await sessionRepo.findOne({
-      where: { id: sessionId },
-      relations: ['documentEdit', 'documentEdit.printJob'],
-    });
-
-    if (!session) {
-      throw new Error('Session not found');
-    }
-
-    if (session.shopUserId !== shopUserId) {
-      throw new Error('Only shop operator can export');
-    }
-
-    const exportResult = await this.exportViaUniver(session.univerDocument, format);
-
-    const { saveBuffer } = await import('@/core/utils/fileStore');
-    const stored = await saveBuffer(
-      exportResult.buffer,
-      `edited-${session.documentEditId}.${format === 'pdf' ? 'pdf' : 'pwg'}`
-    );
-
-    const edit = session.documentEdit;
-    edit.editedDocumentUrl = stored.url;
-    edit.editedDocumentMeta = {
-      pageCount: exportResult.pageCount,
-      fileSize: exportResult.fileSize,
-    };
-    edit.status = DocumentEditStatus.PENDING_CUSTOMER;
-    await editRepo.save(edit);
-
-    const job = edit.printJob;
-    if (job) {
-      job.editedDocumentUrl = stored.url;
-      job.status = PrintJobStatus.EDIT_COMPLETE;
-      await jobRepo.save(job);
-    }
-
-    session.status = EditorSessionStatus.COMPLETED;
-    session.lastActivityAt = new Date();
-    await sessionRepo.save(session);
-
-    return {
-      documentUrl: stored.url,
-      pageCount: exportResult.pageCount,
-      fileSize: exportResult.fileSize,
-    };
+    await repos.editorSession().save(session);
+    return next;
   }
 
   async cleanupExpired(): Promise<number> {
     return repos.editorSession().expireActivePast();
   }
 
-  private getIceServers(): RTCIceServer[] {
+  iceServers(): RTCIceServer[] {
     const turnServer = config.editor?.turnServer;
     const turnTlsServer = config.editor?.turnTlsServer;
-    const turnPassword = config.editor?.coturnPassword;
-
-    if (!turnServer || !turnPassword) {
-      return [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' },
-      ];
-    }
-
+    const turnPassword = process.env.COTURN_PASSWORD;
+    const stun: RTCIceServer = { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] };
+    if (!turnServer || !turnPassword) return [stun];
     return [
-      { urls: 'stun:stun.l.google.com:19302' },
-      {
-        urls: [turnServer, turnTlsServer].filter(Boolean) as string[],
-        username: 'editor',
-        credential: turnPassword,
-      },
+      stun,
+      { urls: [turnServer, turnTlsServer].filter(Boolean) as string[], username: 'editor', credential: turnPassword },
     ];
-  }
-
-  private generateSessionToken(sessionId: string, editId: string, userId: string): string {
-    const payload = {
-      sid: sessionId,
-      eid: editId,
-      uid: userId,
-      iat: Math.floor(Date.now() / 1000),
-      exp: Math.floor(Date.now() / 1000) + 24 * 60 * 60,
-    };
-    return Buffer.from(JSON.stringify(payload)).toString('base64url');
-  }
-
-  private getExtensionFromMime(mimeType: string): string {
-    const map: Record<string, string> = {
-      'application/pdf': '.pdf',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
-      'application/vnd.openxmlformats-officedocument.presentationml.presentation': '.pptx',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
-      'application/vnd.oasis.opendocument.text': '.odt',
-      'application/vnd.oasis.opendocument.presentation': '.odp',
-      'application/vnd.oasis.opendocument.spreadsheet': '.ods',
-      'application/msword': '.doc',
-      'application/vnd.ms-powerpoint': '.ppt',
-      'application/vnd.ms-excel': '.xls',
-      'application/rtf': '.rtf',
-      'text/plain': '.txt',
-    };
-    return map[mimeType] || '.pdf';
-  }
-
-  private getDefaultUniverDocument(): any {
-    return {
-      id: uuidv4(),
-      type: 'doc',
-      data: {
-        sheets: {},
-        documents: {},
-        slides: {},
-      },
-      version: 0,
-      name: 'Untitled Document',
-      lastModified: Date.now(),
-    };
-  }
-
-  private estimatePageCount(doc: any): number {
-    return 1;
-  }
-
-  private async exportViaUniver(doc: any, format: 'pdf' | 'pwg'): Promise<{ buffer: Buffer; pageCount: number; fileSize: number }> {
-    const buffer = Buffer.from('placeholder');
-    return { buffer, pageCount: 1, fileSize: buffer.length };
   }
 }
 

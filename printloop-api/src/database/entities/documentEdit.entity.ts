@@ -40,8 +40,8 @@ export class DocumentEdit {
   @Column({ type: 'uuid' })
   tenantId: string;
 
-  @Column({ type: 'uuid' })
-  editedBy: string;
+  @Column({ type: 'uuid', nullable: true })
+  editedBy: string | null;
 
   @Column({ type: 'simple-json' })
   editOperations: any[];

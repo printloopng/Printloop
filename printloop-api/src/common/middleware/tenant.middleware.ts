@@ -126,6 +126,18 @@ export const optionalTenant = async (
   }
 };
 
+export function tenantRoleOf(req: Request, tenantId: string): TenantMemberRole | null {
+  const user = (req as any).user;
+  if (!user) return null;
+  if (user.role === UserRole.SUPER_ADMIN) return TenantMemberRole.OWNER;
+  const memberships = (req.tenantMemberships || []).filter((m) => m.tenantId === tenantId);
+  const order = [TenantMemberRole.OWNER, TenantMemberRole.ADMIN, TenantMemberRole.STAFF];
+  const best = order.find((r) => memberships.some((m) => m.role === r));
+  if (best) return best;
+  if (memberships.length === 0 && user.role === UserRole.ADMIN && user.tenantId === tenantId) return TenantMemberRole.OWNER;
+  return null;
+}
+
 export const requireTenantRole =
   (...roles: TenantMemberRole[]) =>
   (req: Request, res: Response, next: NextFunction): void => {
@@ -195,6 +207,10 @@ function pickTenantSlug(req: Request): string | null {
 
 function pickCustomDomain(req: Request): string | null {
   const host = (req.header('host') || '').toLowerCase().split(':')[0];
+  return customDomainOf(host) ?? customDomainOf((req.header('x-tenant-domain') || '').toLowerCase().trim());
+}
+
+function customDomainOf(host: string): string | null {
   if (!host || isApexOrLocal(host)) return null;
   const ourApexes = configuredApexes();
   if (ourApexes.some((apex) => host === apex || host.endsWith('.' + apex))) {

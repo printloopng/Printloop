@@ -14,4 +14,7 @@ router.post(
   kioskParticipantUploadController.upload,
 );
 
+router.get('/status', kioskParticipantUploadController.status);
+router.post('/pay', kioskParticipantUploadController.pay);
+
 export default router;

@@ -1,0 +1,42 @@
+{
+  "name": "@printloop/shop",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --port 3002",
+    "build": "next build",
+    "start": "next start --port 3002",
+    "lint": "eslint src",
+    "typecheck": "next typegen && tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@hookform/resolvers": "5.9.2",
+    "@printloop/api-client": "workspace:*",
+    "@printloop/auth": "workspace:*",
+    "@printloop/ui": "workspace:*",
+    "@tanstack/react-query": "5.104.5",
+    "@univerjs/preset-docs-core": "1.1.0",
+    "@univerjs/presets": "1.1.0",
+    "lucide-react": "1.59.0",
+    "next": "16.4.2",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "react-hook-form": "7.90.0",
+    "rxjs": "7.8.2",
+    "socket.io-client": "4.8.4",
+    "sonner": "2.0.8",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@printloop/config": "workspace:*",
+    "@types/node": "24.19.2",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "eslint": "9.39.5",
+    "postcss": "8.5.31",
+    "tailwindcss": "3.4.19",
+    "typescript": "5.9.3",
+    "vitest": "3.2.7"
+  }
+}

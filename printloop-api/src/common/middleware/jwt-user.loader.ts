@@ -15,7 +15,7 @@ export async function loadAuthenticatedUserContext(
   token: string,
 ): Promise<LoadedAuthContext> {
   const decoded = jwtService.verify<UserPayload>(token);
-  if (!decoded.userId) {
+  if (typeof decoded.userId !== "string" || !decoded.userId || (decoded as any).kind || (decoded as any).scope) {
     throw new UnauthorizedError("Invalid token");
   }
 

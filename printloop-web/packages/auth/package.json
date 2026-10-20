@@ -1,0 +1,43 @@
+{
+  "name": "@printloop/auth",
+  "version": "0.0.0",
+  "private": true,
+  "exports": {
+    "./config": "./src/config.ts",
+    "./tenant": "./src/tenant.ts",
+    "./edge": "./src/edge.ts",
+    "./server": "./src/server.ts",
+    "./handlers": "./src/handlers.ts",
+    "./client": "./src/client.tsx",
+    "./forms": "./src/forms.tsx"
+  },
+  "scripts": {
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@printloop/api-client": "workspace:*",
+    "server-only": "0.0.1",
+    "@tanstack/react-query": "5.104.5",
+    "@hookform/resolvers": "5.9.2",
+    "@printloop/ui": "workspace:*",
+    "react-hook-form": "7.90.0",
+    "zod": "4.6.7"
+  },
+  "peerDependencies": {
+    "next": "^16",
+    "react": "^19"
+  },
+  "devDependencies": {
+    "@printloop/config": "workspace:*",
+    "@types/node": "24.19.2",
+    "@types/react": "19.3.0",
+    "eslint": "9.39.5",
+    "next": "16.4.2",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "typescript": "5.9.3",
+    "vitest": "3.2.7"
+  }
+}

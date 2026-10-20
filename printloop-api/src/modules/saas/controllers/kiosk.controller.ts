@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { Kiosk } from '@/database/entities/kiosk.entity';
 import { KioskService } from '@/modules/saas/services/kiosk.service';
 import { KioskStatus } from '@/database/entities/kiosk.entity';
 import { writeAudit } from '@/core/services/audit.service';
@@ -121,6 +122,31 @@ export const listKiosks = async (
   }
 };
 
+function kioskDetail(kiosk: Kiosk) {
+  return {
+    id: kiosk.id,
+    name: kiosk.name,
+    location: kiosk.location,
+    campus: kiosk.campus,
+    shopId: kiosk.shopId,
+    status: kiosk.status,
+    printerName: kiosk.printerName,
+    printerModel: kiosk.printerModel,
+    ipAddress: kiosk.ipAddress,
+    mapsUrl: kiosk.mapsUrl,
+    isPublic: kiosk.isPublic,
+    lastSeenAt: kiosk.lastSeenAt,
+    lastPrintedAt: kiosk.lastPrintedAt,
+    totalJobsPrinted: kiosk.totalJobsPrinted,
+    totalPagesPrinted: kiosk.totalPagesPrinted,
+    notes: kiosk.notes,
+    createdAt: kiosk.createdAt,
+    updatedAt: kiosk.updatedAt,
+  };
+}
+
+const EDITABLE_TEXT = ['name', 'location', 'campus', 'printerName', 'printerModel', 'ipAddress', 'notes', 'mapsUrl'] as const;
+
 export const getKiosk = async (
   req: Request,
   res: Response
@@ -138,31 +164,7 @@ export const getKiosk = async (
       return;
     }
 
-    res.json({
-      success: true,
-      data: {
-        kiosk: {
-          id: kiosk.id,
-          name: kiosk.name,
-          location: kiosk.location,
-          campus: kiosk.campus,
-          shopId: kiosk.shopId,
-          status: kiosk.status,
-          printerName: kiosk.printerName,
-          printerModel: kiosk.printerModel,
-          ipAddress: kiosk.ipAddress,
-          mapsUrl: kiosk.mapsUrl,
-          isPublic: kiosk.isPublic,
-          lastSeenAt: kiosk.lastSeenAt,
-          lastPrintedAt: kiosk.lastPrintedAt,
-          totalJobsPrinted: kiosk.totalJobsPrinted,
-          totalPagesPrinted: kiosk.totalPagesPrinted,
-          notes: kiosk.notes,
-          createdAt: kiosk.createdAt,
-          updatedAt: kiosk.updatedAt,
-        },
-      },
-    });
+    res.json({ success: true, data: { kiosk: kioskDetail(kiosk) } });
   } catch (error) {
     console.error('Get kiosk error:', error);
     res.status(500).json({
@@ -228,37 +230,37 @@ export const updateKiosk = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { id } = req.params;
-    const updates = req.body;
-
-    delete updates.apiKey;
-    delete updates.id;
-    delete updates.createdAt;
-    delete updates.updatedAt;
-
-    const kiosk = await kioskService.updateKiosk(id, updates);
-
-    if (!kiosk) {
-      res.status(404).json({
-        success: false,
-        message: 'Kiosk not found',
-      });
+    const existing = await kioskService.getKioskById(req.params.id, req.tenant!.id);
+    if (!existing) {
+      res.status(404).json({ success: false, message: 'Kiosk not found' });
       return;
     }
-
+    const body = req.body ?? {};
+    const updates: Record<string, unknown> = {};
+    for (const field of EDITABLE_TEXT) {
+      if (body[field] === undefined) continue;
+      if (body[field] !== null && typeof body[field] !== 'string') {
+        res.status(400).json({ success: false, message: `${field} must be text` });
+        return;
+      }
+      const value = body[field] === null ? null : String(body[field]).trim().slice(0, field === 'notes' ? 2000 : 255);
+      if (field === 'name' && !value) {
+        res.status(400).json({ success: false, message: 'Name is required' });
+        return;
+      }
+      updates[field] = value || null;
+    }
+    if (typeof body.isPublic === 'boolean') updates.isPublic = body.isPublic;
+    const kiosk = await kioskService.updateKiosk(existing.id, updates as any);
+    if (!kiosk) {
+      res.status(404).json({ success: false, message: 'Kiosk not found' });
+      return;
+    }
     await writeAudit(req, 'kiosk.updated', `kiosk:${kiosk.id}`, updates);
-
-    res.json({
-      success: true,
-      message: 'Kiosk updated successfully',
-      data: { kiosk },
-    });
+    res.json({ success: true, message: 'Kiosk updated successfully', data: { kiosk: kioskDetail(kiosk) } });
   } catch (error) {
     console.error('Update kiosk error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to update kiosk',
-    });
+    res.status(500).json({ success: false, message: 'Failed to update kiosk' });
   }
 };
 

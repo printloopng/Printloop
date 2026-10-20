@@ -13,6 +13,16 @@ declare global {
   }
 }
 
+function isAccessPayload(payload: any): boolean {
+  return (
+    !!payload &&
+    typeof payload === 'object' &&
+    typeof payload.userId === 'string' &&
+    payload.userId.length > 0 &&
+    payload.kind === undefined
+  );
+}
+
 export const authenticate = async (
   req: Request,
   res: Response,
@@ -32,6 +42,16 @@ export const authenticate = async (
       payload = verifyToken(token);
     } catch {
       res.status(401).json({ success: false, message: 'Invalid or expired token' });
+      return;
+    }
+
+    if (!isAccessPayload(payload)) {
+      res.status(401).json({ success: false, message: 'Invalid or expired token' });
+      return;
+    }
+    const scope = (payload as any).scope;
+    if (scope && scope !== (req as any).uploadScope) {
+      res.status(401).json({ success: false, message: 'This token can only be used for a file upload' });
       return;
     }
 
@@ -79,6 +99,7 @@ export const optionalAuth = async (
     } catch {
       return next();
     }
+    if (!isAccessPayload(payload) || (payload as any).scope) return next();
 
     const user = await AppDataSource.getRepository(User).findOne({
       where: { id: payload.userId },

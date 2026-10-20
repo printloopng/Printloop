@@ -1,4 +1,5 @@
 import { repos } from '@/config/repos';
+import { billablePages } from '@/modules/public/services/documentConvert.service';
 import { PrintJob, PrintJobStatus } from '@/database/entities/printJob.entity';
 import { computeCost } from '@/modules/public/services/pricing.service';
 import { computeCommissionSplit } from './commission.service';
@@ -27,7 +28,8 @@ function round2(n: number): number {
 async function computeFinalCost(job: PrintJob, pageCount: number): Promise<number> {
   const cfg: any = job.printConfiguration || {};
   return computeCost({
-    pageCount,
+    tenantId: job.tenantId,
+    pageCount: billablePages(pageCount, cfg),
     paper: cfg.paper,
     color: cfg.color === 'color' ? 'color' : 'bw',
     sided: cfg.sided === 'double' ? 'double' : 'single',

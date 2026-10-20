@@ -4,6 +4,7 @@ export class AddTenantIdToDocumentEditAndEditorSession1721200000000 implements M
     name = 'AddTenantIdToDocumentEditAndEditorSession1721200000000';
 
     public async up(queryRunner: QueryRunner): Promise<void> {
+        if (queryRunner.connection.options.type === 'postgres') return;
         await queryRunner.query(
             'ALTER TABLE "document_edits" ADD COLUMN "tenantId" TEXT NOT NULL DEFAULT \'\''
         );

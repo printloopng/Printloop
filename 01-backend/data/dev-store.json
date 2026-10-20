@@ -1021,6 +1021,27 @@
         "pages": "all"
       },
       "kioskId": "st_yaba"
+    },
+    {
+      "id": "08e3b267-41cd-4c5f-b294-f9133c17daa5",
+      "userId": "8c570a32-10f2-4ab3-9c41-e2ee60a9b053",
+      "fileName": "Untitled document.pdf",
+      "pageCount": 10,
+      "code": "T5G69V",
+      "cost": 50,
+      "status": "ready",
+      "jobType": "single",
+      "paymentMethod": "card",
+      "createdAt": "2026-10-19T15:22:12.719Z",
+      "expiresAt": "2026-10-20T15:22:12.719Z",
+      "printConfiguration": {
+        "copies": 1,
+        "paper": "A4",
+        "color": "bw",
+        "sided": "single",
+        "qualityDpi": 300,
+        "pages": "all"
+      }
     }
   ],
   "stations": [
@@ -1075,6 +1096,23 @@
     }
   ],
   "groupSessions": [
+    {
+      "id": "9fbe7230-34bb-4d28-add6-0796c7ab9df0",
+      "hostUserId": "8c570a32-10f2-4ab3-9c41-e2ee60a9b053",
+      "groupName": "Untitled group session",
+      "deadline": "2026-10-20T15:22:12.781Z",
+      "status": "open",
+      "shareUrl": "/groups/untitled-group-session/join",
+      "createdAt": "2026-10-19T15:22:12.781Z",
+      "defaultOptions": {
+        "paper": "A4",
+        "color": "bw",
+        "sided": "single",
+        "qualityDpi": 300,
+        "enforce": false
+      },
+      "participants": []
+    },
     {
       "id": "8f46430c-b75e-4610-8f87-19c6c1520e1d",
       "hostUserId": "usr_demo_student",
@@ -1147,30 +1185,5 @@
       ]
     }
   ],
-  "pricing": [
-    {
-      "id": 1,
-      "paper": "A4",
-      "bwSingle": 100,
-      "bwDuplex": 130,
-      "colorSingle": 200,
-      "colorDuplex": 250
-    },
-    {
-      "id": 2,
-      "paper": "A3",
-      "bwSingle": 15,
-      "bwDuplex": 12,
-      "colorSingle": 50,
-      "colorDuplex": 42
-    },
-    {
-      "id": 3,
-      "paper": "Letter",
-      "bwSingle": 5,
-      "bwDuplex": 4,
-      "colorSingle": 25,
-      "colorDuplex": 21
-    }
-  ]
+  "pricing": {}
 }
