@@ -56,13 +56,7 @@ export default function UniverCanvas({
       presets: [UniverDocsCorePreset({ container: el, header: !readOnly, toolbar: !readOnly })],
     });
     const fdoc = univerAPI.createDocument(document);
-    if (readOnly) {
-      try {
-        fdoc.getPermission().setReadOnly?.(true);
-      } catch {
-        void 0;
-      }
-    }
+    if (readOnly) void fdoc.getPermission().setReadOnly().catch(() => undefined);
 
     let socket: Socket | null = null;
     if (token) {

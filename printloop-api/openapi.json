@@ -1280,14 +1280,22 @@
           },
           "discountType": {
             "type": "string",
-            "example": "percentage"
+            "enum": [
+              "percentage",
+              "fixed",
+              "free_pages"
+            ]
           },
           "discountValue": {
             "type": "number"
           },
           "status": {
             "type": "string",
-            "example": "active"
+            "enum": [
+              "active",
+              "inactive",
+              "expired"
+            ]
           },
           "usageCount": {
             "type": "integer"
@@ -1359,13 +1367,22 @@
             ]
           },
           "discountType": {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "percentage",
+              "fixed",
+              "free_pages"
+            ]
           },
           "discountValue": {
             "type": "number"
           },
           "status": {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "active",
+              "inactive"
+            ]
           },
           "maxUses": {
             "anyOf": [

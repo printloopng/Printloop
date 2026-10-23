@@ -3322,11 +3322,11 @@ export interface components {
       code: string;
       name: string;
       description?: string | null;
-      /** @example percentage */
-      discountType?: string;
+      /** @enum {string} */
+      discountType?: "percentage" | "fixed" | "free_pages";
       discountValue?: number;
-      /** @example active */
-      status?: string;
+      /** @enum {string} */
+      status?: "active" | "inactive" | "expired";
       usageCount?: number;
       maxUses?: number | null;
       startsAt?: string | null;
@@ -3340,9 +3340,11 @@ export interface components {
       code?: string;
       name?: string;
       description?: string | null;
-      discountType?: string;
+      /** @enum {string} */
+      discountType?: "percentage" | "fixed" | "free_pages";
       discountValue?: number;
-      status?: string;
+      /** @enum {string} */
+      status?: "active" | "inactive";
       maxUses?: number | null;
       startsAt?: string | null;
       endsAt?: string | null;

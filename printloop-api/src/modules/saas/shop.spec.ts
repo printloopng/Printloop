@@ -62,6 +62,23 @@ describe('shop console API', () => {
     for (const h of hooks) expect(h.secret).toBe('***');
   });
 
+  it('updates branding and shop photos through an upload ticket', async () => {
+    const branding = await api.call('PUT', '/saas/me/branding', { token: ops, body: { wordmark: 'Legacy Print', primaryColor: '#D14B2C' } });
+    expect(branding.status).toBe(200);
+    expect(branding.body.data.primaryColor).toBe('#D14B2C');
+    expect((await api.call('PUT', '/saas/me/branding', { token: ops, body: { primaryColor: 'red' } })).status).toBe(400);
+    const ticket = (await api.call('POST', '/uploads/ticket', { token: ops, body: { purpose: 'branding-photo' } })).body.data.ticket;
+    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+    const form = new FormData();
+    form.append('photo', new Blob([new Uint8Array(png)], { type: 'image/png' }), 'front.png');
+    const up = await api.call('POST', '/saas/me/photos', { form, headers: { 'X-Upload-Ticket': ticket } });
+    expect(up.status).toBe(200);
+    const url = up.body.data.photos.at(-1);
+    expect((await api.call('GET', '/saas/me', { token: ops })).body.data.photos).toContain(url);
+    const del = await api.call('DELETE', '/saas/me/photos', { token: ops, body: { url } });
+    expect(del.body.data.photos).not.toContain(url);
+  });
+
   it('runs the queue: list, release to the kiosk, collect, requeue', async () => {
     const job = await paidJob(api, customer);
     const list = await api.call('GET', '/saas/jobs', { token: ops });

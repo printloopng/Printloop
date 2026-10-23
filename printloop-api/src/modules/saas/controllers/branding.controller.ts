@@ -95,7 +95,7 @@ export class BrandingController {
       tenant.photos = tenant.photos || [];
       tenant.photos.push(stored.url);
       await this.ds.getRepository(Tenant).save(tenant);
-      res.json({ success: true, photos: tenant.photos });
+      res.json({ success: true, data: { photos: tenant.photos } });
     } catch (err: any) {
       console.error('Photo upload error:', err);
       res.status(500).json({ success: false, message: err.message || 'Failed to upload photo' });
@@ -117,7 +117,7 @@ export class BrandingController {
       }
       tenant.photos = tenant.photos.filter((p: string) => p !== url);
       await this.ds.getRepository(Tenant).save(tenant);
-      res.json({ success: true, photos: tenant.photos });
+      res.json({ success: true, data: { photos: tenant.photos } });
     } catch (err: any) {
       console.error('Photo delete error:', err);
       res.status(500).json({ success: false, message: err.message || 'Failed to delete photo' });

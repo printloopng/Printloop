@@ -52,6 +52,7 @@ export class ShopController {
         lat: tenant.lat,
         lng: tenant.lng,
         isDiscoverable: Boolean(tenant.isDiscoverable),
+        photos: tenant.photos ?? [],
         availability: tenant.availability,
         myRole: tenantRoleOf(req, tenant.id),
         onboarding: {
