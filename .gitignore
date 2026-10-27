@@ -41,18 +41,11 @@ pnpm-debug.log*
 .idea/
 Thumbs.db
 
-# ── Backend runtime data ─────────────────────────────────────────────
-# The SQLite DB is created automatically by the seed on first boot;
-# committing it would carry test users + jobs into every clone and
-# produce noisy binary diffs.
-01-backend/data/printloop.sqlite
-01-backend/data/printloop.sqlite-*
-# Uploaded customer documents — real user content, never commit.
-01-backend/data/uploads/
-# Test artefacts captured by the virtual printer.
-01-backend/data/printed/
-# Legacy mock JSON store used by the devApi catch-all router.
-01-backend/data/dev-store.json
+# ── API runtime data ─────────────────────────────────────────────────
+printloop-api/data/*.sqlite
+printloop-api/data/*.sqlite-*
+printloop-api/data/uploads/
+printloop-api/data/printed/
 
 # ── Vendored reference source (not built, not imported) ──────────────
 # Local clones of OpenPrinting projects kept for reference only. The app

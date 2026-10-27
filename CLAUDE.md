@@ -1,30 +1,24 @@
 # CLAUDE.md — orientation for future Claude sessions
 
 **PrintLoop SaaS v2** — multi-tenant campus print marketplace.
-Human entry: `README.md`. Doc index: `docs/README.md`.
-Eng runbook: `docs/DEV-HANDOVER.md`.
+Human entry: `README.md`.
 
 ## Where to start each session
 
-1. `README.md` — what runs, how to boot it.
-2. `docs/DEV-HANDOVER.md` — verified commands, env, tests.
-3. `docs/ARCHITECTURE.md` — cloud-render → kiosk-spool (when touching print).
-4. `docs/JOURNAL.md` (top) — latest phase; append new work on top.
+1. `README.md` — what runs, how to boot it, how to check it, how it deploys.
 
 ## Folder layout (live surface)
 
 - `printloop-api/` — **current** Express 5 + TypeORM API (neurapath
   layout: `modules/{public,customer,saas,platform,kiosk}` —
   `platform` owns PrintLoop staff routes + shared OpenAPI/files).
-  Driver from `DATABASE_URL`: **Postgres in prod / Docker, SQLite for
+  Driver from `DATABASE_URL`: **Postgres in prod, SQLite for
   local dev**. Multi-tenant: shop data carries `tenantId`; customers and
   staff have none (`common/middleware/tenant.middleware.ts`). **There is
   no default shop**: a request with no shop gets `400 TENANT_REQUIRED`.
   Webhooks live under `modules/public`; the only Paystack webhook is
   `POST /api/webhooks/paystack`. The OpenAPI spec is generated from the
   typed route table in `modules/platform/openapi/`.
-- `01-backend/` — **deprecated** predecessor; see its `DEPRECATED.md`.
-  Do not add features; remove after cutover is verified.
 - `printloop-web/` — Turborepo (pnpm, Next.js 16, React 19). Apps:
   `landing` (3000), `customer` (3001), `shop` (3002), `backoffice`
   (3003). Shared: `packages/ui` (design system), `packages/api-client`
@@ -35,9 +29,10 @@ Eng runbook: `docs/DEV-HANDOVER.md`.
 - `printloop-kiosk-app/` — Electron kiosk (UI + local print + cloud poll).
 - `render-worker/` — BullMQ PDF → PWG consumer; HMAC callback to API
   via `core/services/renderEnqueue.service.ts`. **Keep this**.
-- `docs/` — living docs; `docs/archive/` is historical only;
-  `docs/deploy/` is the deploy runbook.
-- `deploy/` — platform config samples (Caddy, Fly, Render).
+- `render.yaml` — Render Blueprint (API, worker, render-worker, Postgres,
+  Redis). The web apps deploy to Vercel. There is no Docker setup except
+  `render-worker/Dockerfile`, which needs Ghostscript.
+- `docs/agents/` — agent skill config (issue tracker, domain docs).
 - `vendor/` — gitignored OpenPrinting reference clones (optional).
 
 ## Conventions

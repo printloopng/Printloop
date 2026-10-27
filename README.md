@@ -11,10 +11,9 @@ directly. Revenue = per-job commission (default 10%), not a subscription.
 |---|---|
 | `printloop-api/` | Express 5 + TypeORM API. Its OpenAPI spec is generated from code. |
 | `printloop-web/` | Turborepo with four Next.js apps and the packages they share |
-| `render-worker/` | Cloud PDF → PWG render consumer (**needed** for real prints) |
+| `render-worker/` | Cloud PDF → PWG render consumer (needed for real prints) |
 | `printloop-kiosk-app/` | Electron shop kiosk |
-| `docs/` | Documentation |
-| `deploy/` | Caddy / Fly / Render config samples |
+| `render.yaml` | Render Blueprint for the API, workers, Postgres and Redis |
 
 The four web apps (`printloop-web/apps/`):
 
@@ -45,9 +44,9 @@ pnpm dev
 # landing :3000  customer :3001  shop :3002  backoffice :3003
 ```
 
-Demo data (`SEED_DEMO=1` only) lives on one shop, `campus-print`. Open
-the customer app at `http://localhost:3001/?shop=campus-print` to print
-there.
+Demo data (`SEED_DEMO=1` on an empty database only) lives on one shop,
+`campus-print`. Open the customer app at
+`http://localhost:3001/?shop=campus-print` to print there.
 
 | Account | Email | Password | Where |
 |---|---|---|---|
@@ -64,21 +63,28 @@ for gets `400 TENANT_REQUIRED`.
 ```powershell
 cd printloop-api; npm run typecheck; npm test
 cd printloop-web; pnpm lint; pnpm typecheck; pnpm test; pnpm build
-cd printloop-web; pnpm --filter @printloop/e2e e2e:install   # once
-cd printloop-web; pnpm e2e    # builds must exist; starts its own API on SQLite
+cd printloop-web; pnpm --filter @printloop/e2e exec playwright install chromium   # once
+cd printloop-web; pnpm e2e    # starts its own API on SQLite; set E2E_LANDING_PORT if 3000 is taken
 ```
 
 After changing an API route or response, regenerate the typed client:
 `cd printloop-api; npm run openapi:export`, then `cd printloop-web; pnpm api:generate`.
 
-First production staff account: `cd printloop-api; npm run admin:create -- <email> <password>`.
+## Deploying
 
-Full stack (Postgres + Redis + render-worker): `docker compose up --build`
-
-## Docs
-
-See **[`docs/README.md`](docs/README.md)**.
-
-- Eng runbook → [`docs/DEV-HANDOVER.md`](docs/DEV-HANDOVER.md)
-- Deploy (v2) → [`docs/deploy/saas.md`](docs/deploy/saas.md)
-- Kiosk package → `cd printloop-kiosk-app && npm run package`
+- **API, worker, render-worker, Postgres, Redis → Render.** In Render choose
+  *New → Blueprint* and point it at `render.yaml`. Every variable marked
+  `sync: false` is filled in the dashboard; `printloop-api/.env.production.example`
+  lists them with explanations. `JWT_SECRET` and `RENDER_CALLBACK_SECRET` must be
+  the same value on every service that has them. Run exactly one `printloop-worker`
+  (it owns the scheduled jobs). Migrations run on boot.
+- **Web apps → Vercel**, one project per app with its root directory set to
+  `printloop-web/apps/<app>`. Each needs `PL_API_URL`, `NEXT_PUBLIC_API_URL`,
+  `PL_APEX_DOMAINS`, `PL_EDGE_SECRET` (same as the API), and the four
+  `NEXT_PUBLIC_*_URL` origins (`printloop-web/.env.example`).
+- **Paystack webhook:** `https://<api-host>/api/webhooks/paystack`.
+- **First staff account:** `cd printloop-api; npm run admin:create -- <email> <password>`
+  (run it as a Render one-off job or shell). Never set `SEED_DEMO=1` in production.
+- **Kiosk:** `cd printloop-kiosk-app && npm run package`.
+- The render-worker is the one service built from a Dockerfile (it needs
+  Ghostscript and cups-filters, which Render's Node runtime can't install).
