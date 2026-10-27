@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { AppDataSource } from '@/config/data-source';
 import { User } from '@/database/entities/user.entity';
 import { verifyToken, type JwtTenantMembership } from '@/core/utils/jwt';
+import { isBlockedInSupportSession } from '@/common/middleware/impersonation';
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
@@ -75,6 +76,15 @@ export const authenticate = async (
     if (payload.impersonating?.actorUserId) {
       (req as any).impersonatingActorUserId =
         payload.impersonating.actorUserId;
+      req.impersonatingTenantId = payload.impersonating.tenantId;
+      if (isBlockedInSupportSession(req)) {
+        res.status(403).json({
+          success: false,
+          message: 'This action is not available in a support session.',
+          code: 'SUPPORT_SESSION_RESTRICTED',
+        });
+        return;
+      }
     }
     next();
   } catch (error) {
@@ -109,6 +119,9 @@ export const optionalAuth = async (
       req.tenantMemberships = Array.isArray(payload.memberships)
         ? payload.memberships
         : [];
+      if ((payload as any).impersonating?.tenantId) {
+        req.impersonatingTenantId = (payload as any).impersonating.tenantId;
+      }
     }
     next();
   } catch {

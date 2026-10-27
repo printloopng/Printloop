@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import bcrypt from 'bcryptjs';
-import { startTestApi, newCustomer, paidJob, type TestApi } from '@/test/harness';
+import { startTestApi, newCustomer, paidJob, DEMO_SHOP, type TestApi } from '@/test/harness';
 
 jest.setTimeout(120_000);
 
@@ -9,13 +9,13 @@ describe('shop console API', () => {
   let ops: string;
   let customer: string;
   let ds: any;
-  let legacyId: string;
+  let shopId: string;
 
   beforeAll(async () => {
     api = await startTestApi();
     ds = (await import('@/config/data-source')).AppDataSource;
     const { Tenant } = await import('@/database/entities/tenant.entity');
-    legacyId = (await ds.getRepository(Tenant).findOne({ where: { slug: 'legacy' } })).id;
+    shopId = (await ds.getRepository(Tenant).findOne({ where: { slug: DEMO_SHOP } })).id;
     ops = await api.login('ops@printloop.test', 'Admin1234!');
     customer = (await newCustomer(api, 'shopcust')).token;
   });
@@ -29,7 +29,7 @@ describe('shop console API', () => {
     const user = await ds.getRepository(User).save(
       ds.getRepository(User).create({
         id: crypto.randomUUID(),
-        tenantId: legacyId,
+        tenantId: shopId,
         firstName: 'Team',
         lastName: role,
         email,
@@ -41,13 +41,13 @@ describe('shop console API', () => {
         adminPrivileges: [],
       }),
     );
-    await ds.getRepository(TenantMember).save(ds.getRepository(TenantMember).create({ tenantId: legacyId, userId: user.id, role }));
+    await ds.getRepository(TenantMember).save(ds.getRepository(TenantMember).create({ tenantId: shopId, userId: user.id, role }));
     return api.login(email, 'Team!Passw0rd1');
   }
 
   it('serves the console overview, availability, domains and webhooks', async () => {
     const me = (await api.call('GET', '/saas/me', { token: ops })).body.data;
-    expect(me.slug).toBe('legacy');
+    expect(me.slug).toBe(DEMO_SHOP);
     expect(me.myRole).toBe('admin');
     expect((await api.call('GET', '/saas/ops/summary', { token: ops })).body.data.kioskCount).toBeGreaterThan(0);
     expect((await api.call('GET', '/saas/dashboard/stats', { token: ops })).status).toBe(200);
@@ -60,10 +60,14 @@ describe('shop console API', () => {
     expect((await api.call('POST', '/saas/me/webhooks', { token: ops, body: { name: 'local', url: 'http://127.0.0.1/hook' } })).status).toBe(400);
     const hooks = (await api.call('GET', '/saas/me/webhooks', { token: ops })).body.data;
     for (const h of hooks) expect(h.secret).toBe('***');
+    const location = await api.call('PATCH', '/saas/me/location', { token: ops, body: {} });
+    expect(location.body.data.isDiscoverable).toBe(me.isDiscoverable);
+    expect((await api.call('POST', '/saas/setup/bank-account', { token: ops, body: { accountName: 'Campus Print', bankCode: '058', accountNumber: '12345' } })).status).toBe(400);
+    expect((await api.call('POST', '/saas/setup/paystack-subaccount', { token: ops, body: { bankCode: '058', accountNumber: 'abc' } })).status).toBe(400);
   });
 
   it('updates branding and shop photos through an upload ticket', async () => {
-    const branding = await api.call('PUT', '/saas/me/branding', { token: ops, body: { wordmark: 'Legacy Print', primaryColor: '#D14B2C' } });
+    const branding = await api.call('PUT', '/saas/me/branding', { token: ops, body: { wordmark: 'Campus Print', primaryColor: '#D14B2C' } });
     expect(branding.status).toBe(200);
     expect(branding.body.data.primaryColor).toBe('#D14B2C');
     expect((await api.call('PUT', '/saas/me/branding', { token: ops, body: { primaryColor: 'red' } })).status).toBe(400);
@@ -77,6 +81,17 @@ describe('shop console API', () => {
     expect((await api.call('GET', '/saas/me', { token: ops })).body.data.photos).toContain(url);
     const del = await api.call('DELETE', '/saas/me/photos', { token: ops, body: { url } });
     expect(del.body.data.photos).not.toContain(url);
+  });
+
+  it('turns two-factor sign-in on and off with authenticator codes', async () => {
+    const { totpAt } = await import('@/core/utils/totp');
+    const owner = await api.login('owner@printloop.test', 'Admin1234!');
+    const setup = (await api.call('POST', '/saas/me/2fa/setup', { token: owner })).body.data;
+    expect(setup.otpauthUrl).toContain('otpauth://');
+    expect((await api.call('POST', '/saas/me/2fa/enable', { token: owner, body: { code: '000000' } })).status).toBe(422);
+    expect((await api.call('POST', '/saas/me/2fa/enable', { token: owner, body: { code: totpAt(setup.secret) } })).body.data.enabled).toBe(true);
+    expect((await api.call('POST', '/customer/auth/login', { body: { email: 'owner@printloop.test', password: 'Admin1234!' } })).status).not.toBe(200);
+    expect((await api.call('POST', '/saas/me/2fa/disable', { token: owner, body: { code: totpAt(setup.secret) } })).body.data.enabled).toBe(false);
   });
 
   it('runs the queue: list, release to the kiosk, collect, requeue', async () => {
@@ -103,7 +118,7 @@ describe('shop console API', () => {
     });
     expect(promo.status).toBe(201);
     expect(promo.body.data.promotion.usageCount).toBe(0);
-    expect(promo.body.data.promotion.tenantId).toBe(legacyId);
+    expect(promo.body.data.promotion.tenantId).toBe(shopId);
     expect(promo.body.data.promotion.code).toBe(promo.body.data.promotion.code.toUpperCase());
   });
 
@@ -115,7 +130,7 @@ describe('shop console API', () => {
     const kiosks = await api.call('GET', '/saas/reports/kiosks', { token: ops });
     for (const k of kiosks.body.data.kiosks) expect(typeof k.totalJobs).toBe('number');
     const logs = (await api.call('GET', '/saas/audit-logs', { token: ops })).body.data.logs;
-    expect(logs.every((l: any) => l.tenantId === legacyId)).toBe(true);
+    expect(logs.every((l: any) => l.tenantId === shopId)).toBe(true);
     expect((await api.call('GET', '/saas/customers', { token: ops })).text).not.toMatch(/passwordHash/);
   });
 
@@ -166,9 +181,9 @@ describe('shop console API', () => {
     const noBank = await api.call('POST', '/saas/payouts/instant', { token: ops });
     expect([noBank.status, noBank.body.code]).toEqual([409, 'NO_BANK_ACCOUNT']);
     const { Tenant } = await import('@/database/entities/tenant.entity');
-    await ds.getRepository(Tenant).update({ id: legacyId }, { paystackSubaccountCode: 'ACCT_test' });
+    await ds.getRepository(Tenant).update({ id: shopId }, { paystackSubaccountCode: 'ACCT_test' });
     const split = await api.call('POST', '/saas/payouts/instant', { token: ops });
     expect([split.status, split.body.code]).toEqual([409, 'SPLIT_SETTLED']);
-    await ds.getRepository(Tenant).update({ id: legacyId }, { paystackSubaccountCode: null });
+    await ds.getRepository(Tenant).update({ id: shopId }, { paystackSubaccountCode: null });
   });
 });

@@ -70,6 +70,7 @@ import { AlignEditTablesWithEntities1721300000000 } from "@/database/migrations/
 import { PostgresParity1721400000000 } from "@/database/migrations/1721400000000-PostgresParity";
 import { WidenStatusChecks1721500000000 } from "@/database/migrations/1721500000000-WidenStatusChecks";
 import { NullablePaymentUser1721600000000 } from "@/database/migrations/1721600000000-NullablePaymentUser";
+import { RemoveFallbackTenant1721700000000 } from "@/database/migrations/1721700000000-RemoveFallbackTenant";
 
 const ENTITIES = [
   Kiosk,
@@ -139,6 +140,7 @@ const SQLITE_MIGRATIONS = [
   PostgresParity1721400000000,
   WidenStatusChecks1721500000000,
   NullablePaymentUser1721600000000,
+  RemoveFallbackTenant1721700000000,
 ];
 
 const POSTGRES_MIGRATIONS = [
@@ -161,6 +163,7 @@ const POSTGRES_MIGRATIONS = [
   PostgresParity1721400000000,
   WidenStatusChecks1721500000000,
   NullablePaymentUser1721600000000,
+  RemoveFallbackTenant1721700000000,
 ];
 
 const dbUrl = (Config.database.url || process.env.DATABASE_URL || "").toLowerCase();

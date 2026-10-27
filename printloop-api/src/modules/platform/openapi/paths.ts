@@ -216,18 +216,11 @@ export const routes: Array<[string, string, Op]> = [
     tag: 'Printing', summary: 'Report a problem with a print job', auth: 'user', status: 201,
     body: obj({ printJobId: uuid(), reason: str() }, ['printJobId', 'reason']), data: ref('Dispute'),
   }],
-  ['GET', '/disputes', { tag: 'Printing', summary: 'My disputes', auth: 'user', data: arr(ref('Dispute')) }],
-  ['POST', '/disputes/{id}/resolve', {
-    tag: 'Printing', summary: 'Resolve a dispute (legacy shop route)', auth: 'user',
-    body: obj({ status: en(['resolved', 'rejected']), resolutionNotes: str() }, ['status']), data: ref('Dispute'),
-  }],
 
   ['POST', '/payments/initialize-job-payment', {
     tag: 'Payments', summary: 'Start Paystack checkout for a pending job', auth: 'user',
     body: obj({ jobId: uuid(), callbackUrl: str({ format: 'uri' }) }, ['jobId']), data: obj({ authorizationUrl: str(), reference: str(), accessCode: str() }),
   }],
-  ['POST', '/payments/webhook', { tag: 'Webhooks', summary: 'Paystack webhook (alias)', auth: 'signature', body: anyObj(), raw: true, data: obj({ success: bool(), handled: bool(), action: str() }) }],
-  ['POST', '/payments/paystack', { tag: 'Webhooks', summary: 'Paystack webhook (alias)', auth: 'signature', body: anyObj(), raw: true, data: obj({ success: bool(), handled: bool(), action: str() }) }],
   ['POST', '/webhooks/paystack', { tag: 'Webhooks', summary: 'Paystack webhook (HMAC-SHA512 signed)', auth: 'signature', body: anyObj(), raw: true, data: obj({ success: bool(), handled: bool(), action: str() }) }],
   ['POST', '/render/callback', { tag: 'Webhooks', summary: 'Render-worker success callback (HMAC signed)', auth: 'signature', body: anyObj() }],
   ['POST', '/render/failure', { tag: 'Webhooks', summary: 'Render-worker failure callback (HMAC signed)', auth: 'signature', body: anyObj() }],
@@ -344,8 +337,8 @@ export const routes: Array<[string, string, Op]> = [
   ['POST', '/discovery/shops/seed-demo-nearby', { tag: 'Marketplace', summary: 'Seed demo shops (demo mode only)', auth: 'none', body: obj({ lat: num(), lng: num() }) }],
   ['GET', '/integrations/lms/handoff', { tag: 'Marketplace', summary: 'LMS deep-link handoff', auth: 'none', query: { key: str(), email: str() }, produces: 'html' }],
   ['GET', '/branding', {
-    tag: 'Public', summary: 'Branding for the shop resolved from host or X-Tenant-Slug', auth: 'none',
-    data: obj({ tenant: obj({ id: uuid(), name: str(), slug: str() }), branding: nullable(ref('Branding')) }),
+    tag: 'Public', summary: 'Branding for the shop resolved from host or X-Tenant-Slug (both null when no shop is chosen)', auth: 'none',
+    data: obj({ tenant: nullable(obj({ id: uuid(), name: str(), slug: str() }, ['id', 'name', 'slug'])), branding: nullable(ref('Branding')) }, ['tenant', 'branding']),
   }],
   ['GET', '/pricing', { tag: 'Public', summary: 'Public price list for the resolved shop', auth: 'none', data: pricingMatrix }],
   ['GET', '/blog', {
@@ -421,28 +414,34 @@ export const routes: Array<[string, string, Op]> = [
   ['POST', '/saas/resend-verification', { tag: 'Shop onboarding', summary: 'Resend the owner verification email', auth: 'none', body: obj({ email: str() }) }],
   ['POST', '/saas/setup/paystack-subaccount', {
     tag: 'Shop onboarding', summary: 'Set up Paystack split settlement (owner/admin)', auth: 'user',
-    body: obj({ bankCode: str(), accountNumber: str(), businessName: str() }, ['bankCode', 'accountNumber']), data: anyObj(),
+    body: obj({ bankCode: str(), accountNumber: str({ pattern: '^[0-9]{10}$' }), businessName: str() }, ['bankCode', 'accountNumber']),
+    data: obj({ subaccountCode: str(), accountName: nullable(str()) }, ['subaccountCode']),
   }],
   ['POST', '/saas/setup/bank-account', {
     tag: 'Shop onboarding', summary: 'Set the payout bank account (owner/admin)', auth: 'user',
-    body: obj({ bankCode: str(), accountNumber: str() }, ['bankCode', 'accountNumber']), data: anyObj(),
+    body: obj({ accountName: str(), bankCode: str(), accountNumber: str({ pattern: '^[0-9]{10}$' }) }, ['accountName', 'bankCode', 'accountNumber']),
+    data: obj({ recipientCode: nullable(str()), accountName: str(), bankCode: str() }, ['accountName', 'bankCode']),
   }],
 
   ['GET', '/saas/me', { tag: 'Shop', summary: 'My shop, onboarding progress and payout schedule', auth: 'user', data: ref('ShopProfile') }],
-  ['DELETE', '/saas/me', { tag: 'Shop', summary: 'Close and delete my shop (owner/admin)', auth: 'user' }],
+  ['DELETE', '/saas/me', { tag: 'Shop', summary: 'Close and delete my shop (owner)', auth: 'user' }],
   ['POST', '/saas/me/export', { tag: 'Shop', summary: "Export my shop's data (owner/admin)", auth: 'user', produces: 'file' }],
   ['GET', '/saas/me/statement', { tag: 'Shop', summary: 'Monthly statement (CSV)', auth: 'user', query: { month: str({ example: '2026-10' }) }, produces: 'csv' }],
   ['GET', '/saas/me/lms', { tag: 'Shop', summary: 'LMS integration status', auth: 'user', data: obj({ keySet: bool() }) }],
   ['POST', '/saas/me/lms/regenerate', { tag: 'Shop', summary: 'Rotate the LMS key (shown once)', auth: 'user', data: obj({ key: str() }) }],
-  ['PATCH', '/saas/me/location', { tag: 'Shop', summary: 'Set shop address and map pin', auth: 'user', body: obj({ address: str(), lat: num(), lng: num() }), data: anyObj() }],
+  ['PATCH', '/saas/me/location', {
+    tag: 'Shop', summary: 'Set the shop address (geocoded) and marketplace listing', auth: 'user',
+    body: obj({ address: nullable(str()), isDiscoverable: bool() }),
+    data: obj({ address: nullable(str()), lat: nullable(num()), lng: nullable(num()), isDiscoverable: bool() }, ['address', 'lat', 'lng', 'isDiscoverable']),
+  }],
   ['PATCH', '/saas/me/availability', {
     tag: 'Shop', summary: 'Open, mark busy or close the shop', auth: 'user',
     body: obj({ availability: en(['open', 'busy', 'closed']) }, ['availability']),
     data: obj({ availability: en(['open', 'busy', 'closed']) }, ['availability']),
   }],
-  ['POST', '/saas/me/2fa/setup', { tag: 'Shop', summary: 'Start two-factor setup (returns QR URL)', auth: 'user', data: obj({ otpauthUrl: str(), secret: str() }) }],
-  ['POST', '/saas/me/2fa/enable', { tag: 'Shop', summary: 'Confirm two-factor with a code', auth: 'user', body: obj({ code: str() }, ['code']) }],
-  ['POST', '/saas/me/2fa/disable', { tag: 'Shop', summary: 'Turn off two-factor', auth: 'user', body: obj({ code: str() }, ['code']) }],
+  ['POST', '/saas/me/2fa/setup', { tag: 'Shop', summary: 'Start two-factor setup (returns QR URL)', auth: 'user', data: obj({ otpauthUrl: str(), secret: str() }, ['otpauthUrl', 'secret']) }],
+  ['POST', '/saas/me/2fa/enable', { tag: 'Shop', summary: 'Confirm two-factor with a code', auth: 'user', body: obj({ code: str() }, ['code']), data: obj({ enabled: bool() }, ['enabled']) }],
+  ['POST', '/saas/me/2fa/disable', { tag: 'Shop', summary: 'Turn off two-factor', auth: 'user', body: obj({ code: str() }, ['code']), data: obj({ enabled: bool() }, ['enabled']) }],
   ['GET', '/saas/me/branding', { tag: 'Shop', summary: 'Shop branding', auth: 'user', data: ref('Branding') }],
   ['PUT', '/saas/me/branding', { tag: 'Shop', summary: 'Update shop branding', auth: 'user', body: ref('BrandingInput'), data: ref('Branding') }],
   ['POST', '/saas/me/photos', {
@@ -630,12 +629,44 @@ export const routes: Array<[string, string, Op]> = [
   ['GET', '/platform/tenants', {
     tag: 'Platform', summary: 'All shops', auth: 'user', query: { status: str(), limit: int(), before: date() }, data: cursorPage(ref('Tenant')),
   }],
-  ['GET', '/platform/tenants/{id}', { tag: 'Platform', summary: 'Shop detail', auth: 'user', data: anyObj() }],
-  ['POST', '/platform/tenants/{id}/suspend', { tag: 'Platform', summary: 'Suspend a shop', auth: 'user', body: obj({ reason: str() }), data: anyObj() }],
-  ['POST', '/platform/tenants/{id}/reactivate', { tag: 'Platform', summary: 'Reactivate a shop', auth: 'user', data: anyObj() }],
-  ['POST', '/platform/tenants/{id}/impersonate', { tag: 'Platform', summary: "Short-lived token to act as a shop's owner", auth: 'user', data: obj({ token: str(), expiresIn: int() }) }],
-  ['DELETE', '/platform/tenants/{id}', { tag: 'Platform', summary: 'Delete a shop', auth: 'user' }],
-  ['GET', '/platform/reliability', { tag: 'Platform', summary: 'Kiosk uptime and job success rates', auth: 'user', data: anyObj() }],
+  ['GET', '/platform/tenants/{id}', {
+    tag: 'Platform', summary: 'Shop detail with usage and team', auth: 'user',
+    data: obj(
+      {
+        tenant: ref('Tenant'),
+        stats: obj({ kioskCount: int(), onlineKiosks: int(), jobCount: int(), customerCount: int(), gmv: num() }, ['kioskCount', 'onlineKiosks', 'jobCount', 'customerCount', 'gmv']),
+        members: arr(obj({ userId: uuid(), role: en(TENANT_ROLES), email: str(), name: str() }, ['userId', 'role', 'email', 'name'])),
+      },
+      ['tenant', 'stats', 'members'],
+    ),
+  }],
+  ['POST', '/platform/tenants/{id}/suspend', {
+    tag: 'Platform', summary: 'Suspend a shop', auth: 'user', body: obj({ reason: str() }),
+    data: obj({ id: uuid(), status: en(['trial', 'active', 'suspended', 'closed']), suspendedAt: nullable(date()), suspendReason: nullable(str()) }, ['id', 'status']),
+  }],
+  ['POST', '/platform/tenants/{id}/reactivate', {
+    tag: 'Platform', summary: 'Reactivate a shop', auth: 'user',
+    data: obj({ id: uuid(), status: en(['trial', 'active', 'suspended', 'closed']) }, ['id', 'status']),
+  }],
+  ['POST', '/platform/tenants/{id}/impersonate', {
+    tag: 'Platform', summary: "Short-lived token to act as a shop's owner", auth: 'user', query: { ttl: int() },
+    data: obj({ token: str(), ttlSeconds: int(), tenant: obj({ id: uuid(), slug: str(), name: str() }, ['id', 'slug', 'name']) }, ['token', 'ttlSeconds', 'tenant']),
+  }],
+  ['DELETE', '/platform/tenants/{id}', {
+    tag: 'Platform', summary: 'Hard-delete a closed shop (force=true overrides the safety checks)', auth: 'user', query: { force: str({ enum: ['true', 'false'] }) },
+    data: anyObj(),
+  }],
+  ['GET', '/platform/reliability', {
+    tag: 'Platform', summary: 'Kiosk uptime and job success rates', auth: 'user',
+    data: obj(
+      {
+        agentUptime: obj({ totalActiveKiosks: int(), onlineKiosksCount: int(), onlineRatePct: num() }, ['totalActiveKiosks', 'onlineKiosksCount', 'onlineRatePct']),
+        jobSuccessRate: obj({ completedJobsCount: int(), failedJobsCount: int(), successRatePct: num(), failureRatePct: num() }, ['completedJobsCount', 'failedJobsCount', 'successRatePct', 'failureRatePct']),
+        paidUnredeemed: obj({ readyCount: int(), renderingCount: int(), releasingCount: int(), printingCount: int(), totalPaidUnredeemed: int() }, ['readyCount', 'renderingCount', 'releasingCount', 'printingCount', 'totalPaidUnredeemed']),
+      },
+      ['agentUptime', 'jobSuccessRate', 'paidUnredeemed'],
+    ),
+  }],
   ['GET', '/platform/users', {
     tag: 'Platform', summary: 'Search all users', auth: 'user', query: { ...pageQuery, search: str(), role: en(USER_ROLES), tenantId: uuid() }, data: page('users', ref('PublicUser')),
   }],

@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import { DataSource } from 'typeorm';
 import { authenticate } from '@/common/middleware/auth.middleware';
-import { resolveTenant } from '@/common/middleware/tenant.middleware';
+import { resolveTenant, requireTenantRole } from '@/common/middleware/tenant.middleware';
+import { TenantMemberRole } from '@/database/entities/tenantMember.entity';
 import { requireVerifiedEmail } from '@/common/middleware/verifiedEmail.middleware';
 import { ShopController } from '@/modules/saas/controllers/shop.controller';
 
@@ -17,6 +18,7 @@ export function createShopRoutes(ds: DataSource): Router {
     authenticate,
     requireVerifiedEmail,
     resolveTenant,
+    requireTenantRole(TenantMemberRole.OWNER, TenantMemberRole.ADMIN),
     ctrl.regenerateLmsKey,
   );
   router.patch(
@@ -24,6 +26,7 @@ export function createShopRoutes(ds: DataSource): Router {
     authenticate,
     requireVerifiedEmail,
     resolveTenant,
+    requireTenantRole(TenantMemberRole.OWNER, TenantMemberRole.ADMIN),
     ctrl.patchLocation,
   );
   router.patch(

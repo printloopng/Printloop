@@ -5,7 +5,6 @@ import { PrintJob, PrintJobStatus } from '@/database/entities/printJob.entity';
 import { initializeJobPaymentBodySchema } from '@/modules/customer/validation/payments.validation';
 import { Tenant } from '@/database/entities/tenant.entity';
 import { isTrustedReturnUrl } from '@/core/utils/appUrls';
-import { paystackWebhookController } from '@/modules/public/controllers/paystackWebhook.controller';
 
 const paystack = new PaystackService();
 const hasPaystack = Boolean(process.env.PAYSTACK_SECRET_KEY);
@@ -72,7 +71,6 @@ export class CustomerPaymentsController {
     }
   };
 
-  webhook = paystackWebhookController.handle;
 }
 
 export const customerPaymentsController = new CustomerPaymentsController();

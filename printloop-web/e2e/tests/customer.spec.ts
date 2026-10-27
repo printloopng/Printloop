@@ -22,7 +22,7 @@ test.describe("customer app", () => {
     await card.getByRole("link", { name: "Print here" }).click();
     await expect(page.getByRole("link", { name: /Express Laser Prints/ }).first()).toBeVisible();
 
-    await page.goto(`${APPS.customer}/print/new?shop=legacy`);
+    await page.goto(`${APPS.customer}/print/new?shop=campus-print`);
     await page.locator('input[type="file"]').setInputFiles({ name: "thesis.pdf", mimeType: "application/pdf", buffer: await pdf(4) });
     await expect(page.getByText("4 pages detected")).toBeVisible();
     await page.getByRole("button", { name: "Continue" }).click();

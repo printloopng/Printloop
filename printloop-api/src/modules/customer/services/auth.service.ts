@@ -19,15 +19,7 @@ export function publicUser(user: User) {
 }
 
 async function resolveTenantId(req: Request): Promise<string | null> {
-  let tenantId = req.tenant?.id ?? null;
-  if (!tenantId) {
-    const { LEGACY_TENANT_SLUG } = await import('@/common/middleware/tenant.middleware');
-    const legacy = await repos.tenant().findOne({
-      where: { slug: LEGACY_TENANT_SLUG },
-    });
-    tenantId = legacy?.id ?? null;
-  }
-  return tenantId;
+  return req.tenant?.id ?? null;
 }
 
 const MIN_PASSWORD_LENGTH = 10;
@@ -102,14 +94,8 @@ export class CustomerAuthService {
     }
 
     const tenantId = await resolveTenantId(req);
-    if (!tenantId) {
-      return {
-        status: 500 as const,
-        body: { success: false, message: 'No tenant could be resolved for this signup' },
-      };
-    }
 
-    if (await repo.findOne({ where: { email: normEmail, tenantId } })) {
+    if (await repo.findOne({ where: { email: normEmail } })) {
       return {
         status: 409 as const,
         body: { success: false, message: 'An account with this email already exists' },

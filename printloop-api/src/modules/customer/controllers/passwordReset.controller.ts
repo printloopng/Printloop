@@ -4,8 +4,6 @@ import { mintToken, parseToken, secretsMatch } from '@/core/utils/resetToken';
 import { AppDataSource } from '@/config/data-source';
 import { User, UserRole } from '@/database/entities/user.entity';
 import { appUrls } from '@/core/utils/appUrls';
-import { Tenant } from '@/database/entities/tenant.entity';
-import { LEGACY_TENANT_SLUG } from '@/common/middleware/tenant.middleware';
 import { EmailService } from '@/core/services/email.service';
 
 const ANTI_ENUMERATION_OK = {
@@ -15,11 +13,7 @@ const ANTI_ENUMERATION_OK = {
 };
 
 async function resolveTenantId(req: Request): Promise<string | null> {
-  if (req.tenant?.id) return req.tenant.id;
-  const legacy = await AppDataSource.getRepository(Tenant).findOne({
-    where: { slug: LEGACY_TENANT_SLUG },
-  });
-  return legacy?.id ?? null;
+  return req.tenant?.id ?? null;
 }
 
 export class PasswordResetController {

@@ -4,11 +4,9 @@ import { randomInt } from 'node:crypto';
 import { repos } from '@/config/repos';
 import { User } from '@/database/entities/user.entity';
 import { Permission } from '@/common/middleware/rbac.middleware';
-import { LEGACY_TENANT_SLUG } from '@/common/middleware/tenant.middleware';
 import { EmailService } from '@/core/services/email.service';
 
 const RESERVED_SLUGS = new Set<string>([
-  LEGACY_TENANT_SLUG,
   'admin',
   'api',
   'app',

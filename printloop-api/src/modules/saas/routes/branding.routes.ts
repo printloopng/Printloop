@@ -2,7 +2,8 @@ import { Router } from 'express';
 import { allowUploadTicket } from '@/common/middleware/uploadTicket.middleware';
 import { DataSource } from 'typeorm';
 import { authenticate } from '@/common/middleware/auth.middleware';
-import { resolveTenant } from '@/common/middleware/tenant.middleware';
+import { resolveTenant, requireTenantRole } from '@/common/middleware/tenant.middleware';
+import { TenantMemberRole } from '@/database/entities/tenantMember.entity';
 import { requireVerifiedEmail } from '@/common/middleware/verifiedEmail.middleware';
 import {
   BrandingController,
@@ -19,6 +20,7 @@ export function createBrandingRoutes(ds: DataSource): Router {
     authenticate,
     requireVerifiedEmail,
     resolveTenant,
+    requireTenantRole(TenantMemberRole.OWNER, TenantMemberRole.ADMIN),
     ctrl.putBranding,
   );
   router.post(
@@ -26,10 +28,11 @@ export function createBrandingRoutes(ds: DataSource): Router {
     allowUploadTicket('branding-photo'),
     authenticate,
     resolveTenant,
+    requireTenantRole(TenantMemberRole.OWNER, TenantMemberRole.ADMIN),
     photoUpload.single('photo'),
     ctrl.uploadPhoto,
   );
-  router.delete('/me/photos', authenticate, resolveTenant, ctrl.deletePhoto);
+  router.delete('/me/photos', authenticate, resolveTenant, requireTenantRole(TenantMemberRole.OWNER, TenantMemberRole.ADMIN), ctrl.deletePhoto);
 
   return router;
 }

@@ -467,40 +467,6 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/disputes": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** My disputes */
-    get: operations["getDisputes"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/disputes/{id}/resolve": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Resolve a dispute (legacy shop route) */
-    post: operations["postDisputesByIdResolve"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
   "/payments/initialize-job-payment": {
     parameters: {
       query?: never;
@@ -512,40 +478,6 @@ export interface paths {
     put?: never;
     /** Start Paystack checkout for a pending job */
     post: operations["postPaymentsInitializeJobPayment"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/payments/webhook": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Paystack webhook (alias) */
-    post: operations["postPaymentsWebhook"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/payments/paystack": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Paystack webhook (alias) */
-    post: operations["postPaymentsPaystack"];
     delete?: never;
     options?: never;
     head?: never;
@@ -934,7 +866,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Branding for the shop resolved from host or X-Tenant-Slug */
+    /** Branding for the shop resolved from host or X-Tenant-Slug (both null when no shop is chosen) */
     get: operations["getBranding"];
     put?: never;
     post?: never;
@@ -1499,7 +1431,7 @@ export interface paths {
     get: operations["getSaasMe"];
     put?: never;
     post?: never;
-    /** Close and delete my shop (owner/admin) */
+    /** Close and delete my shop (owner) */
     delete: operations["deleteSaasMe"];
     options?: never;
     head?: never;
@@ -1587,7 +1519,7 @@ export interface paths {
     delete?: never;
     options?: never;
     head?: never;
-    /** Set shop address and map pin */
+    /** Set the shop address (geocoded) and marketplace listing */
     patch: operations["patchSaasMeLocation"];
     trace?: never;
   };
@@ -2754,11 +2686,11 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Shop detail */
+    /** Shop detail with usage and team */
     get: operations["getPlatformTenantsById"];
     put?: never;
     post?: never;
-    /** Delete a shop */
+    /** Hard-delete a closed shop (force=true overrides the safety checks) */
     delete: operations["deletePlatformTenantsById"];
     options?: never;
     head?: never;
@@ -3554,6 +3486,7 @@ export interface components {
       lat?: number | null;
       lng?: number | null;
       isDiscoverable?: boolean;
+      photos?: string[];
       /** @enum {string} */
       availability: "open" | "busy" | "closed";
       myRole: ("owner" | "admin" | "staff") | null;
@@ -6219,156 +6152,6 @@ export interface operations {
       };
     };
   };
-  getDisputes: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            /** @enum {boolean} */
-            success: true;
-            message?: string;
-            data: components["schemas"]["Dispute"][];
-          };
-        };
-      };
-      /** @description Invalid request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorEnvelope"];
-        };
-      };
-      /** @description Missing or invalid credentials */
-      401: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorEnvelope"];
-        };
-      };
-      /** @description Not allowed */
-      403: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorEnvelope"];
-        };
-      };
-      /** @description Not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorEnvelope"];
-        };
-      };
-      /** @description Conflicts with the current state */
-      409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorEnvelope"];
-        };
-      };
-    };
-  };
-  postDisputesByIdResolve: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": {
-          /** @enum {string} */
-          status: "resolved" | "rejected";
-          resolutionNotes?: string;
-        };
-      };
-    };
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            /** @enum {boolean} */
-            success: true;
-            message?: string;
-            data: components["schemas"]["Dispute"];
-          };
-        };
-      };
-      /** @description Invalid request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorEnvelope"];
-        };
-      };
-      /** @description Missing or invalid credentials */
-      401: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorEnvelope"];
-        };
-      };
-      /** @description Not allowed */
-      403: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorEnvelope"];
-        };
-      };
-      /** @description Not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorEnvelope"];
-        };
-      };
-      /** @description Conflicts with the current state */
-      409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorEnvelope"];
-        };
-      };
-    };
-  };
   postPaymentsInitializeJobPayment: {
     parameters: {
       query?: never;
@@ -6402,156 +6185,6 @@ export interface operations {
               reference?: string;
               accessCode?: string;
             };
-          };
-        };
-      };
-      /** @description Invalid request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorEnvelope"];
-        };
-      };
-      /** @description Missing or invalid credentials */
-      401: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorEnvelope"];
-        };
-      };
-      /** @description Not allowed */
-      403: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorEnvelope"];
-        };
-      };
-      /** @description Not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorEnvelope"];
-        };
-      };
-      /** @description Conflicts with the current state */
-      409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorEnvelope"];
-        };
-      };
-    };
-  };
-  postPaymentsWebhook: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": {
-          [key: string]: unknown;
-        };
-      };
-    };
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            success?: boolean;
-            handled?: boolean;
-            action?: string;
-          };
-        };
-      };
-      /** @description Invalid request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorEnvelope"];
-        };
-      };
-      /** @description Missing or invalid credentials */
-      401: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorEnvelope"];
-        };
-      };
-      /** @description Not allowed */
-      403: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorEnvelope"];
-        };
-      };
-      /** @description Not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorEnvelope"];
-        };
-      };
-      /** @description Conflicts with the current state */
-      409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorEnvelope"];
-        };
-      };
-    };
-  };
-  postPaymentsPaystack: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": {
-          [key: string]: unknown;
-        };
-      };
-    };
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            success?: boolean;
-            handled?: boolean;
-            action?: string;
           };
         };
       };
@@ -8293,13 +7926,13 @@ export interface operations {
             success: true;
             message?: string;
             data: {
-              tenant?: {
+              tenant: {
                 /** Format: uuid */
-                id?: string;
-                name?: string;
-                slug?: string;
-              };
-              branding?: components["schemas"]["Branding"] | null;
+                id: string;
+                name: string;
+                slug: string;
+              } | null;
+              branding: components["schemas"]["Branding"] | null;
             };
           };
         };
@@ -10380,7 +10013,8 @@ export interface operations {
             success: true;
             message?: string;
             data: {
-              [key: string]: unknown;
+              subaccountCode: string;
+              accountName?: string | null;
             };
           };
         };
@@ -10442,6 +10076,7 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
+          accountName: string;
           bankCode: string;
           accountNumber: string;
         };
@@ -10459,7 +10094,9 @@ export interface operations {
             success: true;
             message?: string;
             data: {
-              [key: string]: unknown;
+              recipientCode?: string | null;
+              accountName: string;
+              bankCode: string;
             };
           };
         };
@@ -10936,9 +10573,8 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          address?: string;
-          lat?: number;
-          lng?: number;
+          address?: string | null;
+          isDiscoverable?: boolean;
         };
       };
     };
@@ -10954,7 +10590,10 @@ export interface operations {
             success: true;
             message?: string;
             data: {
-              [key: string]: unknown;
+              address: string | null;
+              lat: number | null;
+              lng: number | null;
+              isDiscoverable: boolean;
             };
           };
         };
@@ -11106,8 +10745,8 @@ export interface operations {
             success: true;
             message?: string;
             data: {
-              otpauthUrl?: string;
-              secret?: string;
+              otpauthUrl: string;
+              secret: string;
             };
           };
         };
@@ -11184,6 +10823,9 @@ export interface operations {
             /** @enum {boolean} */
             success: true;
             message?: string;
+            data: {
+              enabled: boolean;
+            };
           };
         };
       };
@@ -11259,6 +10901,9 @@ export interface operations {
             /** @enum {boolean} */
             success: true;
             message?: string;
+            data: {
+              enabled: boolean;
+            };
           };
         };
       };
@@ -17513,7 +17158,22 @@ export interface operations {
             success: true;
             message?: string;
             data: {
-              [key: string]: unknown;
+              tenant: components["schemas"]["Tenant"];
+              stats: {
+                kioskCount: number;
+                onlineKiosks: number;
+                jobCount: number;
+                customerCount: number;
+                gmv: number;
+              };
+              members: {
+                /** Format: uuid */
+                userId: string;
+                /** @enum {string} */
+                role: "owner" | "admin" | "staff";
+                email: string;
+                name: string;
+              }[];
             };
           };
         };
@@ -17567,7 +17227,9 @@ export interface operations {
   };
   deletePlatformTenantsById: {
     parameters: {
-      query?: never;
+      query?: {
+        force?: "true" | "false";
+      };
       header?: never;
       path: {
         id: string;
@@ -17586,6 +17248,9 @@ export interface operations {
             /** @enum {boolean} */
             success: true;
             message?: string;
+            data: {
+              [key: string]: unknown;
+            };
           };
         };
       };
@@ -17664,7 +17329,12 @@ export interface operations {
             success: true;
             message?: string;
             data: {
-              [key: string]: unknown;
+              /** Format: uuid */
+              id: string;
+              /** @enum {string} */
+              status: "trial" | "active" | "suspended" | "closed";
+              suspendedAt?: string | null;
+              suspendReason?: string | null;
             };
           };
         };
@@ -17738,7 +17408,10 @@ export interface operations {
             success: true;
             message?: string;
             data: {
-              [key: string]: unknown;
+              /** Format: uuid */
+              id: string;
+              /** @enum {string} */
+              status: "trial" | "active" | "suspended" | "closed";
             };
           };
         };
@@ -17792,7 +17465,9 @@ export interface operations {
   };
   postPlatformTenantsByIdImpersonate: {
     parameters: {
-      query?: never;
+      query?: {
+        ttl?: number;
+      };
       header?: never;
       path: {
         id: string;
@@ -17812,8 +17487,14 @@ export interface operations {
             success: true;
             message?: string;
             data: {
-              token?: string;
-              expiresIn?: number;
+              token: string;
+              ttlSeconds: number;
+              tenant: {
+                /** Format: uuid */
+                id: string;
+                slug: string;
+                name: string;
+              };
             };
           };
         };
@@ -17885,7 +17566,24 @@ export interface operations {
             success: true;
             message?: string;
             data: {
-              [key: string]: unknown;
+              agentUptime: {
+                totalActiveKiosks: number;
+                onlineKiosksCount: number;
+                onlineRatePct: number;
+              };
+              jobSuccessRate: {
+                completedJobsCount: number;
+                failedJobsCount: number;
+                successRatePct: number;
+                failureRatePct: number;
+              };
+              paidUnredeemed: {
+                readyCount: number;
+                renderingCount: number;
+                releasingCount: number;
+                printingCount: number;
+                totalPaidUnredeemed: number;
+              };
             };
           };
         };

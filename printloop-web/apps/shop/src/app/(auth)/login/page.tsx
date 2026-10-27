@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AuthFrame, Notice } from "@printloop/ui";
-import { safeNextPath } from "@printloop/auth/config";
+import { appUrls, safeNextPath } from "@printloop/auth/config";
 import { LoginForm } from "@printloop/auth/forms";
 import { getCurrentUser } from "@printloop/auth/server";
 import { canAccessShop } from "@/lib/access";
@@ -36,7 +36,17 @@ export default async function LoginPage({
         next={next}
         defaultEmail={params.email}
         notice={
-          params.denied ? (
+          params.denied === "staff" ? (
+            <div className="mb-3">
+              <Notice tone="info" title="You're signed in as PrintLoop staff">
+                Staff accounts don&apos;t belong to a shop. Open a shop from the{" "}
+                <a href={`${appUrls.backoffice}/tenants`} className="pl-link font-semibold">
+                  back office
+                </a>{" "}
+                to view its console.
+              </Notice>
+            </div>
+          ) : params.denied ? (
             <div className="mb-3">
               <Notice tone="warn" title="That account isn't a shop account">
                 Customers sign in on the PrintLoop app. Ask your shop owner for a team invite if you work here.

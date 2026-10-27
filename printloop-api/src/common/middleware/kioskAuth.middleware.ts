@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { AppDataSource } from '@/config/data-source';
 import { Kiosk, KioskStatus } from '@/database/entities/kiosk.entity';
+import { Tenant, TenantStatus } from '@/database/entities/tenant.entity';
 
 declare global {
   namespace Express {
@@ -55,6 +56,18 @@ export const kioskAuth = async (
         success: false,
         message: 'Kiosk is in maintenance mode. Please try another kiosk.',
         code: 'KIOSK_MAINTENANCE',
+      });
+      return;
+    }
+
+    const shop = kiosk.tenantId
+      ? await AppDataSource.getRepository(Tenant).findOne({ where: { id: kiosk.tenantId }, select: { id: true, status: true } })
+      : null;
+    if (!shop || shop.status === TenantStatus.SUSPENDED || shop.status === TenantStatus.CLOSED) {
+      res.status(403).json({
+        success: false,
+        message: 'The shop this kiosk belongs to is not active.',
+        code: 'TENANT_INACTIVE',
       });
       return;
     }

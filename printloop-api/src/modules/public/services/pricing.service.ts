@@ -1,6 +1,5 @@
 import { repos } from '@/config/repos';
-import { Tenant } from '@/database/entities/tenant.entity';
-import { LEGACY_TENANT_SLUG } from '@/common/middleware/tenant.middleware';
+import { AppError } from '@/common/errors';
 import { PricingConfig, PaperSize, ColorType } from '@/database/entities/pricingConfig.entity';
 
 export interface PrintConfiguration {
@@ -45,16 +44,15 @@ function pickCell(cfg: PricingConfig, dpi: number, duplex: boolean): number | nu
   return f == null ? null : Number(f);
 }
 
-let legacyTenantId: string | null = null;
-
-export async function pricingTenantId(tenantId: string | null | undefined): Promise<string | null> {
-  if (tenantId) return tenantId;
-  if (!legacyTenantId) {
-    const { AppDataSource } = await import('@/config/data-source');
-    const legacy = await AppDataSource.getRepository(Tenant).findOne({ where: { slug: LEGACY_TENANT_SLUG } });
-    legacyTenantId = legacy?.id ?? null;
+export class TenantRequiredError extends AppError {
+  constructor() {
+    super('Choose a print shop first.', 400, 'TENANT_REQUIRED');
   }
-  return legacyTenantId;
+}
+
+export function pricingTenantId(tenantId: string | null | undefined): string {
+  if (!tenantId) throw new TenantRequiredError();
+  return tenantId;
 }
 
 export async function computeCost(opts: {
@@ -70,7 +68,7 @@ export async function computeCost(opts: {
   const copies = Math.max(1, Number(opts.copies) || 1);
   const colorType = opts.color === 'color' ? ColorType.COLOR : ColorType.BLACK_WHITE;
   const duplex = opts.sided === 'double';
-  const tenantId = await pricingTenantId(opts.tenantId);
+  const tenantId = pricingTenantId(opts.tenantId);
   const cfg = tenantId
     ? await repos.pricingConfig().findOne({
         where: { tenantId, paperSize: mapPaper(opts.paper), colorType, isActive: true },

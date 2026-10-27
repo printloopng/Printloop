@@ -12,7 +12,7 @@ async function loadShop(): Promise<ShopProfile | null> {
     const { data } = await api.GET("/saas/me");
     return (data?.data as ShopProfile) ?? null;
   } catch (err) {
-    if (isApiError(err) && (err.status === 401 || err.status === 403 || err.status === 404)) return null;
+    if (isApiError(err) && [400, 401, 403, 404].includes(err.status)) return null;
     throw err;
   }
 }
@@ -20,7 +20,7 @@ async function loadShop(): Promise<ShopProfile | null> {
 export default async function ConsoleLayout({ children }: { children: ReactNode }) {
   const user = await requireUser({ loginPath: "/login", allow: canAccessShop, deniedPath: "/login?denied=1" });
   const shop = await loadShop();
-  if (!shop) redirect("/login?denied=1");
+  if (!shop) redirect(user.role === "super_admin" ? "/login?denied=staff" : "/login?denied=1");
   const impersonating = await isImpersonating();
   return (
     <ConsoleFrame user={user} shop={shop} impersonating={Boolean(impersonating)}>

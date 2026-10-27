@@ -45,6 +45,52 @@ describe('backoffice API', () => {
     expect((await api.call('GET', `/blog/${post.body.data.slug}`)).status).toBe(404);
   });
 
+  it('runs a shop lifecycle: detail, suspend, impersonate, reactivate, delete', async () => {
+    const email = `closer+${Date.now()}@example.com`;
+    const signup = await api.call('POST', '/saas/signup', {
+      body: { businessName: 'Lifecycle Print', slug: `life-${Date.now() % 1e6}`, ownerFirstName: 'Lee', ownerLastName: 'Cycle', ownerEmail: email, ownerPhone: '+2348031234567', ownerPassword: 'Str0ng!Passw0rd', address: 'Yaba' },
+    });
+    expect(signup.status).toBe(201);
+    const tenants = (await api.call('GET', '/platform/tenants?limit=200', { token: admin })).body.data.items;
+    const shop = tenants.find((t: any) => t.name === 'Lifecycle Print');
+    expect(shop).toBeTruthy();
+
+    const detail = (await api.call('GET', `/platform/tenants/${shop.id}`, { token: admin })).body.data;
+    expect(detail.tenant.slug).toBe(shop.slug);
+    expect(detail.members.some((m: any) => m.role === 'owner' && m.email === email)).toBe(true);
+    expect(JSON.stringify(detail)).not.toMatch(/lmsKey|passwordHash/);
+
+    const suspended = await api.call('POST', `/platform/tenants/${shop.id}/suspend`, { token: admin, body: { reason: 'Chargeback review' } });
+    expect(suspended.body.data.status).toBe('suspended');
+    expect((await api.call('POST', `/platform/tenants/${shop.id}/suspend`, { token: admin, body: {} })).status).toBe(409);
+    expect((await api.call('GET', '/branding', { headers: { 'X-Tenant-Slug': shop.slug } })).status).toBe(200);
+    expect((await api.call('POST', '/customer/print-jobs', { token: admin, headers: { 'X-Tenant-Slug': shop.slug } })).status).toBe(403);
+
+    const reactivated = await api.call('POST', `/platform/tenants/${shop.id}/reactivate`, { token: admin });
+    expect(reactivated.body.data.status).toBe('active');
+
+    const imp = (await api.call('POST', `/platform/tenants/${shop.id}/impersonate?ttl=120`, { token: admin })).body.data;
+    expect(imp.tenant.slug).toBe(shop.slug);
+    expect(imp.ttlSeconds).toBe(120);
+    const seen = (await api.call('GET', '/saas/me', { token: imp.token })).body.data;
+    expect(seen.slug).toBe(shop.slug);
+    expect(seen.myRole).toBe('owner');
+    const hop = { token: imp.token, headers: { 'X-Tenant-Slug': 'campus-print' } };
+    expect((await api.call('GET', '/saas/me', hop)).body.data.slug).toBe(shop.slug);
+    expect((await api.call('GET', '/platform/users', { token: imp.token })).status).toBe(403);
+    expect((await api.call('GET', '/metrics', { token: imp.token })).status).toBe(403);
+    for (const [method, path] of [['POST', '/saas/me/2fa/setup'], ['PUT', '/customer/auth/password'], ['DELETE', '/saas/me'], ['POST', '/saas/payouts/instant'], ['POST', '/saas/setup/bank-account']]) {
+      const blocked = await api.call(method, path, { token: imp.token, body: {} });
+      expect(blocked.status).toBe(403);
+      expect(blocked.body.code).toBe('SUPPORT_SESSION_RESTRICTED');
+    }
+
+    expect((await api.call('DELETE', `/platform/tenants/${shop.id}`, { token: admin })).status).toBe(400);
+    const gone = await api.call('DELETE', `/platform/tenants/${shop.id}?force=true`, { token: admin });
+    expect(gone.status).toBe(200);
+    expect((await api.call('GET', `/platform/tenants/${shop.id}`, { token: admin })).status).toBe(404);
+  });
+
   it('serves fleet, disputes, payouts, audit and summary reports', async () => {
     for (const p of ['/platform/kiosks', '/platform/disputes', '/platform/payouts', '/platform/audit-logs', '/platform/reliability', '/platform/tenants']) {
       expect((await api.call('GET', p, { token: admin })).status).toBe(200);

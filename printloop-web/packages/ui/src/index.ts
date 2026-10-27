@@ -21,6 +21,8 @@ export {
   KeyValue,
 } from "./Layout";
 export { QrBlock } from "./QrBlock";
+export { Prose } from "./Prose";
+export { markdownToHtml } from "./markdown";
 export { AuthFrame } from "./AuthFrame";
 export { SystemPage, ErrorPage } from "./SystemPages";
 export { ConsoleShell, type ConsoleNavGroup, type ConsoleNavItem } from "./ConsoleShell";

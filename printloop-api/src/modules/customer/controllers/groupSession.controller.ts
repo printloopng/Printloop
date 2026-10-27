@@ -26,7 +26,7 @@ export const createGroupSession = async (req: Request, res: Response): Promise<v
     const hostId = hostIdOf(req) || crypto.randomUUID();
     const result = await groupService.createSession({
       hostId,
-      tenantId: req.tenant?.id ?? null,
+      tenantId: req.tenant!.id,
       groupName,
       deadline: new Date(deadline),
       sharedSettings: sharedSettings || defaultOptions || {},

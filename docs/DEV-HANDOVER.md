@@ -133,8 +133,8 @@ npx tsc -b && npm run test && npx vite build
 ## 6. Key patterns to know before editing
 
 - **Tenant resolution** (`middleware/tenant.middleware.ts`): JWT
-  memberships → subdomain → custom domain → `X-Tenant-Slug` header →
-  legacy fallback. Almost every customer-facing table has
+  memberships → subdomain → custom domain → `X-Tenant-Slug` header.
+  No match → `400 TENANT_REQUIRED`; there is no fallback shop. Almost every customer-facing table has
   `tenantId NOT NULL`. Don't write a query that isn't tenant-scoped.
 - **Pricing is server-authoritative.** `services/pricing.service.ts`
   (`computeCost`) is the single source; the client estimate is UX only.

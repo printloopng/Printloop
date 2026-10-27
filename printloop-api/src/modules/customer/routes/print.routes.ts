@@ -1,3 +1,4 @@
+import { resolveTenant } from '@/common/middleware/tenant.middleware';
 import { Router } from 'express';
 import multer from 'multer';
 import { customerPrintController } from '@/modules/customer/controllers/print.controller';
@@ -11,12 +12,14 @@ const upload = multer({
 
 router.post(
   '/print-jobs',
+  resolveTenant,
   upload.single('file'),
   customerPrintController.createPrintJob,
 );
 
 router.post(
   '/print-jobs/batch',
+  resolveTenant,
   upload.array('files', 50),
   customerPrintController.createPrintJobBatch,
 );
@@ -29,13 +32,13 @@ router.get('/print-token', customerPrintController.getPrintToken);
 
 router.post('/print-token/rotate', customerPrintController.rotatePrintToken);
 
-router.get('/pricing', customerPrintController.getPricing);
+router.get('/pricing', resolveTenant, customerPrintController.getPricing);
 
-router.post('/print-jobs/quote', customerPrintController.quotePrintJob);
+router.post('/print-jobs/quote', resolveTenant, customerPrintController.quotePrintJob);
 
-router.get('/stations', customerPrintController.listStations);
+router.get('/stations', resolveTenant, customerPrintController.listStations);
 
-router.get('/print-jobs/options', customerPrintController.getPrintJobOptions);
+router.get('/print-jobs/options', resolveTenant, customerPrintController.getPrintJobOptions);
 
 router.post('/shops/:slug/reviews', customerPrintController.createShopReview);
 

@@ -138,18 +138,17 @@ export class OnboardingController {
       if (!parsed.success) {
         res.status(400).json({
           success: false,
-          message: 'businessName, settlementBank, accountNumber are required',
+          message: 'bankCode and a 10-digit accountNumber are required',
         });
         return;
       }
       const tenant = req.tenant!;
-      const { businessName, settlementBank, accountNumber, percentageCharge } =
-        parsed.data;
+      const { businessName, bankCode, accountNumber } = parsed.data;
       const created = await this.paystack.createSubaccount({
-        businessName,
-        settlementBank,
+        businessName: businessName || tenant.name,
+        settlementBank: bankCode,
         accountNumber,
-        percentageCharge,
+        percentageCharge: Number(tenant.commissionPct),
       });
       tenant.paystackSubaccountCode = created.subaccountCode;
       await this.ds.getRepository(Tenant).save(tenant);
@@ -175,7 +174,7 @@ export class OnboardingController {
       if (!parsed.success) {
         res.status(400).json({
           success: false,
-          message: 'accountName, accountNumber, bankCode are required',
+          message: 'accountName, bankCode and a 10-digit accountNumber are required',
         });
         return;
       }

@@ -1,20 +1,13 @@
 import { Request, Response, NextFunction } from 'express';
 import { AppDataSource } from '@/config/data-source';
 import { TenantBranding } from '@/database/entities/tenantBranding.entity';
-import { Tenant } from '@/database/entities/tenant.entity';
 
 export class PublicBrandingController {
   getBranding = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      let tenant = req.tenant;
+      const tenant = req.tenant;
       if (!tenant) {
-        tenant =
-          (await AppDataSource.getRepository(Tenant).findOne({
-            where: { slug: 'legacy' },
-          })) ?? undefined;
-      }
-      if (!tenant) {
-        res.status(404).json({ success: false, message: 'Tenant not found' });
+        res.json({ success: true, data: { tenant: null, branding: null } });
         return;
       }
       const branding = await AppDataSource.getRepository(TenantBranding).findOne({

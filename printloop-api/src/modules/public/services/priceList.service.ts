@@ -2,19 +2,18 @@ import { AppDataSource } from '@/config/data-source';
 import { PricingConfig } from '@/database/entities/pricingConfig.entity';
 import { EditPricingConfig } from '@/database/entities/editPricingConfig.entity';
 import { Tenant } from '@/database/entities/tenant.entity';
-import { LEGACY_TENANT_SLUG } from '@/common/middleware/tenant.middleware';
 import { conversionEnabled } from '@/modules/public/services/documentConversion.service';
 
 const money = (v: unknown) => (v === null || v === undefined ? null : Number(v));
 
 export async function shopPriceList(tenant?: Tenant | null) {
-  const resolved =
-    tenant ?? (await AppDataSource.getRepository(Tenant).findOne({ where: { slug: LEGACY_TENANT_SLUG } }));
-  const tenantId = resolved?.id ?? '';
-  const [rows, editing] = await Promise.all([
-    AppDataSource.getRepository(PricingConfig).find({ where: { tenantId, isActive: true } }),
-    AppDataSource.getRepository(EditPricingConfig).findOne({ where: { tenantId } }),
-  ]);
+  const resolved = tenant ?? null;
+  const [rows, editing] = resolved
+    ? await Promise.all([
+        AppDataSource.getRepository(PricingConfig).find({ where: { tenantId: resolved.id, isActive: true } }),
+        AppDataSource.getRepository(EditPricingConfig).findOne({ where: { tenantId: resolved.id } }),
+      ])
+    : [[], null];
   return {
     currency: 'NGN',
     floor: 5,

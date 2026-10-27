@@ -1,9 +1,6 @@
 # PrintLoop SaaS — Deployment Runbook (V2-21)
 
-Canonical deploy guide for the **multi-tenant SaaS** (v2). The older
-[`v1-legacy.md`](v1-legacy.md) covers the v1 single-tenant/SQLite story and
-the still-relevant printer-LAN constraint — read it for the kiosk ↔
-printer networking notes; read THIS for standing up the SaaS.
+Canonical deploy guide for the **multi-tenant SaaS** (v2).
 
 This takes the build (feature-complete per `JOURNAL.md` V2-0 → V2-20)
 from disk to a live multi-tenant platform.
@@ -41,9 +38,9 @@ Plus the **frontend** (`printloop-new-frontend` → static host) and the
 No manual schema step. The API runs migrations on boot. On a Postgres
 `DATABASE_URL` only the **PostgresBaseline** migration runs (the
 SQLite incremental chain is driver-gated out); it builds the whole
-schema, then `runSeed` + `ensureLegacyTenant` populate the legacy
-tenant row and the system-settings catalog. Demo accounts only land
-when `SEED_DEMO=1` (default OFF in `.env.production.example` —
+schema, then `runSeed` populates the system-settings catalog. There is
+no default shop: every shop signs up. Demo data (the `campus-print`
+shop and its accounts) only lands when `SEED_DEMO=1` (default OFF in `.env.production.example` —
 see §3a for the production bootstrap path).
 
 ---
@@ -152,7 +149,7 @@ edge — **Cloudflare for SaaS** (least ops) or self-hosted Caddy
 ## 6. Paystack webhooks
 
 Dashboard webhook URL →
-`https://api.printloop.app/api/payments/webhook`. HMAC-verified
+`https://api.printloop.app/api/webhooks/paystack`. HMAC-verified
 against `PAYSTACK_SECRET_KEY` (or `PAYSTACK_WEBHOOK_SECRET`).
 Consumes `charge.success/failed`, `transfer.success/failed/reversed`.
 

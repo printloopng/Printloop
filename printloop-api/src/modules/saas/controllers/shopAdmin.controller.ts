@@ -1,3 +1,4 @@
+import { isPlatformStaff } from '@/common/middleware/impersonation';
 import { Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcryptjs';
 import { randomBytes } from 'node:crypto';
@@ -41,11 +42,9 @@ const num = (v: unknown) => (v === null ? null : Number(v));
 
 function memberRole(req: Request): TenantMemberRole | null {
   const user = (req as any).user;
-  if (user?.role === UserRole.SUPER_ADMIN) return TenantMemberRole.OWNER;
+  if (isPlatformStaff(req)) return TenantMemberRole.OWNER;
   const m = (req.tenantMemberships || []).find((x) => x.tenantId === req.tenant?.id);
-  if (m) return m.role as TenantMemberRole;
-  if (user?.role === UserRole.ADMIN && user?.tenantId === req.tenant?.id) return TenantMemberRole.ADMIN;
-  return null;
+  return (m?.role as TenantMemberRole) ?? null;
 }
 
 function sanitizeCapabilities(raw: any): PrinterCapabilities | null {

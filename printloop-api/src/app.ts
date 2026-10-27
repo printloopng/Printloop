@@ -11,7 +11,7 @@ import { requestIdMiddleware } from "./common/errors";
 import { Config, config } from "./config";
 import { requestMetricsMiddleware } from "./common/monitoring/metrics";
 import { auditMiddleware, AuditLogger } from "./common/monitoring/audit";
-import { runSeed, ensureLegacyTenant } from "./database/seeders/seed";
+import { runSeed } from "./database/seeders/seed";
 import { ensureSystemSettings } from "./config/settings";
 import { edgeClientIp } from "./common/middleware/edgeClient.middleware";
 import { isAllowedOrigin } from "./config/origins";
@@ -122,7 +122,6 @@ export async function initApp(app: express.Express): Promise<void> {
     process.env.SEED_DEMO = "1";
   }
   await runSeed();
-  await ensureLegacyTenant();
   await ensureSystemSettings();
   app.use("/api", createRootRoutes(AppDataSource));
 }

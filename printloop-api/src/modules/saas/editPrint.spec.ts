@@ -1,4 +1,4 @@
-import { startTestApi, newCustomer, pdfBytes, pdfForm, paystackEvent, DEFAULT_CONFIG, type TestApi } from '@/test/harness';
+import { startTestApi, newCustomer, pdfBytes, pdfForm, paystackEvent, DEFAULT_CONFIG, DEMO_SHOP, type TestApi } from '@/test/harness';
 
 jest.setTimeout(120_000);
 
@@ -48,7 +48,7 @@ describe('Edit & Print', () => {
     const detail = await api.call('GET', `/saas/edit/${job.id}`, { token: ops });
     expect(detail.body.data.printJob.documentUrl).toBeTruthy();
     const nosy = await newCustomer(api, 'nosy');
-    expect((await api.call('GET', `/saas/edit/${job.id}`, { token: nosy.token, headers: { 'X-Tenant-Slug': 'legacy' } })).status).toBe(403);
+    expect((await api.call('GET', `/saas/edit/${job.id}`, { token: nosy.token, headers: { 'X-Tenant-Slug': DEMO_SHOP } })).status).toBe(403);
     expect((await api.call('GET', `/saas/edit/${job.id}`, { token })).status).toBe(200);
     expect((await api.call('POST', `/saas/edit/${job.id}/start`, { token: ops })).body.data.status).toBe('in_progress');
     expect((await api.call('POST', `/saas/edit/${job.id}/upload`, { token: ops, body: { documentUrl: 'https://example.com/x.pdf' } })).status).toBe(400);

@@ -24,7 +24,7 @@ export async function applyPromotion(
   if (!code) return { cost, discount: 0, reason: 'no_code' };
 
   const repo = repos.promotion();
-  const tenantId = await pricingTenantId(opts.tenantId);
+  const tenantId = pricingTenantId(opts.tenantId);
   const promo = tenantId ? await repo.findOne({ where: { code, tenantId } }) : null;
   if (!promo) return { cost, discount: 0, reason: 'not_found' };
 

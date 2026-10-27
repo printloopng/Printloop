@@ -17,7 +17,7 @@ describe("tenantFromHost", () => {
     expect(tenantFromHost("print.unilag.edu.ng", apexes)).toEqual({ domain: "print.unilag.edu.ng" });
     expect(tenantFromHost("localhost:3001", apexes)).toEqual({});
     expect(tenantFromHost("127.0.0.1:3001", apexes)).toEqual({});
-    expect(tenantFromHost("legacy.localhost:3001", apexes)).toEqual({ slug: "legacy" });
+    expect(tenantFromHost("campus-print.localhost:3001", apexes)).toEqual({ slug: "campus-print" });
     expect(tenantFromHost("printloop-web-git-main.vercel.app", apexes)).toEqual({});
   });
 

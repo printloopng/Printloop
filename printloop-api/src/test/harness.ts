@@ -143,10 +143,13 @@ export function paystackEvent(jobId: string, reference: string, amountKobo: numb
   return { raw, headers: { 'x-paystack-signature': signature } };
 }
 
+export const DEMO_SHOP = 'campus-print';
+
 let seq = 0;
-export async function newCustomer(api: TestApi, label = 'cust'): Promise<{ email: string; token: string }> {
+export async function newCustomer(api: TestApi, label = 'cust', shop: string | null = DEMO_SHOP): Promise<{ email: string; token: string }> {
   const email = `${label}+${Date.now()}${seq++}@example.com`;
   const r = await api.call('POST', '/customer/auth/register', {
+    headers: shop ? { 'X-Tenant-Slug': shop } : undefined,
     body: { email, password: 'Str0ng!Passw0rd', firstName: 'Test', lastName: 'User', phoneNumber: '+2348030000000' },
   });
   if (r.status !== 201) throw new Error(`register failed: ${r.status} ${r.text.slice(0, 120)}`);

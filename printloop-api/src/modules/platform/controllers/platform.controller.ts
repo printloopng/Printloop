@@ -4,6 +4,8 @@ import { Tenant, TenantStatus } from '@/database/entities/tenant.entity';
 import { TenantMember, TenantMemberRole } from '@/database/entities/tenantMember.entity';
 import { Kiosk } from '@/database/entities/kiosk.entity';
 import { PrintJob, PrintJobStatus } from '@/database/entities/printJob.entity';
+import { User, UserRole } from '@/database/entities/user.entity';
+import { Payment } from '@/database/entities/payment.entity';
 import { writeAudit } from '@/core/services/audit.service';
 import { signAccessToken } from '@/core/utils/jwt';
 
@@ -61,7 +63,54 @@ export class PlatformController {
       res.status(404).json({ success: false, message: 'Tenant not found' });
       return;
     }
-    res.json({ success: true, data: tenant });
+    const tid = tenant.id;
+    const [kiosks, jobs, customers, gmv, memberRows] = await Promise.all([
+      AppDataSource.getRepository(Kiosk).find({ where: { tenantId: tid } }),
+      AppDataSource.getRepository(PrintJob).count({ where: { tenantId: tid } }),
+      AppDataSource.getRepository(User).count({ where: { tenantId: tid, role: UserRole.USER } }),
+      AppDataSource.getRepository(Payment)
+        .createQueryBuilder('p')
+        .select('COALESCE(SUM(p.amount), 0)', 'total')
+        .where('p.tenantId = :tid AND p.status = :s', { tid, s: 'SUCCESS' })
+        .getRawOne(),
+      AppDataSource.getRepository(TenantMember).find({ where: { tenantId: tid }, relations: { user: true } }),
+    ]);
+    const cutoff = Date.now() - 15 * 60 * 1000;
+    res.json({
+      success: true,
+      data: {
+        tenant: {
+          id: tenant.id,
+          name: tenant.name,
+          slug: tenant.slug,
+          status: tenant.status,
+          commissionPct: Number(tenant.commissionPct),
+          customDomain: tenant.customDomain,
+          paystackSubaccountCode: tenant.paystackSubaccountCode,
+          address: tenant.address,
+          lat: tenant.lat,
+          lng: tenant.lng,
+          isDiscoverable: Boolean(tenant.isDiscoverable),
+          availability: tenant.availability,
+          suspendedAt: tenant.suspendedAt,
+          suspendReason: tenant.suspendReason,
+          createdAt: tenant.createdAt,
+        },
+        stats: {
+          kioskCount: kiosks.length,
+          onlineKiosks: kiosks.filter((k) => k.lastSeenAt && new Date(k.lastSeenAt).getTime() >= cutoff).length,
+          jobCount: jobs,
+          customerCount: customers,
+          gmv: parseFloat(gmv?.total || '0'),
+        },
+        members: memberRows.map((m) => ({
+          userId: m.userId,
+          role: m.role,
+          email: m.user?.email ?? '',
+          name: [m.user?.firstName, m.user?.lastName].filter(Boolean).join(' '),
+        })),
+      },
+    });
   } catch (err: any) {
     console.error('[platform] get tenant:', err);
     res

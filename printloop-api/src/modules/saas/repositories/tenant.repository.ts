@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { DataSource } from "typeorm";
 import { RedisClient } from "@/common";
 import { BaseRepository } from "@/repository/base.repository";
@@ -189,6 +190,7 @@ export class TenantRepository extends BaseRepository<Tenant> {
         em.create(Kiosk, {
           tenantId: tenant.id,
           name: "Main Kiosk",
+          apiKey: `KSK_${randomBytes(24).toString("base64url")}`,
           location: tenant.address || undefined,
           printerName: "HP LaserJet Pro",
           status: KioskStatus.ACTIVE,

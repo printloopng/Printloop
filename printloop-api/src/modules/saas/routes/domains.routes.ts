@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { authenticate } from '@/common/middleware/auth.middleware';
-import { resolveTenant } from '@/common/middleware/tenant.middleware';
+import { resolveTenant, requireTenantRole } from '@/common/middleware/tenant.middleware';
+import { TenantMemberRole } from '@/database/entities/tenantMember.entity';
 import { requireVerifiedEmail } from '@/common/middleware/verifiedEmail.middleware';
 import { DomainController } from '@/modules/saas/controllers/domain.controller';
 
@@ -14,6 +15,7 @@ export function createDomainsRoutes(): Router {
     authenticate,
     requireVerifiedEmail,
     resolveTenant,
+    requireTenantRole(TenantMemberRole.OWNER, TenantMemberRole.ADMIN),
     ctrl.claimDomain,
   );
   router.post(
@@ -21,6 +23,7 @@ export function createDomainsRoutes(): Router {
     authenticate,
     requireVerifiedEmail,
     resolveTenant,
+    requireTenantRole(TenantMemberRole.OWNER, TenantMemberRole.ADMIN),
     ctrl.verifyDomain,
   );
   router.delete(
@@ -28,6 +31,7 @@ export function createDomainsRoutes(): Router {
     authenticate,
     requireVerifiedEmail,
     resolveTenant,
+    requireTenantRole(TenantMemberRole.OWNER, TenantMemberRole.ADMIN),
     ctrl.removeDomain,
   );
 

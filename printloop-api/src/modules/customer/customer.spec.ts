@@ -1,4 +1,4 @@
-import { startTestApi, newCustomer, paidJob, pdfBytes, pdfForm, paystackEvent, DEFAULT_CONFIG, type TestApi } from '@/test/harness';
+import { startTestApi, newCustomer, paidJob, pdfBytes, pdfForm, paystackEvent, DEFAULT_CONFIG, DEMO_SHOP, type TestApi } from '@/test/harness';
 
 jest.setTimeout(120_000);
 
@@ -84,11 +84,26 @@ describe('customer API', () => {
       expect((await api.call('GET', '/platform/tenants', { token: a.token })).status).toBe(403);
     });
 
+    it('asks a marketplace customer to choose a shop instead of guessing one', async () => {
+      const { token } = await newCustomer(api, 'market', null);
+      const upload = await api.call('POST', '/customer/print-jobs', { token, form: pdfForm(await pdfBytes(1), 'a.pdf', { printConfiguration: DEFAULT_CONFIG }) });
+      expect(upload.status).toBe(400);
+      expect(upload.body.code).toBe('TENANT_REQUIRED');
+      const chosen = await api.call('POST', '/customer/print-jobs', {
+        token,
+        headers: { 'X-Tenant-Slug': DEMO_SHOP },
+        form: pdfForm(await pdfBytes(1), 'a.pdf', { printConfiguration: DEFAULT_CONFIG }),
+      });
+      expect(chosen.status).toBe(201);
+      expect((await api.call('GET', '/branding')).body.data).toEqual({ tenant: null, branding: null });
+      expect((await api.call('GET', '/pricing')).body.data.configs).toEqual([]);
+    });
+
     it("lists only the resolved shop's prices and its editing offer", async () => {
       const { token } = await newCustomer(api);
       const mine = (await api.call('GET', '/customer/pricing', { token })).body.data;
-      const pub = (await api.call('GET', '/pricing', { headers: { 'X-Tenant-Slug': 'legacy' } })).body.data;
-      expect(mine.tenantSlug).toBe('legacy');
+      const pub = (await api.call('GET', '/pricing', { headers: { 'X-Tenant-Slug': DEMO_SHOP } })).body.data;
+      expect(mine.tenantSlug).toBe(DEMO_SHOP);
       expect(mine.configs).toEqual(pub.configs);
       expect(typeof mine.editing.enabled).toBe('boolean');
       expect(mine.configs.length).toBeGreaterThan(0);
@@ -162,9 +177,9 @@ describe('customer API', () => {
 
     it("lists only the current shop's stations", async () => {
       const { token } = await newCustomer(api);
-      const legacy = (await api.call('GET', '/customer/stations', { token })).body.data.stations;
-      expect(legacy.length).toBeGreaterThan(0);
-      for (const s of legacy) expect(['online', 'maintenance', 'offline']).toContain(s.status);
+      const stations = (await api.call('GET', '/customer/stations', { token })).body.data.stations;
+      expect(stations.length).toBeGreaterThan(0);
+      for (const s of stations) expect(['online', 'maintenance', 'offline']).toContain(s.status);
     });
 
     it('lets a customer send their own paid job to a kiosk at that shop', async () => {

@@ -15,7 +15,6 @@ import { Tenant, TenantStatus } from '@/database/entities/tenant.entity';
 import { TenantMember, TenantMemberRole } from '@/database/entities/tenantMember.entity';
 import { PayoutSchedule, PayoutCadence } from '@/database/entities/payoutSchedule.entity';
 import { BlogPost, BlogPostStatus } from '@/database/entities/blogPost.entity';
-import { LEGACY_TENANT_SLUG } from '@/common/middleware/tenant.middleware';
 
 function code(len = 6) {
   const a = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -25,7 +24,6 @@ function code(len = 6) {
 export async function runSeed(): Promise<void> {
   const userRepo = AppDataSource.getRepository(User);
 
-  const legacyId = await getOrCreateLegacyTenantId();
   await ensureSystemSettings();
 
   if ((await userRepo.count()) > 0) {
@@ -44,11 +42,13 @@ export async function runSeed(): Promise<void> {
 
   console.log('Seed: empty database + SEED_DEMO=1 — seeding demo data...');
 
+  const shopId = await createDemoShop();
+
   const hash = (pw: string) => bcrypt.hashSync(pw, 12);
 
   const admin = await userRepo.save(
     userRepo.create({
-      tenantId: legacyId,
+      tenantId: null,
       firstName: 'Print',
       lastName: 'Admin',
       email: 'admin@printloop.test',
@@ -63,7 +63,7 @@ export async function runSeed(): Promise<void> {
 
   const opsAdmin = await userRepo.save(
     userRepo.create({
-      tenantId: legacyId,
+      tenantId: shopId,
       firstName: 'Ops',
       lastName: 'Manager',
       email: 'ops@printloop.test',
@@ -78,7 +78,7 @@ export async function runSeed(): Promise<void> {
 
   const demo = await userRepo.save(
     userRepo.create({
-      tenantId: legacyId,
+      tenantId: null,
       firstName: 'Demo',
       lastName: 'Student',
       email: 'student@printloop.test',
@@ -91,9 +91,30 @@ export async function runSeed(): Promise<void> {
     })
   );
 
+  const owner = await userRepo.save(
+    userRepo.create({
+      tenantId: shopId,
+      firstName: 'Shop',
+      lastName: 'Owner',
+      email: 'owner@printloop.test',
+      phoneNumber: '+2348000000003',
+      passwordHash: hash('Admin1234!'),
+      salt: 'bcrypt',
+      isEmailVerified: true,
+      role: UserRole.ADMIN,
+      adminPrivileges: [],
+    })
+  );
+
+  const memberRepo = AppDataSource.getRepository(TenantMember);
+  await memberRepo.save([
+    memberRepo.create({ tenantId: shopId, userId: owner.id, role: TenantMemberRole.OWNER }),
+    memberRepo.create({ tenantId: shopId, userId: opsAdmin.id, role: TenantMemberRole.ADMIN }),
+  ]);
+
   const walletRepo = AppDataSource.getRepository(Wallet);
-  await walletRepo.save(walletRepo.create({ tenantId: legacyId, userId: demo.id, balance: 0 }));
-  await walletRepo.save(walletRepo.create({ tenantId: legacyId, userId: opsAdmin.id, balance: 0 }));
+  await walletRepo.save(walletRepo.create({ tenantId: null, userId: demo.id, balance: 0 }));
+  await walletRepo.save(walletRepo.create({ tenantId: shopId, userId: opsAdmin.id, balance: 0 }));
 
   const kioskRepo = AppDataSource.getRepository(Kiosk);
   const kioskSeed = [
@@ -108,7 +129,7 @@ export async function runSeed(): Promise<void> {
       await kioskRepo.save(
         kioskRepo.create({
           ...k,
-          tenantId: legacyId,
+          tenantId: shopId,
           apiKey: `KSK_${randomBytes(18).toString('base64url')}`,
           printerModel: 'HP LaserJet Pro M404n',
           ipAddress: `192.168.1.${100 + kiosks.length}`,
@@ -123,28 +144,28 @@ export async function runSeed(): Promise<void> {
   const pricingRepo = AppDataSource.getRepository(PricingConfig);
   await pricingRepo.save([
     pricingRepo.create({
-      tenantId: legacyId,
+      tenantId: shopId,
       paperSize: PaperSize.A4, colorType: ColorType.BLACK_WHITE,
       pricePerPage: 70, duplexMultiplier: 1.0, highResolutionMultiplier: 1.0,
       price100Simplex: 50,  price300Simplex: 70,  price600Simplex: 100,
       price100Duplex:  65,  price300Duplex:  90,  price600Duplex:  120,
     }),
     pricingRepo.create({
-      tenantId: legacyId,
+      tenantId: shopId,
       paperSize: PaperSize.A4, colorType: ColorType.COLOR,
       pricePerPage: 200, duplexMultiplier: 1.0, highResolutionMultiplier: 1.0,
       price100Simplex: 100, price300Simplex: 200, price600Simplex: 300,
       price100Duplex:  150, price300Duplex:  250, price600Duplex:  350,
     }),
     pricingRepo.create({
-      tenantId: legacyId,
+      tenantId: shopId,
       paperSize: PaperSize.A3, colorType: ColorType.BLACK_WHITE,
       pricePerPage: 150, duplexMultiplier: 1.0, highResolutionMultiplier: 1.0,
       price100Simplex: 100, price300Simplex: 150, price600Simplex: 300,
       price100Duplex:  150, price300Duplex:  230, price600Duplex:  400,
     }),
     pricingRepo.create({
-      tenantId: legacyId,
+      tenantId: shopId,
       paperSize: PaperSize.A3, colorType: ColorType.COLOR,
       pricePerPage: 400, duplexMultiplier: 1.0, highResolutionMultiplier: 1.0,
       price100Simplex: 250, price300Simplex: 400, price600Simplex: 650,
@@ -168,7 +189,7 @@ export async function runSeed(): Promise<void> {
 
       const job = await jobRepo.save(
         jobRepo.create({
-          tenantId: legacyId,
+          tenantId: shopId,
           userId: demo.id,
           fileName: `Document ${d}-${n}.pdf`,
           code: code(),
@@ -188,7 +209,7 @@ export async function runSeed(): Promise<void> {
       if (status === PrintJobStatus.DONE) {
         const pay = await paymentRepo.save(
           paymentRepo.create({
-            tenantId: legacyId,
+            tenantId: shopId,
             userId: demo.id,
             amount: cost,
             status: 'SUCCESS',
@@ -204,14 +225,14 @@ export async function runSeed(): Promise<void> {
 
   const promoRepo = AppDataSource.getRepository(Promotion);
   await promoRepo.save([
-    promoRepo.create({ tenantId: legacyId, code: 'EXAMWEEK', name: 'Exam week boost', description: '20 free pages after 100', discountType: 'free_pages', discountValue: 20, status: 'active', usageCount: 44 }),
-    promoRepo.create({ tenantId: legacyId, code: 'FIRST2FREE', name: 'First two pages free', description: 'First print credit', discountType: 'free_pages', discountValue: 2, status: 'inactive', usageCount: 128 }),
+    promoRepo.create({ tenantId: shopId, code: 'EXAMWEEK', name: 'Exam week boost', description: '20 free pages after 100', discountType: 'free_pages', discountValue: 20, status: 'active', usageCount: 44 }),
+    promoRepo.create({ tenantId: shopId, code: 'FIRST2FREE', name: 'First two pages free', description: 'First print credit', discountType: 'free_pages', discountValue: 2, status: 'inactive', usageCount: 128 }),
   ]);
 
   const sessionRepo = AppDataSource.getRepository(GroupSession);
   await sessionRepo.save(
     sessionRepo.create({
-      tenantId: legacyId,
+      tenantId: shopId,
       hostUserId: demo.id,
       groupName: 'CSC 301 Assignment 2',
       deadline: new Date(Date.now() + 8 * 3600 * 1000),
@@ -261,110 +282,39 @@ export async function runSeed(): Promise<void> {
       publishedAt: new Date(now.getTime() - 1 * 24 * 3600 * 1000),
     },
   ];
-  await blogRepo.save(blogSeed.map((p) => blogRepo.create({ tenantId: legacyId, ...p })));
+  await blogRepo.save(blogSeed.map((p) => blogRepo.create({ tenantId: null, ...p })));
 
   const auditRepo = AppDataSource.getRepository(AuditLog);
   await auditRepo.save([
-    auditRepo.create({ actorId: admin.id, actorName: 'Print Admin', action: 'system.seeded', target: 'system', detail: { note: 'Initial demo data' }, ipAddress: '127.0.0.1' }),
-    auditRepo.create({ actorId: opsAdmin.id, actorName: 'Ops Manager', action: 'kiosk.status_changed', target: `kiosk:${kiosks[3].id}`, detail: { to: 'OFFLINE' }, ipAddress: '127.0.0.1' }),
+    auditRepo.create({ tenantId: shopId, actorId: admin.id, actorName: 'Print Admin', action: 'system.seeded', target: 'system', detail: { note: 'Initial demo data' }, ipAddress: '127.0.0.1' }),
+    auditRepo.create({ tenantId: shopId, actorId: opsAdmin.id, actorName: 'Ops Manager', action: 'kiosk.status_changed', target: `kiosk:${kiosks[3].id}`, detail: { to: 'OFFLINE' }, ipAddress: '127.0.0.1' }),
   ]);
 
   console.log('Seed: done. Admin login → admin@printloop.test / Admin1234!');
 }
 
-export async function getOrCreateLegacyTenantId(): Promise<string> {
-  const tenantRepo = AppDataSource.getRepository(Tenant);
-  let legacy = await tenantRepo.findOne({
-    where: { slug: LEGACY_TENANT_SLUG },
-  });
-  if (!legacy) {
-    legacy = await tenantRepo.save(
-      tenantRepo.create({
-        name: 'PrintLoop (legacy)',
-        slug: LEGACY_TENANT_SLUG,
-        customDomain: null,
-        status: TenantStatus.ACTIVE,
-        commissionPct: Number(process.env.COMMISSION_PCT_DEFAULT || 0.1),
-        paystackSubaccountCode: null,
-        suspendedAt: null,
-        suspendReason: null,
-      }),
-    );
-    console.log(`Legacy tenant: created ${legacy.id} (slug='${legacy.slug}')`);
-  }
-  return legacy.id;
-}
+export const DEMO_SHOP_SLUG = 'campus-print';
 
-export async function ensureLegacyTenant(): Promise<void> {
+async function createDemoShop(): Promise<string> {
   const tenantRepo = AppDataSource.getRepository(Tenant);
-  const legacyId = await getOrCreateLegacyTenantId();
-  const legacy = await tenantRepo.findOneOrFail({ where: { id: legacyId } });
-
+  const shop = await tenantRepo.save(
+    tenantRepo.create({
+      name: 'Campus Print Hub',
+      slug: DEMO_SHOP_SLUG,
+      customDomain: null,
+      status: TenantStatus.ACTIVE,
+      commissionPct: Number(process.env.COMMISSION_PCT_DEFAULT || 0.1),
+      paystackSubaccountCode: null,
+      suspendedAt: null,
+      suspendReason: null,
+      address: 'Akoka, Yaba, Lagos',
+      lat: 6.5158,
+      lng: 3.3898,
+    }),
+  );
   const scheduleRepo = AppDataSource.getRepository(PayoutSchedule);
-  const existingSchedule = await scheduleRepo.findOne({
-    where: { tenantId: legacy.id },
-  });
-  if (!existingSchedule) {
-    await scheduleRepo.save(
-      scheduleRepo.create({
-        tenantId: legacy.id,
-        cadence: PayoutCadence.WEEKLY,
-        dayOfWeek: 5,
-        minPayoutAmount: 5000,
-      }),
-    );
-  }
-
-  const BACKFILL_TABLES = [
-    'transactions',
-    'users',
-    'wallets',
-    'kiosks',
-    'print_jobs',
-    'payments',
-    'files',
-    'pricing_configs',
-    'promotions',
-    'group_sessions',
-    'audit_logs',
-  ] as const;
-  for (const table of BACKFILL_TABLES) {
-    try {
-      await AppDataSource.createQueryBuilder()
-        .update(table)
-        .set({ tenantId: legacy.id })
-        .where('"tenantId" IS NULL')
-        .execute();
-    } catch (err) {
-      console.warn(`[seed] tenantId backfill skipped for ${table}:`, err);
-    }
-  }
-
-  const userRepo = AppDataSource.getRepository(User);
-  const memberRepo = AppDataSource.getRepository(TenantMember);
-  const admins = await userRepo.find({
-    where: [
-      { role: UserRole.ADMIN, tenantId: legacy.id },
-      { role: UserRole.ADMIN, tenantId: null as any },
-      { role: UserRole.SUPER_ADMIN, tenantId: legacy.id },
-      { role: UserRole.SUPER_ADMIN, tenantId: null as any },
-    ],
-  });
-  for (const admin of admins) {
-    const already = await memberRepo.findOne({
-      where: { tenantId: legacy.id, userId: admin.id },
-    });
-    if (!already) {
-      await memberRepo.save(
-        memberRepo.create({
-          tenantId: legacy.id,
-          userId: admin.id,
-          role:
-            admin.role === UserRole.SUPER_ADMIN
-              ? TenantMemberRole.OWNER
-              : TenantMemberRole.ADMIN,
-        }),
-      );
-    }
-  }
+  await scheduleRepo.save(
+    scheduleRepo.create({ tenantId: shop.id, cadence: PayoutCadence.WEEKLY, dayOfWeek: 5, minPayoutAmount: 5000 }),
+  );
+  return shop.id;
 }

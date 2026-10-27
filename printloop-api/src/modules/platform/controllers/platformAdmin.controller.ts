@@ -11,7 +11,6 @@ import { Kiosk } from '@/database/entities/kiosk.entity';
 import { Payout } from '@/database/entities/payout.entity';
 import { Tenant } from '@/database/entities/tenant.entity';
 import { TenantMember } from '@/database/entities/tenantMember.entity';
-import { LEGACY_TENANT_SLUG } from '@/common/middleware/tenant.middleware';
 import { writeAudit } from '@/core/services/audit.service';
 import { paginate, scrubUser } from '@/modules/saas/controllers/shopAdmin.controller';
 
@@ -35,12 +34,6 @@ async function uniqueBlogSlug(base: string, excludeId?: string): Promise<string>
     if (!existing || existing.id === excludeId) return candidate;
     candidate = `${baseSlug}-${i}`;
   }
-}
-
-async function platformTenantId(): Promise<string> {
-  const legacy = await AppDataSource.getRepository(Tenant).findOne({ where: { slug: LEGACY_TENANT_SLUG } });
-  if (!legacy) throw new Error('Platform tenant missing');
-  return legacy.id;
 }
 
 function coerceSetting(setting: SystemSetting, raw: unknown): string | null {
@@ -228,7 +221,7 @@ export class PlatformAdminController {
       const published = status === BlogPostStatus.PUBLISHED;
       const post = await repo.save(
         repo.create({
-          tenantId: await platformTenantId(),
+          tenantId: null,
           slug: await uniqueBlogSlug(title),
           title: String(title).slice(0, 200),
           excerpt: excerpt ? String(excerpt).slice(0, 400) : null,

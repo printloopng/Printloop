@@ -26,14 +26,13 @@ export const resendVerificationBodySchema = z.object({
 });
 
 export const paystackSubaccountBodySchema = z.object({
-  businessName: z.string().min(1, 'businessName, settlementBank, accountNumber are required'),
-  settlementBank: z.string().min(1),
-  accountNumber: z.string().min(1),
-  percentageCharge: z.number().optional(),
+  bankCode: z.string().trim().min(1),
+  accountNumber: z.string().trim().regex(/^\d{10}$/),
+  businessName: z.string().trim().min(1).max(120).optional(),
 });
 
 export const bankAccountSetupBodySchema = z.object({
-  accountName: z.string().min(1, 'accountName, accountNumber, bankCode are required'),
-  accountNumber: z.string().min(1),
-  bankCode: z.string().min(1),
+  accountName: z.string().trim().min(1).max(120),
+  accountNumber: z.string().trim().regex(/^\d{10}$/),
+  bankCode: z.string().trim().min(1),
 });

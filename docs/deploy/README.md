@@ -5,7 +5,6 @@
 | [`saas.md`](saas.md) | **Canonical v2** — Postgres multi-tenant SaaS |
 | [`checklist.md`](checklist.md) | Pre-launch production checklist |
 | [`render-platform.md`](render-platform.md) | Hosting on Render.com specifically |
-| [`v1-legacy.md`](v1-legacy.md) | Old SQLite / single-tenant notes (kiosk LAN still useful) |
 
 Infra samples (Caddyfile, Fly, Render yaml) → [`../../deploy/`](../../deploy/).
 

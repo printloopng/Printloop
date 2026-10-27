@@ -3,8 +3,7 @@ import { AppDataSource } from '@/config/data-source';
 import { Tenant, TenantStatus } from '@/database/entities/tenant.entity';
 import { UserRole } from '@/database/entities/user.entity';
 import { TenantMemberRole } from '@/database/entities/tenantMember.entity';
-
-export const LEGACY_TENANT_SLUG = 'legacy';
+import { isPlatformStaff } from '@/common/middleware/impersonation';
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
@@ -21,10 +20,11 @@ export const resolveTenant = async (
   next: NextFunction,
 ): Promise<void> => {
   try {
-    const slug = pickTenantSlug(req);
-    const customDomain = pickCustomDomain(req);
+    const scoped = req.impersonatingTenantId ?? null;
+    const slug = scoped ? null : pickTenantSlug(req);
+    const customDomain = scoped ? null : pickCustomDomain(req);
     const requestedExplicitTenant = Boolean(slug || customDomain);
-    const authenticatedTenantId = pickAuthenticatedTenantId(req);
+    const authenticatedTenantId = scoped ?? pickAuthenticatedTenantId(req);
 
     const repo = AppDataSource.getRepository(Tenant);
     let tenant: Tenant | null = null;
@@ -54,13 +54,10 @@ export const resolveTenant = async (
       if (ownTenant) tenant = ownTenant;
     }
     if (!tenant) {
-      tenant = await repo.findOne({ where: { slug: LEGACY_TENANT_SLUG } });
-    }
-
-    if (!tenant) {
-      res.status(404).json({
+      res.status(400).json({
         success: false,
-        message: 'Tenant not found',
+        message: 'Choose a print shop first.',
+        code: 'TENANT_REQUIRED',
       });
       return;
     }
@@ -129,13 +126,11 @@ export const optionalTenant = async (
 export function tenantRoleOf(req: Request, tenantId: string): TenantMemberRole | null {
   const user = (req as any).user;
   if (!user) return null;
-  if (user.role === UserRole.SUPER_ADMIN) return TenantMemberRole.OWNER;
+  if (isPlatformStaff(req)) return TenantMemberRole.OWNER;
   const memberships = (req.tenantMemberships || []).filter((m) => m.tenantId === tenantId);
   const order = [TenantMemberRole.OWNER, TenantMemberRole.ADMIN, TenantMemberRole.STAFF];
   const best = order.find((r) => memberships.some((m) => m.role === r));
-  if (best) return best;
-  if (memberships.length === 0 && user.role === UserRole.ADMIN && user.tenantId === tenantId) return TenantMemberRole.OWNER;
-  return null;
+  return best ?? null;
 }
 
 export const requireTenantRole =
@@ -143,12 +138,9 @@ export const requireTenantRole =
   (req: Request, res: Response, next: NextFunction): void => {
     const user = (req as any).user;
     const tenantId = req.tenant?.id;
-    if (user?.role === UserRole.SUPER_ADMIN) return next();
+    if (isPlatformStaff(req)) return next();
     const memberships = (req.tenantMemberships || []).filter((m) => m.tenantId === tenantId);
-    const allowed =
-      memberships.some((m) => roles.includes(m.role)) ||
-      (memberships.length === 0 && user?.role === UserRole.ADMIN && user?.tenantId === tenantId);
-    if (allowed) return next();
+    if (memberships.some((m) => roles.includes(m.role))) return next();
     res.status(403).json({
       success: false,
       message: 'Only the shop owner or an admin can do this.',
@@ -159,12 +151,13 @@ export const requireTenantRole =
 export function requestCanAccessTenant(req: Request, tenant: Tenant): boolean {
   const user = (req as any).user;
   if (!user) return true;
-  if (user.role === UserRole.SUPER_ADMIN) return true;
+  if (isPlatformStaff(req)) return true;
 
   const isCustomerRoute = 
     req.baseUrl.startsWith('/api/customer') || 
     req.baseUrl.startsWith('/api/wallet') || 
     req.baseUrl.startsWith('/api/payments') ||
+    req.baseUrl.startsWith('/api/groups') ||
     req.path.startsWith('/customer') ||
     req.path.startsWith('/wallet') ||
     req.path.startsWith('/payments');
@@ -177,15 +170,16 @@ export function requestCanAccessTenant(req: Request, tenant: Tenant): boolean {
     return false;
   }
 
-  if (user.tenantId && user.tenantId === tenant.id) return true;
   const memberships = req.tenantMemberships || [];
   return memberships.some((m) => m.tenantId === tenant.id);
 }
 
 function pickAuthenticatedTenantId(req: Request): string | null {
   const user = (req as any).user;
-  if (user?.tenantId) return user.tenantId;
-  return req.tenantMemberships?.[0]?.tenantId ?? null;
+  const memberships = req.tenantMemberships ?? [];
+  if (user?.tenantId && memberships.some((m) => m.tenantId === user.tenantId)) return user.tenantId;
+  if (user?.tenantId && user.role === UserRole.USER) return user.tenantId;
+  return memberships[0]?.tenantId ?? null;
 }
 
 function pickTenantSlug(req: Request): string | null {

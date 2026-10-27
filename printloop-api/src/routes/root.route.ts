@@ -75,7 +75,7 @@ export const createRootRoutes = (dataSource: DataSource) => {
   });
   rootRouter.use(errorHandler);
 
-  logger.info("PrintLoop API routes mounted (product surface, no legacy admin)");
+  logger.info("PrintLoop API routes mounted");
 
   return rootRouter;
 };

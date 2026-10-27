@@ -18,7 +18,6 @@ import paymentsRoutes from "./payments.routes";
 import groupsRoutes from "./groups.routes";
 import preflightRoutes from "./preflight.routes";
 import passwordResetRoutes from "./password-reset.routes";
-import disputeRoutes from "./dispute.routes";
 
 export const createCustomerRoutes = (_dataSource: DataSource) => {
   const router = Router();
@@ -33,18 +32,17 @@ export const createCustomerRoutes = (_dataSource: DataSource) => {
     "/print-jobs",
     allowUploadTicket("print-document", (r) => r.method === "POST" && (r.path === "/" || r.path === "/batch")),
   );
-  router.use(authenticate, resolveTenant, printRoutes);
+  router.use(authenticate, optionalTenant, printRoutes);
   return router;
 };
 
 export const createCustomerAuxRoutes = (_dataSource: DataSource) => {
   const router = Router();
-  router.use("/groups", resolveTenant, groupsRoutes);
+  router.use("/groups", optionalTenant, groupsRoutes);
   router.use("/payments", optionalTenant, paymentsRoutes);
   router.use("/preflight", optionalTenant, preflightRoutes);
   router.use("/auth/forgot-password", passwordResetLimiter);
   router.use("/auth/reset-password", passwordResetLimiter);
   router.use("/auth", optionalTenant, passwordResetRoutes);
-  router.use("/disputes", disputeRoutes);
   return router;
 };

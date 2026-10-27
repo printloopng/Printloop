@@ -1,7 +1,6 @@
 import crypto from 'node:crypto';
 import { In } from 'typeorm';
 import { type Request, type Response, type NextFunction } from 'express';
-import { LEGACY_TENANT_SLUG } from '@/common/middleware/tenant.middleware';
 import multer from 'multer';
 import { AppDataSource } from '@/config/data-source';
 import { PrintJob, PrintJobStatus, JobType } from '@/database/entities/printJob.entity';
@@ -65,7 +64,6 @@ function formatJob(j: PrintJob) {
 async function assertTenantHasOnlineKiosk(req: Request): Promise<string | null> {
   const t = req.tenant;
   if (!t) return null;
-  if (t.slug === LEGACY_TENANT_SLUG) return null;
 
   if (t.availability === 'closed') {
     return 'This shop is currently closed. Check back soon or try another nearby shop.';

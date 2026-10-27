@@ -23,7 +23,7 @@ export function createGdprRoutes(ds: DataSource): Router {
     authenticate,
     requireVerifiedEmail,
     resolveTenant,
-    requireTenantRole(TenantMemberRole.OWNER, TenantMemberRole.ADMIN),
+    requireTenantRole(TenantMemberRole.OWNER),
     ctrl.deleteTenant,
   );
 

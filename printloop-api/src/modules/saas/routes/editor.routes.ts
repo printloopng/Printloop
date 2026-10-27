@@ -1,3 +1,4 @@
+import { isPlatformStaff } from '@/common/middleware/impersonation';
 import { Router, Request, Response } from 'express';
 import { AppDataSource } from '@/config/data-source';
 import { authenticate } from '@/common/middleware/auth.middleware';
@@ -5,7 +6,6 @@ import { resolveTenant } from '@/common/middleware/tenant.middleware';
 import { EditorSession, EditorSessionStatus } from '@/database/entities/editorSession.entity';
 import { DocumentEdit, DocumentEditStatus } from '@/database/entities/documentEdit.entity';
 import { PrintJob, PrintJobStatus } from '@/database/entities/printJob.entity';
-import { UserRole } from '@/database/entities/user.entity';
 import { approveEdit } from '@/modules/saas/services/editApproval.service';
 import {
   documentEditorService,
@@ -23,9 +23,8 @@ type Role = 'shop' | 'customer';
 function isShopMember(req: Request, tenantId: string): boolean {
   const user = (req as any).user;
   if (!user) return false;
-  if (user.role === UserRole.SUPER_ADMIN) return true;
-  if ((req.tenantMemberships || []).some((m) => m.tenantId === tenantId)) return true;
-  return user.role === UserRole.ADMIN && user.tenantId === tenantId;
+  if (isPlatformStaff(req)) return true;
+  return (req.tenantMemberships || []).some((m) => m.tenantId === tenantId);
 }
 
 function roleFor(req: Request, session: EditorSession): Role | null {

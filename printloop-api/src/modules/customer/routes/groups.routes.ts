@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { optionalAuth } from '@/common/middleware/auth.middleware';
+import { resolveTenant } from '@/common/middleware/tenant.middleware';
 import {
   createGroupSession,
   getSessionByShareId,
@@ -14,7 +15,7 @@ const router = Router();
 router.get('/share/:shareId', getSessionByShareId);
 router.post('/:shareId/join', optionalAuth, joinSession);
 
-router.post('/', optionalAuth, createGroupSession);
+router.post('/', optionalAuth, resolveTenant, createGroupSession);
 router.get('/', optionalAuth, listHostSessions);
 router.get('/:id', optionalAuth, getHostSessionDetails);
 router.post('/:id/close', optionalAuth, closeSession);

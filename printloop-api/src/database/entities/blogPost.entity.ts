@@ -19,8 +19,8 @@ export class BlogPost {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ type: 'uuid' })
-  tenantId: string;
+  @Column({ type: 'uuid', nullable: true })
+  tenantId: string | null;
 
   
   @Column({ type: 'varchar', length: 160 })

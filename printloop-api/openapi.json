@@ -2374,6 +2374,12 @@
           "isDiscoverable": {
             "type": "boolean"
           },
+          "photos": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "availability": {
             "type": "string",
             "enum": [
@@ -7939,232 +7945,6 @@
         }
       }
     },
-    "/disputes": {
-      "get": {
-        "operationId": "getDisputes",
-        "tags": [
-          "Printing"
-        ],
-        "summary": "My disputes",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "enum": [
-                        true
-                      ]
-                    },
-                    "message": {
-                      "type": "string"
-                    },
-                    "data": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Dispute"
-                      }
-                    }
-                  },
-                  "required": [
-                    "success",
-                    "data"
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing or invalid credentials",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Not allowed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Conflicts with the current state",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/disputes/{id}/resolve": {
-      "post": {
-        "operationId": "postDisputesByIdResolve",
-        "tags": [
-          "Printing"
-        ],
-        "summary": "Resolve a dispute (legacy shop route)",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "enum": [
-                        true
-                      ]
-                    },
-                    "message": {
-                      "type": "string"
-                    },
-                    "data": {
-                      "$ref": "#/components/schemas/Dispute"
-                    }
-                  },
-                  "required": [
-                    "success",
-                    "data"
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing or invalid credentials",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Not allowed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Conflicts with the current state",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          }
-        },
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "status": {
-                    "type": "string",
-                    "enum": [
-                      "resolved",
-                      "rejected"
-                    ]
-                  },
-                  "resolutionNotes": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "status"
-                ]
-              }
-            }
-          }
-        }
-      }
-    },
     "/payments/initialize-job-payment": {
       "post": {
         "operationId": "postPaymentsInitializeJobPayment",
@@ -8287,202 +8067,6 @@
                 "required": [
                   "jobId"
                 ]
-              }
-            }
-          }
-        }
-      }
-    },
-    "/payments/webhook": {
-      "post": {
-        "operationId": "postPaymentsWebhook",
-        "tags": [
-          "Webhooks"
-        ],
-        "summary": "Paystack webhook (alias)",
-        "security": [
-          {
-            "webhookSignature": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean"
-                    },
-                    "handled": {
-                      "type": "boolean"
-                    },
-                    "action": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing or invalid credentials",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Not allowed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Conflicts with the current state",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          }
-        },
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "additionalProperties": true
-              }
-            }
-          }
-        }
-      }
-    },
-    "/payments/paystack": {
-      "post": {
-        "operationId": "postPaymentsPaystack",
-        "tags": [
-          "Webhooks"
-        ],
-        "summary": "Paystack webhook (alias)",
-        "security": [
-          {
-            "webhookSignature": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean"
-                    },
-                    "handled": {
-                      "type": "boolean"
-                    },
-                    "action": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing or invalid credentials",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Not allowed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Conflicts with the current state",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          }
-        },
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "additionalProperties": true
               }
             }
           }
@@ -11195,7 +10779,7 @@
         "tags": [
           "Public"
         ],
-        "summary": "Branding for the shop resolved from host or X-Tenant-Slug",
+        "summary": "Branding for the shop resolved from host or X-Tenant-Slug (both null when no shop is chosen)",
         "security": [],
         "responses": {
           "200": {
@@ -11218,19 +10802,31 @@
                       "type": "object",
                       "properties": {
                         "tenant": {
-                          "type": "object",
-                          "properties": {
-                            "id": {
-                              "type": "string",
-                              "format": "uuid"
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "format": "uuid"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "slug": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "name",
+                                "slug"
+                              ]
                             },
-                            "name": {
-                              "type": "string"
-                            },
-                            "slug": {
-                              "type": "string"
+                            {
+                              "type": "null"
                             }
-                          }
+                          ]
                         },
                         "branding": {
                           "anyOf": [
@@ -11242,7 +10838,11 @@
                             }
                           ]
                         }
-                      }
+                      },
+                      "required": [
+                        "tenant",
+                        "branding"
+                      ]
                     }
                   },
                   "required": [
@@ -14423,7 +14023,24 @@
                     },
                     "data": {
                       "type": "object",
-                      "additionalProperties": true
+                      "properties": {
+                        "subaccountCode": {
+                          "type": "string"
+                        },
+                        "accountName": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "subaccountCode"
+                      ]
                     }
                   },
                   "required": [
@@ -14496,7 +14113,8 @@
                     "type": "string"
                   },
                   "accountNumber": {
-                    "type": "string"
+                    "type": "string",
+                    "pattern": "^[0-9]{10}$"
                   },
                   "businessName": {
                     "type": "string"
@@ -14543,7 +14161,28 @@
                     },
                     "data": {
                       "type": "object",
-                      "additionalProperties": true
+                      "properties": {
+                        "recipientCode": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "accountName": {
+                          "type": "string"
+                        },
+                        "bankCode": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "accountName",
+                        "bankCode"
+                      ]
                     }
                   },
                   "required": [
@@ -14612,14 +14251,19 @@
               "schema": {
                 "type": "object",
                 "properties": {
+                  "accountName": {
+                    "type": "string"
+                  },
                   "bankCode": {
                     "type": "string"
                   },
                   "accountNumber": {
-                    "type": "string"
+                    "type": "string",
+                    "pattern": "^[0-9]{10}$"
                   }
                 },
                 "required": [
+                  "accountName",
                   "bankCode",
                   "accountNumber"
                 ]
@@ -14727,7 +14371,7 @@
         "tags": [
           "Shop"
         ],
-        "summary": "Close and delete my shop (owner/admin)",
+        "summary": "Close and delete my shop (owner)",
         "security": [
           {
             "bearerAuth": []
@@ -15179,7 +14823,7 @@
         "tags": [
           "Shop"
         ],
-        "summary": "Set shop address and map pin",
+        "summary": "Set the shop address (geocoded) and marketplace listing",
         "security": [
           {
             "bearerAuth": []
@@ -15204,7 +14848,47 @@
                     },
                     "data": {
                       "type": "object",
-                      "additionalProperties": true
+                      "properties": {
+                        "address": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "lat": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "lng": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "isDiscoverable": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "address",
+                        "lat",
+                        "lng",
+                        "isDiscoverable"
+                      ]
                     }
                   },
                   "required": [
@@ -15274,13 +14958,17 @@
                 "type": "object",
                 "properties": {
                   "address": {
-                    "type": "string"
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
-                  "lat": {
-                    "type": "number"
-                  },
-                  "lng": {
-                    "type": "number"
+                  "isDiscoverable": {
+                    "type": "boolean"
                   }
                 }
               }
@@ -15457,7 +15145,11 @@
                         "secret": {
                           "type": "string"
                         }
-                      }
+                      },
+                      "required": [
+                        "otpauthUrl",
+                        "secret"
+                      ]
                     }
                   },
                   "required": [
@@ -15549,10 +15241,22 @@
                     },
                     "message": {
                       "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "enabled"
+                      ]
                     }
                   },
                   "required": [
-                    "success"
+                    "success",
+                    "data"
                   ]
                 }
               }
@@ -15657,10 +15361,22 @@
                     },
                     "message": {
                       "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "enabled"
+                      ]
                     }
                   },
                   "required": [
-                    "success"
+                    "success",
+                    "data"
                   ]
                 }
               }
@@ -25450,7 +25166,7 @@
         "tags": [
           "Platform"
         ],
-        "summary": "Shop detail",
+        "summary": "Shop detail with usage and team",
         "security": [
           {
             "bearerAuth": []
@@ -25485,7 +25201,75 @@
                     },
                     "data": {
                       "type": "object",
-                      "additionalProperties": true
+                      "properties": {
+                        "tenant": {
+                          "$ref": "#/components/schemas/Tenant"
+                        },
+                        "stats": {
+                          "type": "object",
+                          "properties": {
+                            "kioskCount": {
+                              "type": "integer"
+                            },
+                            "onlineKiosks": {
+                              "type": "integer"
+                            },
+                            "jobCount": {
+                              "type": "integer"
+                            },
+                            "customerCount": {
+                              "type": "integer"
+                            },
+                            "gmv": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "kioskCount",
+                            "onlineKiosks",
+                            "jobCount",
+                            "customerCount",
+                            "gmv"
+                          ]
+                        },
+                        "members": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "userId": {
+                                "type": "string",
+                                "format": "uuid"
+                              },
+                              "role": {
+                                "type": "string",
+                                "enum": [
+                                  "owner",
+                                  "admin",
+                                  "staff"
+                                ]
+                              },
+                              "email": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "userId",
+                              "role",
+                              "email",
+                              "name"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "tenant",
+                        "stats",
+                        "members"
+                      ]
                     }
                   },
                   "required": [
@@ -25553,7 +25337,7 @@
         "tags": [
           "Platform"
         ],
-        "summary": "Delete a shop",
+        "summary": "Hard-delete a closed shop (force=true overrides the safety checks)",
         "security": [
           {
             "bearerAuth": []
@@ -25566,6 +25350,18 @@
             "required": true,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "force",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
             }
           }
         ],
@@ -25585,10 +25381,15 @@
                     },
                     "message": {
                       "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "additionalProperties": true
                     }
                   },
                   "required": [
-                    "success"
+                    "success",
+                    "data"
                   ]
                 }
               }
@@ -25688,7 +25489,46 @@
                     },
                     "data": {
                       "type": "object",
-                      "additionalProperties": true
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "trial",
+                            "active",
+                            "suspended",
+                            "closed"
+                          ]
+                        },
+                        "suspendedAt": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "suspendReason": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "status"
+                      ]
                     }
                   },
                   "required": [
@@ -25808,7 +25648,25 @@
                     },
                     "data": {
                       "type": "object",
-                      "additionalProperties": true
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "trial",
+                            "active",
+                            "suspended",
+                            "closed"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "status"
+                      ]
                     }
                   },
                   "required": [
@@ -25892,6 +25750,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "ttl",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
           }
         ],
         "responses": {
@@ -25917,10 +25783,35 @@
                         "token": {
                           "type": "string"
                         },
-                        "expiresIn": {
+                        "ttlSeconds": {
                           "type": "integer"
+                        },
+                        "tenant": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid"
+                            },
+                            "slug": {
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "slug",
+                            "name"
+                          ]
                         }
-                      }
+                      },
+                      "required": [
+                        "token",
+                        "ttlSeconds",
+                        "tenant"
+                      ]
                     }
                   },
                   "required": [
@@ -26015,7 +25906,82 @@
                     },
                     "data": {
                       "type": "object",
-                      "additionalProperties": true
+                      "properties": {
+                        "agentUptime": {
+                          "type": "object",
+                          "properties": {
+                            "totalActiveKiosks": {
+                              "type": "integer"
+                            },
+                            "onlineKiosksCount": {
+                              "type": "integer"
+                            },
+                            "onlineRatePct": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "totalActiveKiosks",
+                            "onlineKiosksCount",
+                            "onlineRatePct"
+                          ]
+                        },
+                        "jobSuccessRate": {
+                          "type": "object",
+                          "properties": {
+                            "completedJobsCount": {
+                              "type": "integer"
+                            },
+                            "failedJobsCount": {
+                              "type": "integer"
+                            },
+                            "successRatePct": {
+                              "type": "number"
+                            },
+                            "failureRatePct": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "completedJobsCount",
+                            "failedJobsCount",
+                            "successRatePct",
+                            "failureRatePct"
+                          ]
+                        },
+                        "paidUnredeemed": {
+                          "type": "object",
+                          "properties": {
+                            "readyCount": {
+                              "type": "integer"
+                            },
+                            "renderingCount": {
+                              "type": "integer"
+                            },
+                            "releasingCount": {
+                              "type": "integer"
+                            },
+                            "printingCount": {
+                              "type": "integer"
+                            },
+                            "totalPaidUnredeemed": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "readyCount",
+                            "renderingCount",
+                            "releasingCount",
+                            "printingCount",
+                            "totalPaidUnredeemed"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "agentUptime",
+                        "jobSuccessRate",
+                        "paidUnredeemed"
+                      ]
                     }
                   },
                   "required": [

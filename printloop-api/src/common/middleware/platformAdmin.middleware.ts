@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { User, UserRole } from '@/database/entities/user.entity';
+import { isPlatformStaff } from '@/common/middleware/impersonation';
 
 export const requirePlatformAdmin = (
   req: Request,
@@ -13,7 +14,7 @@ export const requirePlatformAdmin = (
       .json({ success: false, message: 'Authentication required' });
     return;
   }
-  if (user.role !== UserRole.SUPER_ADMIN) {
+  if (user.role !== UserRole.SUPER_ADMIN || !isPlatformStaff(req)) {
     res.status(403).json({
       success: false,
       message: 'Platform admin access required',

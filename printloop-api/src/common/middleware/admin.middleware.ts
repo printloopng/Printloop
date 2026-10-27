@@ -8,7 +8,8 @@ export const adminMiddleware = () => {
       return next(new UnauthorizedError("Authentication required"));
     }
     const role = String((req.user as any).role || "").toUpperCase();
-    if (role !== "SUPER_ADMIN" && role !== "ADMIN") {
+    const impersonating = Boolean((req as any).jwtPayload?.impersonating);
+    if (role !== "SUPER_ADMIN" || impersonating) {
       return next(new ForbiddenError("Platform admin required"));
     }
     next();
