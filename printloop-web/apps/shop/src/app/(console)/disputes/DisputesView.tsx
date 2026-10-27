@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { Button, DataTable, Dialog, ErrorState, KeyValue, PageHeader, Pill, Skeleton, Tabs, Textarea, formatDateTime, timeAgo } from "@printloop/ui";
 import { errorMessage, unwrap, type Schemas } from "@printloop/api-client";
 import { useApi, useApiClient } from "@printloop/api-client/react";
-import { useAction } from "@/lib/actions";
+import { useAction } from "@printloop/auth/actions";
 import { useCanManage } from "@/lib/shop-context";
 
 type Dispute = Schemas["Dispute"];

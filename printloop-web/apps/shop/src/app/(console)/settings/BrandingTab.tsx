@@ -5,7 +5,7 @@ import { ImagePlus, Trash2 } from "lucide-react";
 import { Button, Card, ErrorState, Input, Notice, Section, Skeleton } from "@printloop/ui";
 import { errorMessage, unwrap, uploadDirect, type Schemas } from "@printloop/api-client";
 import { useApi, useApiClient, useApiContext } from "@printloop/api-client/react";
-import { useAction } from "@/lib/actions";
+import { useAction } from "@printloop/auth/actions";
 import { useCanManage, useShopProfile } from "@/lib/shop-context";
 
 type Branding = Schemas["Branding"];

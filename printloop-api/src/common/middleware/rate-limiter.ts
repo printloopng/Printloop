@@ -51,6 +51,7 @@ export class RateLimiter {
     res: Response,
     next: NextFunction,
   ): Promise<void> => {
+    if (process.env.DISABLE_RATE_LIMIT === "1" && process.env.NODE_ENV !== "production") return next();
     try {
       const key = `rate_limit:${this.options.keyGenerator(req)}`;
       const now = Date.now();

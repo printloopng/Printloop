@@ -6,7 +6,7 @@ import { Button, ConfirmDialog, DataTable, Dialog, ErrorState, Input, Notice, Pa
 import { errorMessage, unwrap, type Schemas } from "@printloop/api-client";
 import { useApi, useApiClient } from "@printloop/api-client/react";
 import { useSession } from "@printloop/auth/client";
-import { useAction } from "@/lib/actions";
+import { useAction } from "@printloop/auth/actions";
 import { useCanManage, useIsOwner } from "@/lib/shop-context";
 
 type Member = Schemas["TeamMember"];

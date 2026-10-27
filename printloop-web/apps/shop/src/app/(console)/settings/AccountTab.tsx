@@ -6,8 +6,7 @@ import { Button, Card, Dialog, Input, Notice, Section } from "@printloop/ui";
 import { unwrap } from "@printloop/api-client";
 import { useApiClient } from "@printloop/api-client/react";
 import { signOut } from "@printloop/auth/client";
-import { downloadFromApi } from "@/lib/download";
-import { useAction } from "@/lib/actions";
+import { downloadFromApi, useAction } from "@printloop/auth/actions";
 import { useCanManage, useIsOwner, useShopProfile } from "@/lib/shop-context";
 
 function lastMonth(): string {

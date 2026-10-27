@@ -6,7 +6,7 @@ import { Button, Card, ConfirmDialog, DataTable, Dialog, ErrorState, KeyValue, N
 import { errorMessage, unwrap } from "@printloop/api-client";
 import { useApi, useApiClient } from "@printloop/api-client/react";
 import { useSession } from "@printloop/auth/client";
-import { useAction } from "@/lib/actions";
+import { useAction } from "@printloop/auth/actions";
 import { ROLE_LABEL } from "../UsersView";
 
 type Role = keyof typeof ROLE_LABEL;

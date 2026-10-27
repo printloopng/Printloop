@@ -1,4 +1,4 @@
-name: CI/CD Pipeline
+name: CI
 
 on:
   push:
@@ -7,79 +7,97 @@ on:
     branches: [main, develop]
 
 env:
-  NODE_VERSION: '20'
-  PNPM_VERSION: '9'
+  NODE_VERSION: '22'
 
 jobs:
-  backend:
-    name: Backend (typecheck + test)
+  api:
+    name: API (typecheck + tests)
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./01-backend
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: printloop
-          POSTGRES_PASSWORD: printloop_test
-          POSTGRES_DB: printloop
-        ports: [5432:5432]
-        options: >-
-          --health-cmd "pg_isready -U printloop -d printloop"
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 20
-      redis:
-        image: redis:7-alpine
-        ports: [6379:6379]
-        options: --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 3s --health-retries 20
+        working-directory: ./printloop-api
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'pnpm'
+          cache: npm
+          cache-dependency-path: printloop-api/package-lock.json
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: npm ci
       - name: Typecheck
-        run: pnpm run typecheck
-      - name: Run tests
-        env:
-          DATABASE_URL: postgresql://printloop:printloop_test@localhost:5432/printloop
-          REDIS_URL: redis://localhost:6379
-          JWT_SECRET: test-secret-32chars-long-enough-for-tests
-          RENDER_CALLBACK_SECRET: test-render-secret-32chars-long
-          COMMISSION_PCT_DEFAULT: '0.10'
-          PAYSTACK_SECRET_KEY: sk_test_doesnotmatter
-          TERMII_API_KEY: test
-          SEED_DEMO: '1'
-        run: pnpm run test:run
+        run: npm run typecheck
+      - name: Tests
+        run: npm test
+      - name: OpenAPI spec is committed and current
+        run: |
+          npm run openapi:export
+          git diff --exit-code openapi.json
 
-  frontend:
-    name: Frontend (typecheck + build)
+  web:
+    name: Web (lint, typecheck, tests, build)
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./printloop-new-frontend
+        working-directory: ./printloop-web
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
         with:
-          version: ${{ env.PNPM_VERSION }}
+          package_json_file: printloop-web/package.json
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'pnpm'
+          cache: pnpm
+          cache-dependency-path: printloop-web/pnpm-lock.yaml
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      - name: Generated API client matches the spec
+        run: pnpm --filter @printloop/api-client check
+      - name: Lint
+        run: pnpm lint
       - name: Typecheck
-        run: pnpm run tsc -b
+        run: pnpm typecheck
+      - name: Unit tests
+        run: pnpm test
       - name: Build
-        run: pnpm run build
+        run: pnpm build
+
+  e2e:
+    name: End-to-end (Playwright)
+    runs-on: ubuntu-latest
+    needs: [api, web]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: printloop-web/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Install API dependencies
+        run: npm ci
+        working-directory: ./printloop-api
+      - name: Install web dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: ./printloop-web
+      - name: Build the apps
+        run: pnpm build
+        working-directory: ./printloop-web
+      - name: Install browser
+        run: pnpm --filter @printloop/e2e exec playwright install --with-deps chromium
+        working-directory: ./printloop-web
+      - name: Run end-to-end tests
+        run: pnpm e2e
+        working-directory: ./printloop-web
+        env:
+          CI: 'true'
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-results
+          path: printloop-web/e2e/test-results
+          retention-days: 7
 
   render-worker:
     name: Render Worker (typecheck + build)
@@ -89,19 +107,16 @@ jobs:
         working-directory: ./render-worker
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'pnpm'
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+          cache: npm
+          cache-dependency-path: render-worker/package-lock.json
+      - run: npm ci
       - name: Typecheck
-        run: pnpm run tsc --noEmit
+        run: npx tsc --noEmit
       - name: Build
-        run: pnpm run build
+        run: npm run build
 
   kiosk-app:
     name: Kiosk App (typecheck + build)
@@ -111,103 +126,54 @@ jobs:
         working-directory: ./printloop-kiosk-app
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'pnpm'
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+          cache: npm
+          cache-dependency-path: printloop-kiosk-app/package-lock.json
+      - run: npm ci
       - name: Typecheck (main process)
-        run: pnpm run tsc -p tsconfig.main.json
+        run: npx tsc -p tsconfig.main.json --noEmit
       - name: Build
-        run: pnpm run build
+        run: npm run build
 
   docker:
     name: Build Docker images
     runs-on: ubuntu-latest
-    needs: [backend, frontend, render-worker, kiosk-app]
+    needs: [api, render-worker, kiosk-app]
     steps:
       - uses: actions/checkout@v4
       - name: Build API image
-        run: docker build -t printloop/api:test ./01-backend
+        run: docker build -f printloop-api/Dockerfile.prod -t printloop/api:test ./printloop-api
       - name: Build Render Worker image
         run: docker build -t printloop/render-worker:test ./render-worker
       - name: Build Kiosk App image
         run: docker build -t printloop/kiosk-app:test ./printloop-kiosk-app
 
-  lint:
-    name: Lint (all projects)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'pnpm'
-      - name: Install backend deps
-        run: pnpm install --frozen-lockfile
-        working-directory: ./01-backend
-      - name: Lint backend
-        run: pnpm run lint
-        working-directory: ./01-backend
-      - name: Install frontend deps
-        run: pnpm install --frozen-lockfile
-        working-directory: ./printloop-new-frontend
-      - name: Lint frontend
-        run: pnpm run lint
-        working-directory: ./printloop-new-frontend
-      - name: Install render-worker deps
-        run: pnpm install --frozen-lockfile
-        working-directory: ./render-worker
-      - name: Lint render-worker
-        run: pnpm run lint
-        working-directory: ./render-worker
-      - name: Install kiosk-app deps
-        run: pnpm install --frozen-lockfile
-        working-directory: ./printloop-kiosk-app
-      - name: Lint kiosk-app
-        run: pnpm run lint
-        working-directory: ./printloop-kiosk-app
-
-  # Deploy to Render on main branch push
   deploy-api:
     name: Deploy API to Render
-    if: github.ref == 'refs/heads/main'
-    needs: [backend, docker]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: [api, e2e, docker]
     runs-on: ubuntu-latest
     steps:
       - name: Trigger Render API deploy
-        if: ${{ secrets.RENDER_API_DEPLOY_HOOK != '' }}
+        env:
+          HOOK: ${{ secrets.RENDER_API_DEPLOY_HOOK }}
         run: |
-          curl -X POST "${{ secrets.RENDER_API_DEPLOY_HOOK }}"
+          if [ -z "$HOOK" ]; then echo "RENDER_API_DEPLOY_HOOK is not set; skipping"; exit 0; fi
+          curl -fsS -X POST "$HOOK"
           echo "API deploy triggered"
-
-  deploy-frontend:
-    name: Deploy Frontend to Render
-    if: github.ref == 'refs/heads/main'
-    needs: [frontend, docker]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Trigger Render Frontend deploy
-        if: ${{ secrets.RENDER_FRONTEND_DEPLOY_HOOK != '' }}
-        run: |
-          curl -X POST "${{ secrets.RENDER_FRONTEND_DEPLOY_HOOK }}"
-          echo "Frontend deploy triggered"
 
   deploy-render-worker:
     name: Deploy Render Worker to Render
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     needs: [render-worker, docker]
     runs-on: ubuntu-latest
     steps:
       - name: Trigger Render Worker deploy
-        if: ${{ secrets.RENDER_RENDER_WORKER_DEPLOY_HOOK != '' }}
+        env:
+          HOOK: ${{ secrets.RENDER_RENDER_WORKER_DEPLOY_HOOK }}
         run: |
-          curl -X POST "${{ secrets.RENDER_RENDER_WORKER_DEPLOY_HOOK }}"
+          if [ -z "$HOOK" ]; then echo "RENDER_RENDER_WORKER_DEPLOY_HOOK is not set; skipping"; exit 0; fi
+          curl -fsS -X POST "$HOOK"
           echo "Render Worker deploy triggered"

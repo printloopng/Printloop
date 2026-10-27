@@ -57,7 +57,8 @@ test.describe("backoffice", () => {
     await page.getByRole("button", { name: "Suspend" }).click();
     await page.getByLabel(/Reason/).fill("E2E chargeback review");
     await page.getByRole("button", { name: "Suspend shop" }).click();
-    await expect(page.getByText("E2E chargeback review")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Reactivate" })).toBeVisible();
+    await expect(page.getByText("E2E chargeback review").first()).toBeVisible();
 
     const student = await browser.newPage();
     await signIn(student, "customer", STUDENT);
@@ -107,7 +108,8 @@ test.describe("backoffice", () => {
     await page.getByRole("button", { name: "Block", exact: true }).click();
     await page.getByLabel(/Reason/).fill("E2E abuse report");
     await page.getByRole("button", { name: "Block account" }).click();
-    await expect(page.getByText("E2E abuse report")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Unblock" })).toBeVisible();
+    await expect(page.getByRole("alert").filter({ hasText: "E2E abuse report" })).toBeVisible();
 
     const blocked = await fetch(`${API_URL}/api/customer/auth/login`, {
       method: "POST",

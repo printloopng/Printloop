@@ -5,7 +5,7 @@ import { Plus } from "lucide-react";
 import { Button, DataTable, Dialog, ErrorState, Input, Pill, Select, Skeleton, Textarea, formatDate } from "@printloop/ui";
 import { errorMessage, unwrap, type Schemas } from "@printloop/api-client";
 import { useApi, useApiClient } from "@printloop/api-client/react";
-import { useAction } from "@/lib/actions";
+import { useAction } from "@printloop/auth/actions";
 import { useCanManage } from "@/lib/shop-context";
 
 type Promo = Schemas["Promotion"];

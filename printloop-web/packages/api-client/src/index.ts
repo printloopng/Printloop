@@ -15,7 +15,8 @@ async function toApiError(response: Response): Promise<ApiError> {
   } catch {
     body = null;
   }
-  const b = (body ?? {}) as { message?: string; code?: string };
+  const raw = (body ?? {}) as { message?: string; code?: string; error?: { message?: string; code?: string } };
+  const b = { message: raw.message || raw.error?.message, code: raw.code || raw.error?.code };
   const message =
     b.message ||
     (response.status === 401

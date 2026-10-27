@@ -8,7 +8,7 @@ import { ArrowLeft, Radio, Save, Send } from "lucide-react";
 import { Button, ConfirmDialog, EmptyState, InlineLoader, Notice, Pill, Skeleton, cx, timeAgo } from "@printloop/ui";
 import { errorMessage, unwrap } from "@printloop/api-client";
 import { useApi, useApiClient } from "@printloop/api-client/react";
-import { useAction } from "@/lib/actions";
+import { useAction } from "@printloop/auth/actions";
 import type { SaveState } from "./UniverCanvas";
 
 const UniverCanvas = dynamic(() => import("./UniverCanvas"), {

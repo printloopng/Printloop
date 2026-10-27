@@ -10,7 +10,8 @@
     "./handlers": "./src/handlers.ts",
     "./client": "./src/client.tsx",
     "./forms": "./src/forms.tsx",
-    "./two-factor": "./src/two-factor.tsx"
+    "./two-factor": "./src/two-factor.tsx",
+    "./actions": "./src/actions.ts"
   },
   "scripts": {
     "lint": "eslint src",

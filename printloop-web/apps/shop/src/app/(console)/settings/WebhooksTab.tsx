@@ -5,7 +5,7 @@ import { Copy, Plus } from "lucide-react";
 import { Button, Checkbox, ConfirmDialog, DataTable, Dialog, ErrorState, Input, Notice, Pill, Skeleton, timeAgo, toast } from "@printloop/ui";
 import { errorMessage, unwrap, type Schemas } from "@printloop/api-client";
 import { useApi, useApiClient } from "@printloop/api-client/react";
-import { useAction } from "@/lib/actions";
+import { useAction } from "@printloop/auth/actions";
 import { useCanManage } from "@/lib/shop-context";
 
 type Hook = Schemas["TenantWebhook"];

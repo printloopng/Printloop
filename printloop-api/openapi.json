@@ -17708,7 +17708,7 @@
         "tags": [
           "Shop queue"
         ],
-        "summary": "Live job queue",
+        "summary": "Live job queue, or the jobs in the given comma-separated statuses",
         "security": [
           {
             "bearerAuth": []
@@ -17740,22 +17740,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "enum": [
-                "pending",
-                "rendering",
-                "awaiting_accept",
-                "ready",
-                "releasing",
-                "printing",
-                "done",
-                "failed",
-                "expired",
-                "refunded",
-                "awaiting_edit",
-                "edit_complete",
-                "awaiting_payment",
-                "paid"
-              ]
+              "example": "done,expired,refunded"
             }
           },
           {

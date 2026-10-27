@@ -20,7 +20,7 @@ import {
 } from "@printloop/ui";
 import { errorMessage, unwrap, uploadDirect } from "@printloop/api-client";
 import { useApi, useApiClient, useApiContext } from "@printloop/api-client/react";
-import { useAction } from "@/lib/actions";
+import { useAction } from "@printloop/auth/actions";
 import { EDIT_STATUS } from "../EditsView";
 
 export function EditDetail({ jobId }: { jobId: string }) {

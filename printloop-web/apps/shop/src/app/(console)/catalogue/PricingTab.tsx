@@ -5,7 +5,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { Button, Checkbox, Dialog, EmptyState, ErrorState, Notice, Select, Skeleton, cx, formatNaira } from "@printloop/ui";
 import { errorMessage, unwrap, type Schemas } from "@printloop/api-client";
 import { useApi, useApiClient } from "@printloop/api-client/react";
-import { useAction } from "@/lib/actions";
+import { useAction } from "@printloop/auth/actions";
 import { useCanManage } from "@/lib/shop-context";
 
 type Row = Schemas["PricingConfig"];

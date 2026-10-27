@@ -34,8 +34,8 @@ export async function runSeed(): Promise<void> {
   if (process.env.SEED_DEMO !== '1') {
     console.log(
       'Seed: empty DB but SEED_DEMO != "1" — production mode, no ' +
-        'demo data inserted. Run `tsx scripts/createSuperAdmin.ts ' +
-        '<email> <password>` to mint the first SUPER_ADMIN.',
+        'demo data inserted. Run `npm run admin:create -- ' +
+        '<email> <password>` to create the first PrintLoop staff account.',
     );
     return;
   }

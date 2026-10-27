@@ -4,19 +4,21 @@ import path from "node:path";
 
 export const API_URL = process.env.E2E_API_URL ?? "http://localhost:4000";
 export const WEBHOOK_SECRET = process.env.E2E_WEBHOOK_SECRET ?? "whsec_scratch_only";
+const landingPort = process.env.E2E_LANDING_PORT ?? "3000";
+
 export const APPS = {
-  landing: "http://localhost:3000",
+  landing: `http://localhost:${landingPort}`,
   customer: "http://localhost:3001",
   shop: "http://localhost:3002",
   backoffice: "http://localhost:3003",
 };
 
-const reuse = !process.env.CI;
+const reuse = process.env.E2E_REUSE === "1";
 const apiDir = path.resolve(__dirname, "..", "..", "printloop-api");
 
 function app(name: keyof typeof APPS, probe: string) {
   return {
-    command: `pnpm --filter @printloop/${name} start`,
+    command: name === "landing" ? `pnpm --filter @printloop/landing exec next start --port ${landingPort}` : `pnpm --filter @printloop/${name} start`,
     cwd: path.resolve(__dirname, ".."),
     url: `${APPS[name]}${probe}`,
     reuseExistingServer: reuse,
@@ -46,6 +48,7 @@ export default defineConfig({
       cwd: apiDir,
       url: `${API_URL}/health`,
       reuseExistingServer: reuse,
+      stdout: process.env.E2E_API_LOGS === "1" ? ("pipe" as const) : ("ignore" as const),
       timeout: 180_000,
       env: {
         PORT: "4000",
@@ -55,6 +58,9 @@ export default defineConfig({
         PRINT_DISPATCH_MODE: "kiosk-pull",
         REDIS_URL: "",
         REDIS_HOST: "",
+        SMTP_HOST: "",
+        TERMII_API_KEY: "",
+        CLOUDINARY_CLOUD_NAME: "",
         PAYSTACK_SECRET_KEY: "",
         PAYSTACK_WEBHOOK_SECRET: WEBHOOK_SECRET,
         PUBLIC_BASE_URL: API_URL,

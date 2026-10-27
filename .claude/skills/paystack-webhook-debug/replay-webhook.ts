@@ -14,7 +14,7 @@ interface LogEntry {
 }
 
 async function replayWebhookFromLogs() {
-  const logPath = path.join(process.cwd(), '01-backend', 'backend.log');
+  const logPath = path.join(process.cwd(), 'printloop-api', 'backend.log');
   
   if (!fs.existsSync(logPath)) {
     console.error('❌ Log file not found at:', logPath);
@@ -30,7 +30,7 @@ async function replayWebhookFromLogs() {
   for (const line of lines) {
     try {
       const entry = JSON.parse(line);
-      if (entry.path === '/api/webhooks/paystack' || entry.path === '/api/payments/webhook') {
+      if (entry.path === '/api/webhooks/paystack') {
         webhookEntries.push(entry);
       }
     } catch {

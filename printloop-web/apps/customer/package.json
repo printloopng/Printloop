@@ -17,7 +17,6 @@
     "@printloop/api-client": "workspace:*",
     "@printloop/auth": "workspace:*",
     "@printloop/ui": "workspace:*",
-    "@tanstack/react-query": "5.104.5",
     "leaflet": "1.9.4",
     "lucide-react": "1.59.0",
     "next": "16.4.2",
@@ -27,7 +26,6 @@
     "react-hook-form": "7.90.0",
     "react-leaflet": "5.0.0",
     "socket.io-client": "4.8.4",
-    "sonner": "2.0.8",
     "zod": "4.6.7"
   },
   "devDependencies": {

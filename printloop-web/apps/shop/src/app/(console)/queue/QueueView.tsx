@@ -17,7 +17,7 @@ import {
 } from "@printloop/ui";
 import { errorMessage, unwrap, type Schemas } from "@printloop/api-client";
 import { useApi, useApiClient } from "@printloop/api-client/react";
-import { useAction } from "@/lib/actions";
+import { useAction } from "@printloop/auth/actions";
 
 type Job = Schemas["ShopJob"];
 type Lane = "action" | "printing" | "unpaid" | "finished";
@@ -84,7 +84,12 @@ export function QueueView() {
   const [lane, setLane] = useState<Lane>("action");
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState<Job | null>(null);
-  const q = $api.useQuery("get", "/saas/jobs", { params: { query: { limit: 100, search: search.trim() || undefined } } }, { refetchInterval: 5_000 });
+  const q = $api.useQuery(
+    "get",
+    "/saas/jobs",
+    { params: { query: { limit: 100, search: search.trim() || undefined, status: lane === "finished" ? LANES.finished.join(",") : undefined } } },
+    { refetchInterval: 5_000 },
+  );
   const jobs = useMemo(() => (q.data?.data?.jobs ?? []) as Job[], [q.data]);
   const counts = useMemo(
     () => Object.fromEntries((Object.keys(LANES) as Lane[]).map((l) => [l, jobs.filter((j) => LANES[l].includes(j.status)).length])) as Record<Lane, number>,
@@ -103,7 +108,7 @@ export function QueueView() {
             { value: "action", label: "Needs action", count: counts.action },
             { value: "printing", label: "Printing", count: counts.printing },
             { value: "unpaid", label: "Unpaid / editing", count: counts.unpaid },
-            { value: "finished", label: "Finished", count: counts.finished },
+            { value: "finished", label: "Finished" },
           ]}
         />
         <label className="relative md:w-64 mb-5">

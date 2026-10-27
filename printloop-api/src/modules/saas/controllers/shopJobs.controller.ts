@@ -66,15 +66,19 @@ export class ShopJobsController {
       const tenantId = req.tenant!.id;
       const page = Math.max(1, Number(req.query.page) || 1);
       const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 60));
-      const status = String(req.query.status || '');
+      const known = Object.values(PrintJobStatus) as string[];
+      const statuses = String(req.query.status || '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter((s) => known.includes(s));
       const search = String(req.query.search || '').trim().slice(0, 64);
 
       const qb = AppDataSource.getRepository(PrintJob)
         .createQueryBuilder('j')
         .leftJoinAndSelect('j.user', 'u')
         .where('j.tenantId = :tid', { tid: tenantId });
-      if (status && (Object.values(PrintJobStatus) as string[]).includes(status)) {
-        qb.andWhere('j.status = :status', { status });
+      if (statuses.length) {
+        qb.andWhere('j.status IN (:...statuses)', { statuses });
       } else {
         qb.andWhere('j.status IN (:...live)', { live: LIVE_STATUSES });
       }

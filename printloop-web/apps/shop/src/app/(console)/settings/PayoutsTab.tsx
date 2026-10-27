@@ -5,7 +5,7 @@ import { Button, Card, Input, KeyValue, Notice, Section, Select } from "@printlo
 import { unwrap } from "@printloop/api-client";
 import { useApiClient } from "@printloop/api-client/react";
 import { NIGERIAN_BANKS, bankName } from "@/lib/banks";
-import { useAction } from "@/lib/actions";
+import { useAction } from "@printloop/auth/actions";
 import { useCanManage, useShopProfile } from "@/lib/shop-context";
 
 const BANK_OPTIONS = [{ value: "", label: "Choose your bank" }, ...NIGERIAN_BANKS.map((b) => ({ value: b.code, label: b.name }))];

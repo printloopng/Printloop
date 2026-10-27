@@ -8,7 +8,7 @@ import { Button, Card, ConfirmDialog, DataTable, Dialog, ErrorState, Input, KeyV
 import { errorMessage, unwrap } from "@printloop/api-client";
 import { useApi, useApiClient } from "@printloop/api-client/react";
 import { appUrls } from "@printloop/auth/config";
-import { useAction } from "@/lib/actions";
+import { useAction } from "@printloop/auth/actions";
 import { TENANT_TONE } from "../TenantsView";
 
 export function TenantDetail({ id }: { id: string }) {

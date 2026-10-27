@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { Button, Card, ErrorState, PageHeader, Pill, Section, Skeleton } from "@printloop/ui";
 import { errorMessage, unwrap, type Schemas } from "@printloop/api-client";
 import { useApi, useApiClient } from "@printloop/api-client/react";
-import { useAction } from "@/lib/actions";
+import { useAction } from "@printloop/auth/actions";
 
 type Setting = Schemas["SystemSetting"];
 

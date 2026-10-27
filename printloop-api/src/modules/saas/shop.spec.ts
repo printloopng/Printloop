@@ -103,6 +103,11 @@ describe('shop console API', () => {
     expect(rel.body.data.status).toBe('releasing');
     expect((await api.call('POST', `/saas/jobs/${job.id}/release`, { token: ops })).status).toBe(409);
     expect((await api.call('PATCH', `/saas/jobs/${job.id}/status`, { token: ops, body: { status: 'done' } })).status).toBe(200);
+    const live = await api.call('GET', '/saas/jobs', { token: ops });
+    expect(live.body.data.jobs.some((j: any) => j.id === job.id)).toBe(false);
+    const finished = await api.call('GET', '/saas/jobs?status=done,expired,refunded,not-a-status', { token: ops });
+    expect(finished.body.data.jobs.some((j: any) => j.id === job.id)).toBe(true);
+    expect(finished.body.data.jobs.every((j: any) => ['done', 'expired', 'refunded'].includes(j.status))).toBe(true);
     const failed = await paidJob(api, customer);
     const { PrintJob } = await import('@/database/entities/printJob.entity');
     await ds.getRepository(PrintJob).update({ id: failed.id }, { status: 'failed' });

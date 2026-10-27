@@ -35,9 +35,6 @@ export function totp(secret: string, atMs = Date.now()): string {
 }
 
 export async function signIn(page: Page, app: keyof typeof APPS, who: { email: string; password: string; totpSecret?: string }, next = "/") {
-  page.on("response", async (res) => {
-    if (res.url().endsWith("/api/auth/login")) console.log("LOGIN", who.email, res.status(), (await res.text().catch(() => "")).slice(0, 200));
-  });
   await page.goto(`${APPS[app]}/login?next=${encodeURIComponent(next)}`);
   await page.getByLabel("Email").fill(who.email);
   await page.getByLabel("Password", { exact: true }).fill(who.password);

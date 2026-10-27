@@ -1841,7 +1841,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Live job queue */
+    /** Live job queue, or the jobs in the given comma-separated statuses */
     get: operations["getSaasJobs"];
     put?: never;
     post?: never;
@@ -12406,21 +12406,7 @@ export interface operations {
       query?: {
         page?: number;
         limit?: number;
-        status?:
-          | "pending"
-          | "rendering"
-          | "awaiting_accept"
-          | "ready"
-          | "releasing"
-          | "printing"
-          | "done"
-          | "failed"
-          | "expired"
-          | "refunded"
-          | "awaiting_edit"
-          | "edit_complete"
-          | "awaiting_payment"
-          | "paid";
+        status?: string;
         search?: string;
       };
       header?: never;

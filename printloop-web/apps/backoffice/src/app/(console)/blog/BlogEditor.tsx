@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { Button, Card, ConfirmDialog, Input, PageHeader, Prose, Segmented, Textarea } from "@printloop/ui";
 import { unwrap, type Schemas } from "@printloop/api-client";
 import { useApiClient } from "@printloop/api-client/react";
-import { useAction } from "@/lib/actions";
+import { useAction } from "@printloop/auth/actions";
 
 type Post = Schemas["BlogPost"];
 type Status = "draft" | "published";

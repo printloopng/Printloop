@@ -6,7 +6,7 @@ import { Download } from "lucide-react";
 import { Button, DataTable, ErrorState, PageHeader, Section, Segmented, Skeleton, StatCard, formatNaira, formatNumber } from "@printloop/ui";
 import { errorMessage } from "@printloop/api-client";
 import { useApi } from "@printloop/api-client/react";
-import { downloadCsv } from "@/lib/actions";
+import { downloadCsv } from "@printloop/auth/actions";
 
 type Range = "7" | "30" | "90" | "365";
 

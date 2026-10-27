@@ -491,7 +491,7 @@ export const routes: Array<[string, string, Op]> = [
   }],
 
   ['GET', '/saas/jobs', {
-    tag: 'Shop queue', summary: 'Live job queue', auth: 'user', query: { ...pageQuery, status: en(PRINT_JOB_STATUSES), search: str() },
+    tag: 'Shop queue', summary: 'Live job queue, or the jobs in the given comma-separated statuses', auth: 'user', query: { ...pageQuery, status: str({ example: 'done,expired,refunded' }), search: str() },
     data: obj({ jobs: arr(ref('ShopJob')), total: int(), page: int(), limit: int() }, ['jobs']),
   }],
   ['POST', '/saas/jobs/{id}/accept', { tag: 'Shop queue', summary: 'Accept a marketplace job', auth: 'user', data: obj({ status: str() }) }],

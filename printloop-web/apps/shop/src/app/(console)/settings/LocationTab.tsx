@@ -6,7 +6,7 @@ import { Button, Card, Checkbox, Input, KeyValue, Notice, Section, toast } from 
 import { isApiError, unwrap } from "@printloop/api-client";
 import { useApiClient } from "@printloop/api-client/react";
 import { appUrls } from "@printloop/auth/config";
-import { useAction } from "@/lib/actions";
+import { useAction } from "@printloop/auth/actions";
 import { useCanManage, useShopProfile } from "@/lib/shop-context";
 
 export function LocationTab() {

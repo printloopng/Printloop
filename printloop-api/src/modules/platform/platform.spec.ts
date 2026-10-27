@@ -1,4 +1,4 @@
-import { startTestApi, type TestApi } from '@/test/harness';
+import { startTestApi, newCustomer, type TestApi } from '@/test/harness';
 
 jest.setTimeout(120_000);
 
@@ -27,6 +27,18 @@ describe('backoffice API', () => {
     const me = (await api.call('GET', '/customer/auth/me', { token: admin })).body.data;
     expect((await api.call('PATCH', `/platform/users/${me.id}/role`, { token: admin, body: { role: 'user' } })).status).toBe(409);
     expect((await api.call('PATCH', `/platform/users/${me.id}/block`, { token: admin, body: { isBlocked: true } })).status).toBe(409);
+  });
+
+  it('stops a blocked customer signing in or using a session they already hold, until unblocked', async () => {
+    const customer = await newCustomer(api, 'blockme');
+    const me = (await api.call('GET', '/customer/auth/me', { token: customer.token })).body.data;
+    const blocked = await api.call('PATCH', `/platform/users/${me.user?.id ?? me.id}/block`, { token: admin, body: { isBlocked: true, reason: 'abuse' } });
+    expect(blocked.status).toBe(200);
+    expect((await api.call('POST', '/customer/auth/login', { body: { email: customer.email, password: 'Str0ng!Passw0rd' } })).status).toBe(403);
+    expect((await api.call('POST', '/customer/auth/login', { body: { email: customer.email, password: 'Str0ng!Passw0rd' }, headers: { 'X-Tenant-Slug': 'campus-print' } })).status).toBe(403);
+    expect((await api.call('GET', '/customer/auth/me', { token: customer.token })).status).toBe(403);
+    expect((await api.call('PATCH', `/platform/users/${me.user?.id ?? me.id}/block`, { token: admin, body: { isBlocked: false } })).status).toBe(200);
+    expect((await api.call('POST', '/customer/auth/login', { body: { email: customer.email, password: 'Str0ng!Passw0rd' } })).status).toBe(200);
   });
 
   it('type-checks global settings', async () => {
@@ -89,6 +101,28 @@ describe('backoffice API', () => {
     const gone = await api.call('DELETE', `/platform/tenants/${shop.id}?force=true`, { token: admin });
     expect(gone.status).toBe(200);
     expect((await api.call('GET', `/platform/tenants/${shop.id}`, { token: admin })).status).toBe(404);
+  });
+
+  it('creates, protects and promotes staff accounts from the admin CLI helper', async () => {
+    const { ensureSuperAdmin, SuperAdminInputError } = await import('@/database/seeders/superAdmin');
+    const email = `staff+${Date.now()}@example.com`;
+    await expect(ensureSuperAdmin({ email, password: 'short' })).rejects.toBeInstanceOf(SuperAdminInputError);
+    await expect(ensureSuperAdmin({ email: 'not-an-email', password: 'Str0ng!Passw0rd' })).rejects.toBeInstanceOf(SuperAdminInputError);
+
+    const created = await ensureSuperAdmin({ email, password: 'Str0ng!Passw0rd', firstName: 'Ops' });
+    expect(created.outcome).toBe('created');
+    expect((await ensureSuperAdmin({ email, password: 'Another!Passw0rd' })).outcome).toBe('unchanged');
+    const token = await api.login(email, 'Str0ng!Passw0rd');
+    expect((await api.call('GET', '/platform/users?limit=1', { token })).status).toBe(200);
+
+    const student = await newCustomer(api, 'promote');
+    const refused = await ensureSuperAdmin({ email: student.email, password: 'Str0ng!Passw0rd' });
+    expect(refused).toMatchObject({ outcome: 'refused', role: 'user' });
+    expect((await api.call('GET', '/platform/users?limit=1', { token: student.token })).status).toBe(403);
+
+    expect((await ensureSuperAdmin({ email: student.email, password: 'Rotated!Passw0rd1', resetPassword: true })).outcome).toBe('updated');
+    const promoted = await api.login(student.email, 'Rotated!Passw0rd1');
+    expect((await api.call('GET', '/platform/users?limit=1', { token: promoted })).status).toBe(200);
   });
 
   it('serves fleet, disputes, payouts, audit and summary reports', async () => {

@@ -5,7 +5,7 @@ import { Download } from "lucide-react";
 import { BarChart, Button, Card, DataTable, EmptyState, ErrorState, PageHeader, Section, Segmented, Skeleton, StatCard, formatNaira } from "@printloop/ui";
 import { errorMessage } from "@printloop/api-client";
 import { useApi } from "@printloop/api-client/react";
-import { downloadFromApi } from "@/lib/download";
+import { downloadFromApi } from "@printloop/auth/actions";
 import { useCanManage } from "@/lib/shop-context";
 
 type Range = "7" | "30" | "90" | "365";

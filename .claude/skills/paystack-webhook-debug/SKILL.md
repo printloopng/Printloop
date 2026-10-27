@@ -32,7 +32,7 @@ Then select an action:
 ## Prerequisites
 
 - Backend running on `http://localhost:4000`
-- `PAYSTACK_SECRET_KEY` and `PAYSTACK_WEBHOOK_SECRET` in `01-backend/.env`
+- `PAYSTACK_SECRET_KEY` and `PAYSTACK_WEBHOOK_SECRET` in `printloop-api/.env`
 - Test user with valid email in database
 
 ## Files
