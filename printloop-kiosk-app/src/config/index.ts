@@ -1,7 +1,7 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
-const PRODUCTION_API_URL = 'https://api.printloop.app';
+const PRODUCTION_API_URL = 'https://printloop-api.onrender.com';
 
 export const API_URL = (process.env.API_URL?.trim() || PRODUCTION_API_URL).replace(/\/+$/, '');
 

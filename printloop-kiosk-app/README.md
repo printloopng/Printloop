@@ -49,6 +49,7 @@ npm run dev
 npm run build
 
 # Package for Windows
+# On Windows set CSC_IDENTITY_AUTO_DISCOVERY=false first (the installer is unsigned)
 npm run package
 
 # Package for Linux
@@ -69,7 +70,7 @@ The kiosk stores settings in `kiosk-settings.json` in the app data directory:
 ```
 
 The kiosk key and printer are entered on the settings screen. The PrintLoop
-server address is built in (`https://api.printloop.app`).
+server address is built in (`https://printloop-api.onrender.com`; change `PRODUCTION_API_URL` in `src/config/index.ts` when the API moves to its own domain).
 The tenant is resolved by the backend from the kiosk API key (`X-Kiosk-Key`).
 
 First run will show the settings screen for configuration.
@@ -80,18 +81,26 @@ See `.env.example`. `API_URL` there overrides the built-in server address for
 development and staging only. Files are downloaded through
 short-lived signed URLs from the API, so the kiosk holds no storage credentials.
 
+## Testing without a printer
+
+```bash
+npm run fake-printer   # fake IPP printer on ipp://localhost:6310/ipp/print
+```
+
+Point the kiosk's printer setting at that address. Every job it receives is saved as a PDF in `fake-printer-output/`.
+
 ## Building Installers
 
 ### Windows (NSIS)
 ```bash
 npm run package
-# Output: dist/PrintLoop Kiosk Setup x.x.x.exe
+# Output: release/PrintLoop Kiosk Setup x.x.x.exe
 ```
 
 ### Linux (AppImage)
 ```bash
 npm run package:linux
-# Output: dist/PrintLoop-Kiosk-x.x.x.AppImage
+# Output: release/PrintLoop-Kiosk-x.x.x.AppImage
 ```
 
 ## License

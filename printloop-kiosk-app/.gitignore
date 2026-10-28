@@ -44,3 +44,5 @@ temp/
 
 # TypeScript
 *.tsbuildinfo
+release
+fake-printer-output/
