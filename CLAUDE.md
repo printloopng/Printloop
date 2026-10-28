@@ -29,7 +29,7 @@ Human entry: `README.md`.
 - `render-worker/` — BullMQ PDF → PWG consumer; HMAC callback to API
   via `core/services/renderEnqueue.service.ts`. **Keep this**.
 - `render.yaml` — Render Blueprint (API, worker, Postgres, Redis). The web
-  apps deploy to Vercel. No Docker. `render-worker/` is optional (off
+  apps deploy to Render too. No Docker. `render-worker/` is optional (off
   unless `RENDER_ENABLED=1`) and is not deployed.
 - `docs/agents/` — agent skill config (issue tracker, domain docs).
 - `vendor/` — gitignored OpenPrinting reference clones (optional).

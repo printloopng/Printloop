@@ -23,7 +23,7 @@ export function tenantFromHost(rawHost: string | null | undefined, apexes: strin
     const sub = host.slice(0, -".localhost".length).split(".").pop() ?? "";
     return isValidSlug(sub) ? { slug: sub } : {};
   }
-  if (host.endsWith(".vercel.app")) return {};
+  if (host.endsWith(".vercel.app") || host.endsWith(".onrender.com")) return {};
   for (const apex of apexes) {
     if (host === apex) return {};
     if (host.endsWith(`.${apex}`)) {

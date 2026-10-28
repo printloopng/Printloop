@@ -19,6 +19,7 @@ describe("tenantFromHost", () => {
     expect(tenantFromHost("127.0.0.1:3001", apexes)).toEqual({});
     expect(tenantFromHost("campus-print.localhost:3001", apexes)).toEqual({ slug: "campus-print" });
     expect(tenantFromHost("printloop-web-git-main.vercel.app", apexes)).toEqual({});
+    expect(tenantFromHost("printloop-customer.onrender.com", apexes)).toEqual({});
   });
 
   it("rejects malformed slugs", () => {

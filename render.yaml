@@ -4,6 +4,12 @@ databases:
     databaseName: printloop
     user: printloop
 
+envVarGroups:
+  - name: printloop-shared
+    envVars:
+      - key: PL_EDGE_SECRET
+        generateValue: true
+
 services:
   - type: keyvalue
     name: printloop-redis
@@ -20,6 +26,7 @@ services:
     startCommand: npm start
     healthCheckPath: /health
     envVars:
+      - fromGroup: printloop-shared
       - key: NODE_VERSION
         value: "22"
       - key: NODE_ENV
@@ -44,25 +51,23 @@ services:
           name: printloop-redis
           property: connectionString
       - key: JWT_SECRET
-        sync: false
-      - key: PL_EDGE_SECRET
-        sync: false
+        generateValue: true
       - key: PUBLIC_BASE_URL
-        sync: false
+        value: https://printloop-api.onrender.com
       - key: PRINTLOOP_APEX_DOMAINS
-        sync: false
+        value: printloop.app
       - key: PRINTLOOP_DOMAINS_CNAME
         sync: false
       - key: LANDING_URL
-        sync: false
+        value: https://printloop-landing.onrender.com
       - key: CUSTOMER_APP_URL
-        sync: false
+        value: https://printloop-customer.onrender.com
       - key: SHOP_APP_URL
-        sync: false
+        value: https://printloop-shop.onrender.com
       - key: BACKOFFICE_URL
-        sync: false
+        value: https://printloop-backoffice.onrender.com
       - key: ALLOWED_ORIGINS
-        sync: false
+        value: https://printloop-landing.onrender.com,https://printloop-customer.onrender.com,https://printloop-shop.onrender.com,https://printloop-backoffice.onrender.com
       - key: PAYSTACK_PUBLIC_KEY
         sync: false
       - key: PAYSTACK_SECRET_KEY
@@ -93,3 +98,107 @@ services:
         sync: false
       - key: UNIVER_EXPORT_URL
         sync: false
+
+  - type: web
+    name: printloop-landing
+    runtime: node
+    plan: free
+    rootDir: printloop-web
+    buildCommand: npm install -g pnpm@11.20.0 && pnpm install --frozen-lockfile && pnpm turbo run build --filter=@printloop/landing
+    startCommand: cd apps/landing && ./node_modules/.bin/next start --port $PORT
+    envVars:
+      - fromGroup: printloop-shared
+      - key: NODE_VERSION
+        value: "22"
+      - key: PL_API_URL
+        value: https://printloop-api.onrender.com
+      - key: NEXT_PUBLIC_API_URL
+        value: https://printloop-api.onrender.com
+      - key: PL_APEX_DOMAINS
+        value: printloop.app
+      - key: NEXT_PUBLIC_LANDING_URL
+        value: https://printloop-landing.onrender.com
+      - key: NEXT_PUBLIC_CUSTOMER_URL
+        value: https://printloop-customer.onrender.com
+      - key: NEXT_PUBLIC_SHOP_URL
+        value: https://printloop-shop.onrender.com
+      - key: NEXT_PUBLIC_BACKOFFICE_URL
+        value: https://printloop-backoffice.onrender.com
+
+  - type: web
+    name: printloop-customer
+    runtime: node
+    plan: free
+    rootDir: printloop-web
+    buildCommand: npm install -g pnpm@11.20.0 && pnpm install --frozen-lockfile && pnpm turbo run build --filter=@printloop/customer
+    startCommand: cd apps/customer && ./node_modules/.bin/next start --port $PORT
+    envVars:
+      - fromGroup: printloop-shared
+      - key: NODE_VERSION
+        value: "22"
+      - key: PL_API_URL
+        value: https://printloop-api.onrender.com
+      - key: NEXT_PUBLIC_API_URL
+        value: https://printloop-api.onrender.com
+      - key: PL_APEX_DOMAINS
+        value: printloop.app
+      - key: NEXT_PUBLIC_LANDING_URL
+        value: https://printloop-landing.onrender.com
+      - key: NEXT_PUBLIC_CUSTOMER_URL
+        value: https://printloop-customer.onrender.com
+      - key: NEXT_PUBLIC_SHOP_URL
+        value: https://printloop-shop.onrender.com
+      - key: NEXT_PUBLIC_BACKOFFICE_URL
+        value: https://printloop-backoffice.onrender.com
+
+  - type: web
+    name: printloop-shop
+    runtime: node
+    plan: free
+    rootDir: printloop-web
+    buildCommand: npm install -g pnpm@11.20.0 && pnpm install --frozen-lockfile && pnpm turbo run build --filter=@printloop/shop
+    startCommand: cd apps/shop && ./node_modules/.bin/next start --port $PORT
+    envVars:
+      - fromGroup: printloop-shared
+      - key: NODE_VERSION
+        value: "22"
+      - key: PL_API_URL
+        value: https://printloop-api.onrender.com
+      - key: NEXT_PUBLIC_API_URL
+        value: https://printloop-api.onrender.com
+      - key: PL_APEX_DOMAINS
+        value: printloop.app
+      - key: NEXT_PUBLIC_LANDING_URL
+        value: https://printloop-landing.onrender.com
+      - key: NEXT_PUBLIC_CUSTOMER_URL
+        value: https://printloop-customer.onrender.com
+      - key: NEXT_PUBLIC_SHOP_URL
+        value: https://printloop-shop.onrender.com
+      - key: NEXT_PUBLIC_BACKOFFICE_URL
+        value: https://printloop-backoffice.onrender.com
+
+  - type: web
+    name: printloop-backoffice
+    runtime: node
+    plan: free
+    rootDir: printloop-web
+    buildCommand: npm install -g pnpm@11.20.0 && pnpm install --frozen-lockfile && pnpm turbo run build --filter=@printloop/backoffice
+    startCommand: cd apps/backoffice && ./node_modules/.bin/next start --port $PORT
+    envVars:
+      - fromGroup: printloop-shared
+      - key: NODE_VERSION
+        value: "22"
+      - key: PL_API_URL
+        value: https://printloop-api.onrender.com
+      - key: NEXT_PUBLIC_API_URL
+        value: https://printloop-api.onrender.com
+      - key: PL_APEX_DOMAINS
+        value: printloop.app
+      - key: NEXT_PUBLIC_LANDING_URL
+        value: https://printloop-landing.onrender.com
+      - key: NEXT_PUBLIC_CUSTOMER_URL
+        value: https://printloop-customer.onrender.com
+      - key: NEXT_PUBLIC_SHOP_URL
+        value: https://printloop-shop.onrender.com
+      - key: NEXT_PUBLIC_BACKOFFICE_URL
+        value: https://printloop-backoffice.onrender.com
