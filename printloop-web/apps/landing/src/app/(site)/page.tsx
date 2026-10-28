@@ -47,10 +47,10 @@ export default function HomePage() {
         ]}
       />
 
-      <section className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 lg:py-20 relative overflow-hidden">
+      <section className="relative overflow-hidden">
         <div aria-hidden className="absolute -right-20 top-12 w-48 h-48 sm:w-72 sm:h-72 rounded-full bg-persimmon/10 pointer-events-none" />
         <div aria-hidden className="absolute -left-20 bottom-12 w-40 h-40 sm:w-60 sm:h-60 rounded-full bg-ochre/15 pointer-events-none" />
-        <div className="relative z-10">
+        <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 lg:py-20">
           <Reveal variant="rise">
             <div className="editorial-label text-persimmon mb-3">▸ THE PRINTLOOP DISPATCH</div>
           </Reveal>
