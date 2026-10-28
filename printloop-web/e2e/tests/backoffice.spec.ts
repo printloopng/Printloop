@@ -54,6 +54,10 @@ test.describe("backoffice", () => {
     await page.getByRole("row", { name: /E2E Lifecycle Print/ }).click();
     await expect(page.getByRole("heading", { name: "E2E Lifecycle Print" })).toBeVisible();
 
+    await page.getByRole("button", { name: "Activate shop" }).click();
+    await expect(page.getByRole("button", { name: "Activate shop" })).toHaveCount(0);
+    await expect(page.getByText("active", { exact: true }).first()).toBeVisible();
+
     await page.getByRole("button", { name: "Suspend" }).click();
     await page.getByLabel(/Reason/).fill("E2E chargeback review");
     await page.getByRole("button", { name: "Suspend shop" }).click();

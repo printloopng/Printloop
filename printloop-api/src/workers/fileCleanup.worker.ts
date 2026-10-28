@@ -1,5 +1,5 @@
 import { Worker, Job } from 'bullmq';
-import { v2 as cloudinary } from 'cloudinary';
+import { destroyCloudinaryDocument } from '@/core/utils/fileStore';
 import { AppDataSource } from '@/config/data-source';
 import { File } from '@/database/entities/file.entity';
 import { PrintJob, PrintJobStatus } from '@/database/entities/printJob.entity';
@@ -9,12 +9,6 @@ const redisConnection = {
   port: parseInt(process.env.REDIS_PORT || '6379'),
   password: process.env.REDIS_PASSWORD,
 };
-
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
 
 interface FileCleanupJobData {
   printJobId: string;
@@ -49,18 +43,11 @@ export const fileCleanupWorker = new Worker<FileCleanupJobData>(
           return { fileId, status: 'skipped' };
         }
 
-        const publicId = extractCloudinaryPublicId(file.fileURL);
-
-        if (publicId) {
-          await cloudinary.uploader.destroy(publicId, { resource_type: 'raw' });
-        }
+        await destroyCloudinaryDocument(file.fileURL);
 
         const watermarkedUrl = (file as any).watermarkedUrl;
         if (watermarkedUrl) {
-          const watermarkedPublicId = extractCloudinaryPublicId(watermarkedUrl);
-          if (watermarkedPublicId) {
-            await cloudinary.uploader.destroy(watermarkedPublicId, { resource_type: 'raw' });
-          }
+          await destroyCloudinaryDocument(watermarkedUrl);
         }
 
         await fileRepo.update(fileId, {
@@ -69,7 +56,7 @@ export const fileCleanupWorker = new Worker<FileCleanupJobData>(
           ...({ deletedAt: new Date() } as any),
         });
 
-        return { fileId, status: 'deleted', publicId };
+        return { fileId, status: 'deleted' };
       })
     );
 
@@ -82,15 +69,6 @@ export const fileCleanupWorker = new Worker<FileCleanupJobData>(
   },
   { connection: redisConnection, concurrency: 10 }
 );
-
-function extractCloudinaryPublicId(url: string): string | null {
-  try {
-    const match = url.match(/\/upload\/(?:v\d+\/)?(.+?)(?:\.\w+)?$/);
-    return match ? match[1] : null;
-  } catch {
-    return null;
-  }
-}
 
 fileCleanupWorker.on('completed', (job) => {
   console.log(`[FileCleanup] Job ${job.id} completed`);

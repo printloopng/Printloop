@@ -150,17 +150,3 @@ jobs:
           if [ -z "$HOOK" ]; then echo "RENDER_API_DEPLOY_HOOK is not set; skipping"; exit 0; fi
           curl -fsS -X POST "$HOOK"
           echo "API deploy triggered"
-
-  deploy-render-worker:
-    name: Deploy Render Worker to Render
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    needs: [render-worker]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Trigger Render Worker deploy
-        env:
-          HOOK: ${{ secrets.RENDER_RENDER_WORKER_DEPLOY_HOOK }}
-        run: |
-          if [ -z "$HOOK" ]; then echo "RENDER_RENDER_WORKER_DEPLOY_HOOK is not set; skipping"; exit 0; fi
-          curl -fsS -X POST "$HOOK"
-          echo "Render Worker deploy triggered"

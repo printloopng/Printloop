@@ -1,22 +1,22 @@
 databases:
   - name: printloop-db
-    plan: basic-256mb
+    plan: free
     databaseName: printloop
     user: printloop
 
 services:
   - type: keyvalue
     name: printloop-redis
-    plan: starter
+    plan: free
     maxmemoryPolicy: noeviction
     ipAllowList: []
 
   - type: web
     name: printloop-api
     runtime: node
-    plan: starter
+    plan: free
     rootDir: printloop-api
-    buildCommand: npm ci && npm run build
+    buildCommand: npm ci --include=dev && npm run build
     startCommand: npm start
     healthCheckPath: /health
     envVars:
@@ -26,8 +26,14 @@ services:
         value: production
       - key: SEED_DEMO
         value: "0"
+      - key: EMBED_WORKERS
+        value: "1"
       - key: DB_SSL
         value: "true"
+      - key: PRINT_DISPATCH_MODE
+        value: kiosk-pull
+      - key: COMMISSION_PCT_DEFAULT
+        value: "0.10"
       - key: DATABASE_URL
         fromDatabase:
           name: printloop-db
@@ -39,12 +45,10 @@ services:
           property: connectionString
       - key: JWT_SECRET
         sync: false
-      - key: RENDER_CALLBACK_SECRET
-        sync: false
       - key: PL_EDGE_SECRET
         sync: false
-      - key: COMMISSION_PCT_DEFAULT
-        value: "0.10"
+      - key: PUBLIC_BASE_URL
+        sync: false
       - key: PRINTLOOP_APEX_DOMAINS
         sync: false
       - key: PRINTLOOP_DOMAINS_CNAME
@@ -65,66 +69,11 @@ services:
         sync: false
       - key: PAYSTACK_WEBHOOK_SECRET
         sync: false
-      - key: SMTP_HOST
+      - key: CLOUDINARY_CLOUD_NAME
         sync: false
-      - key: SMTP_PORT
+      - key: CLOUDINARY_API_KEY
         sync: false
-      - key: SMTP_USER
-        sync: false
-      - key: SMTP_PASSWORD
-        sync: false
-      - key: SMTP_FROM
-        sync: false
-      - key: TERMII_API_KEY
-        sync: false
-      - key: TERMII_SENDER_ID
-        sync: false
-      - key: GOTENBERG_URL
-        sync: false
-
-  - type: worker
-    name: printloop-worker
-    runtime: node
-    plan: starter
-    rootDir: printloop-api
-    buildCommand: npm ci && npm run build
-    startCommand: npm run start:worker
-    numInstances: 1
-    envVars:
-      - key: NODE_VERSION
-        value: "22"
-      - key: NODE_ENV
-        value: production
-      - key: SEED_DEMO
-        value: "0"
-      - key: DB_SSL
-        value: "true"
-      - key: DATABASE_URL
-        fromDatabase:
-          name: printloop-db
-          property: connectionString
-      - key: REDIS_URL
-        fromService:
-          type: keyvalue
-          name: printloop-redis
-          property: connectionString
-      - key: JWT_SECRET
-        sync: false
-      - key: RENDER_CALLBACK_SECRET
-        sync: false
-      - key: COMMISSION_PCT_DEFAULT
-        value: "0.10"
-      - key: LANDING_URL
-        sync: false
-      - key: CUSTOMER_APP_URL
-        sync: false
-      - key: SHOP_APP_URL
-        sync: false
-      - key: BACKOFFICE_URL
-        sync: false
-      - key: PAYSTACK_PUBLIC_KEY
-        sync: false
-      - key: PAYSTACK_SECRET_KEY
+      - key: CLOUDINARY_API_SECRET
         sync: false
       - key: SMTP_HOST
         sync: false
@@ -135,34 +84,4 @@ services:
       - key: SMTP_PASSWORD
         sync: false
       - key: SMTP_FROM
-        sync: false
-      - key: TERMII_API_KEY
-        sync: false
-      - key: TERMII_SENDER_ID
-        sync: false
-
-  - type: worker
-    name: printloop-render-worker
-    runtime: docker
-    plan: starter
-    rootDir: render-worker
-    dockerfilePath: ./Dockerfile
-    dockerContext: .
-    envVars:
-      - key: REDIS_URL
-        fromService:
-          type: keyvalue
-          name: printloop-redis
-          property: connectionString
-      - key: PRINTLOOP_API_URL
-        sync: false
-      - key: RENDER_CALLBACK_SECRET
-        sync: false
-      - key: S3_BUCKET
-        sync: false
-      - key: AWS_REGION
-        sync: false
-      - key: AWS_ACCESS_KEY_ID
-        sync: false
-      - key: AWS_SECRET_ACCESS_KEY
         sync: false

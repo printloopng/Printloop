@@ -104,8 +104,9 @@ export async function saveBuffer(buf: Buffer, originalName: string): Promise<Sto
           .upload_stream(
             {
               resource_type: 'raw',
+              type: 'authenticated',
               folder: 'printloop/documents',
-              public_id: key,
+              public_id: key.replace(/\.[^.]+$/, ''),
             },
             (error, result) => {
               if (error) reject(error);
@@ -184,12 +185,47 @@ export async function loadStoredObject(key: string): Promise<Buffer | null> {
   return p && fs.existsSync(p) ? fs.readFileSync(p) : null;
 }
 
+const CLOUDINARY_PATH_RE = /\/raw\/authenticated\/(?:s--[\w-]+--\/)?(?:v\d+\/)?([^?#]+)$/;
+
+export function cloudinaryPublicId(url: string | null | undefined): string | null {
+  if (!url) return null;
+  const m = url.match(CLOUDINARY_PATH_RE);
+  if (!m) return null;
+  try {
+    return decodeURIComponent(m[1]);
+  } catch {
+    return null;
+  }
+}
+
+export function signedCloudinaryUrl(publicId: string): string {
+  return cloudinary.url(publicId, {
+    resource_type: 'raw',
+    type: 'authenticated',
+    sign_url: true,
+    secure: true,
+  });
+}
+
+export async function destroyCloudinaryDocument(url: string | null | undefined): Promise<boolean> {
+  const publicId = cloudinaryPublicId(url);
+  if (!publicId || !hasCloudinary) return false;
+  const res = await cloudinary.uploader.destroy(publicId, {
+    resource_type: 'raw',
+    type: 'authenticated',
+    invalidate: true,
+  });
+  return res.result === 'ok';
+}
+
 export async function loadDocumentBytes(src: string): Promise<Buffer | null> {
   if (!src) return null;
   try {
     const cloud = process.env.CLOUDINARY_CLOUD_NAME;
     if (hasCloudinary && cloud && src.startsWith(`https://res.cloudinary.com/${cloud}/`)) {
-      const r = await axios.get(src, {
+      const publicId = cloudinaryPublicId(src);
+      if (!publicId) return null;
+      const r = await axios.get(signedCloudinaryUrl(publicId), {
         responseType: 'arraybuffer',
         timeout: 30_000,
         maxRedirects: 0,

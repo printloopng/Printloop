@@ -38,7 +38,12 @@ export function TenantDetail({ id }: { id: string }) {
         setReason("");
       }
     });
-  const reactivate = () => run("reactivate", () => unwrap(client.POST("/platform/tenants/{id}/reactivate", path)), { success: `${tenant.name} is active again.`, invalidate: refresh });
+  const wasTrial = tenant.status === "trial";
+  const reactivate = () =>
+    run("reactivate", () => unwrap(client.POST("/platform/tenants/{id}/reactivate", path)), {
+      success: wasTrial ? `${tenant.name} is active and can go live.` : `${tenant.name} is active again.`,
+      invalidate: refresh,
+    });
   const startSupport = async () => {
     const r = await run("support", () => unwrap(client.POST("/platform/tenants/{id}/impersonate", { params: { path: { id }, query: { ttl: 3600 } } })));
     if (!r) return;
@@ -73,11 +78,12 @@ export function TenantDetail({ id }: { id: string }) {
                 Open shop console <ArrowUpRight size={14} />
               </Button>
             ) : null}
-            {tenant.status === "suspended" ? (
+            {tenant.status === "suspended" || tenant.status === "trial" ? (
               <Button size="sm" loading={isPending("reactivate")} onClick={reactivate}>
-                Reactivate
+                {tenant.status === "trial" ? "Activate shop" : "Reactivate"}
               </Button>
-            ) : tenant.status !== "closed" ? (
+            ) : null}
+            {tenant.status !== "suspended" && tenant.status !== "closed" ? (
               <Button size="sm" variant="dark" onClick={() => setDialog("suspend")}>
                 Suspend
               </Button>

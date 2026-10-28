@@ -4,6 +4,7 @@ import { Logger } from "./common/logger";
 import { Config } from "./config";
 import { assertDeployConfig } from "./config/validateEnv";
 import { startRetentionSweep } from "./workers/retention";
+import { REDIS_ENABLED } from "./config/redis";
 import { editorCollaborationService } from "./modules/saas/services/editorCollaboration.service";
 
 const logger = new Logger({
@@ -23,6 +24,13 @@ const startServer = async () => {
     });
     await editorCollaborationService.initialize(server);
     startRetentionSweep();
+    if (process.env.EMBED_WORKERS === "1" && REDIS_ENABLED) {
+      await import("./workers/scheduled.worker");
+      await import("./workers/fileCleanup.worker");
+      await import("./workers/webhook.worker");
+      await import("./workers/watermark.worker");
+      logger.info("BullMQ workers running inside the API process");
+    }
   } catch (error) {
     logger.error("Failed to start server", error as Error);
     process.exit(1);

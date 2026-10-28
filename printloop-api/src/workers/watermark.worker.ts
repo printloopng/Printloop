@@ -1,9 +1,9 @@
 import { Worker, Job } from 'bullmq';
 import { PDFDocument, rgb, StandardFonts, degrees } from 'pdf-lib';
-import axios from 'axios';
 import { v2 as cloudinary } from 'cloudinary';
 import { AppDataSource } from '@/config/data-source';
 import { File } from '@/database/entities/file.entity';
+import { loadDocumentBytes } from '@/core/utils/fileStore';
 
 const redisConnection = {
   host: process.env.REDIS_HOST || 'localhost',
@@ -38,11 +38,10 @@ export const watermarkWorker = new Worker<WatermarkJobData>(
       throw new Error(`File ${fileId} not found`);
     }
 
-    const response = await axios.get(file.fileURL, {
-      responseType: 'arraybuffer',
-      timeout: 30000,
-    });
-    const pdfBytes = Buffer.from(response.data);
+    const pdfBytes = await loadDocumentBytes(file.fileURL);
+    if (!pdfBytes) {
+      throw new Error(`File ${fileId} could not be loaded`);
+    }
 
     const pdfDoc = await PDFDocument.load(pdfBytes);
     const pages = pdfDoc.getPages();
@@ -73,6 +72,7 @@ export const watermarkWorker = new Worker<WatermarkJobData>(
         .upload_stream(
           {
             resource_type: 'raw',
+            type: 'authenticated',
             folder: 'printloop/watermarked',
             public_id: `${file.id}-watermarked-${Date.now()}`,
             format: 'pdf',

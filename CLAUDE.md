@@ -29,9 +29,9 @@ Human entry: `README.md`.
 - `printloop-kiosk-app/` — Electron kiosk (UI + local print + cloud poll).
 - `render-worker/` — BullMQ PDF → PWG consumer; HMAC callback to API
   via `core/services/renderEnqueue.service.ts`. **Keep this**.
-- `render.yaml` — Render Blueprint (API, worker, render-worker, Postgres,
-  Redis). The web apps deploy to Vercel. There is no Docker setup except
-  `render-worker/Dockerfile`, which needs Ghostscript.
+- `render.yaml` — Render Blueprint (API, worker, Postgres, Redis). The web
+  apps deploy to Vercel. No Docker. `render-worker/` is optional (off
+  unless `RENDER_ENABLED=1`) and is not deployed.
 - `docs/agents/` — agent skill config (issue tracker, domain docs).
 - `vendor/` — gitignored OpenPrinting reference clones (optional).
 
