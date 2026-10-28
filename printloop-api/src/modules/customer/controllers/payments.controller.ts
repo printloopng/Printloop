@@ -1,3 +1,4 @@
+import { Config } from '@/config';
 import { Request, Response, NextFunction } from 'express';
 import { PaystackService } from '@/core/services/paystack.service';
 import { AppDataSource } from '@/config/data-source';
@@ -7,7 +8,7 @@ import { Tenant } from '@/database/entities/tenant.entity';
 import { isTrustedReturnUrl } from '@/core/utils/appUrls';
 
 const paystack = new PaystackService();
-const hasPaystack = Boolean(process.env.PAYSTACK_SECRET_KEY);
+const hasPaystack = Boolean(Config.paystack.secretKey);
 
 export class CustomerPaymentsController {
   initializeJobPayment = async (

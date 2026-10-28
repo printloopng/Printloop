@@ -1,7 +1,7 @@
 import * as crypto from 'crypto';
 import { randomUUID } from 'node:crypto';
 import { repos } from '@/config/repos';
-import { config } from '@/config';
+import { Config } from '@/config';
 import { signEditorToken, type EditorRole } from '@/core/utils/editorToken';
 import { appUrls } from '@/core/utils/appUrls';
 import { loadDocumentBytes } from '@/core/utils/fileStore';
@@ -56,7 +56,7 @@ export class DocumentEditorService {
 
     const sessionId = randomUUID();
     const token = signEditorToken({ sessionId, editId: edit.id, userId: shopUserId, role: 'shop' });
-    const ttlHours = Math.max(1, config.editor?.sessionTtlHours || 24);
+    const ttlHours = Math.max(1, Config.editor.sessionTtlHours || 24);
     const session = sessionRepo.create({
       id: sessionId,
       documentEditId: edit.id,
@@ -149,9 +149,9 @@ export class DocumentEditorService {
   }
 
   iceServers(): RTCIceServer[] {
-    const turnServer = config.editor?.turnServer;
-    const turnTlsServer = config.editor?.turnTlsServer;
-    const turnPassword = process.env.COTURN_PASSWORD;
+    const turnServer = Config.editor.turnServer;
+    const turnTlsServer = Config.editor.turnTlsServer;
+    const turnPassword = Config.editor.coturnPassword;
     const stun: RTCIceServer = { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] };
     if (!turnServer || !turnPassword) return [stun];
     return [

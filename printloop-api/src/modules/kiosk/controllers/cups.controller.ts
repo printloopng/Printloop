@@ -1,3 +1,4 @@
+import { Config } from '@/config';
 import { type Request, type Response, type NextFunction } from 'express';
 import { AppDataSource } from '@/config/data-source';
 import { User } from '@/database/entities/user.entity';
@@ -26,7 +27,7 @@ async function initCheckout(
   cost: number,
   tenant: Tenant | undefined,
 ): Promise<string | null> {
-  if (!process.env.PAYSTACK_SECRET_KEY) return null;
+  if (!Config.paystack.secretKey) return null;
   try {
     const paystack = new PaystackService();
     const data = await paystack.initializeJobPayment(
@@ -62,7 +63,7 @@ function extractToken(req: Request): string | null {
   if (h) return h;
   const q = req.query?.token;
   if (typeof q === 'string' && q) {
-    if (process.env.NODE_ENV === 'production') {
+    if (Config.nodeEnv === 'production') {
       if (!warnedQueryTokenInProd) {
         console.warn(
           '[cups] refusing ?token= in production — tokens in URLs land in access logs. Use Authorization: Bearer.',

@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
-import sqlite3 from 'sqlite3';
+import { Config } from '@/config';
 import {
   S3Client,
   PutObjectCommand,
@@ -14,27 +14,27 @@ const execFileP = promisify(execFile);
 const dirname = __dirname;
 
 const hasBackupS3 = Boolean(
-  process.env.BACKUP_S3_ENDPOINT &&
-  process.env.BACKUP_S3_BUCKET &&
-  process.env.BACKUP_S3_ACCESS_KEY_ID &&
-  process.env.BACKUP_S3_SECRET_ACCESS_KEY,
+  Config.backup.s3.endpoint &&
+  Config.backup.s3.bucket &&
+  Config.backup.s3.accessKeyId &&
+  Config.backup.s3.secretAccessKey,
 );
 
 let backupS3Client: S3Client | null = null;
 if (hasBackupS3) {
   backupS3Client = new S3Client({
-    endpoint: process.env.BACKUP_S3_ENDPOINT,
-    region: process.env.BACKUP_S3_REGION || 'auto',
+    endpoint: Config.backup.s3.endpoint,
+    region: Config.backup.s3.region,
     credentials: {
-      accessKeyId: process.env.BACKUP_S3_ACCESS_KEY_ID!,
-      secretAccessKey: process.env.BACKUP_S3_SECRET_ACCESS_KEY!,
+      accessKeyId: Config.backup.s3.accessKeyId,
+      secretAccessKey: Config.backup.s3.secretAccessKey,
     },
-    forcePathStyle: process.env.BACKUP_S3_FORCE_PATH_STYLE === 'true',
+    forcePathStyle: Config.backup.s3.forcePathStyle,
   });
 }
 
 export interface BackupResult {
-  driver: 'sqlite' | 'postgres';
+  driver: 'postgres';
   path: string;
   sizeBytes: number;
   kept: number;
@@ -42,28 +42,12 @@ export interface BackupResult {
   s3Url?: string;
 }
 
-function usePostgres(): boolean {
-  return (
-    process.env.DATABASE_URL?.toLowerCase().startsWith('postgres://') ||
-    process.env.DATABASE_URL?.toLowerCase().startsWith('postgresql://') ||
-    false
-  );
-}
-
-function sqliteFile(): string {
-  return (
-    process.env.DATABASE_FILE ||
-    path.resolve(dirname, '../data/printloop.sqlite')
-  );
-}
-
 function backupDir(): string {
-  return process.env.BACKUP_DIR || path.resolve(dirname, '../data/backups');
+  return Config.backup.dir || path.resolve(dirname, '../data/backups');
 }
 
 function keepCount(): number {
-  const n = Number(process.env.BACKUP_KEEP ?? 14);
-  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 14;
+  return Config.backup.keep;
 }
 
 function stamp(): string {
@@ -74,33 +58,11 @@ function stamp(): string {
     .slice(0, -1);
 }
 
-async function sqliteBackup(): Promise<string> {
-  const src = sqliteFile();
-  await fs.access(src);
-  const dir = backupDir();
-  await fs.mkdir(dir, { recursive: true });
-  const out = path.join(dir, `printloop-backup-${stamp()}.sqlite`).replace(/\\/g, '/');
-  const db = await new Promise<sqlite3.Database>((resolve, reject) => {
-    const d = new sqlite3.Database(src, (err) => (err ? reject(err) : resolve(d)));
-  });
-  try {
-    await new Promise<void>((resolve, reject) => {
-      db.exec(`VACUUM INTO '${out.replace(/'/g, "''")}'`, (err) =>
-        err ? reject(err) : resolve(),
-      );
-    });
-  } finally {
-    await new Promise<void>((resolve) => db.close(() => resolve()));
-  }
-  return out;
-}
-
 async function postgresBackup(): Promise<string> {
-  const url = process.env.DATABASE_URL!;
   const dir = backupDir();
   await fs.mkdir(dir, { recursive: true });
   const out = path.join(dir, `printloop-backup-${stamp()}.dump`);
-  await execFileP('pg_dump', ['--dbname', url, '--format=c', '--file', out], {
+  await execFileP('pg_dump', ['--dbname', Config.database.url, '--format=c', '--file', out], {
     timeout: 15 * 60 * 1000,
   });
   return out;
@@ -127,15 +89,15 @@ async function uploadToS3(localPath: string, key: string): Promise<string | null
     const stat = await fileStream.stat();
     await backupS3Client!.send(
       new PutObjectCommand({
-        Bucket: process.env.BACKUP_S3_BUCKET!,
+        Bucket: Config.backup.s3.bucket,
         Key: key,
         Body: fileStream.createReadStream(),
         ContentLength: stat.size,
       }),
     );
     await fileStream.close();
-    const publicBase = process.env.BACKUP_S3_PUBLIC_URL || process.env.BACKUP_S3_ENDPOINT;
-    return `${publicBase}/${process.env.BACKUP_S3_BUCKET}/${encodeURIComponent(key)}`;
+    const publicBase = Config.backup.s3.publicUrl || Config.backup.s3.endpoint;
+    return `${publicBase}/${Config.backup.s3.bucket}/${encodeURIComponent(key)}`;
   } catch (err) {
     console.error('[Backup] S3 upload failed:', err);
     return null;
@@ -143,8 +105,8 @@ async function uploadToS3(localPath: string, key: string): Promise<string | null
 }
 
 export async function runDatabaseBackup(): Promise<BackupResult> {
-  const driver = usePostgres() ? 'postgres' : 'sqlite';
-  const out = driver === 'postgres' ? await postgresBackup() : await sqliteBackup();
+  const driver = 'postgres';
+  const out = await postgresBackup();
   const stat = await fs.stat(out);
   const kept = await prune(path.dirname(out), keepCount());
 

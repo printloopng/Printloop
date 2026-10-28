@@ -1,3 +1,4 @@
+import { Config } from '@/config';
 import crypto from 'node:crypto';
 import { promises as dns } from 'node:dns';
 import { repos } from '@/config/repos';
@@ -38,9 +39,7 @@ export async function claimDomain(
       'INVALID_DOMAIN',
     );
   }
-  const ourApexes = (process.env.PRINTLOOP_APEX_DOMAINS || 'printloop.app,printloop.test')
-    .split(',')
-    .map((s) => s.trim().toLowerCase());
+  const ourApexes = Config.apexDomains;
   if (ourApexes.some((apex) => domain === apex || domain.endsWith('.' + apex))) {
     throw new DomainError(
       `${domain} is a PrintLoop-owned domain; use a subdomain instead`,
@@ -75,7 +74,7 @@ export async function claimDomain(
       name: `${TXT_PREFIX}.${domain}`,
       value: row.verificationToken,
     },
-    cname: process.env.PRINTLOOP_DOMAINS_CNAME || 'domains.printloop.app',
+    cname: Config.domainsCname,
   };
 }
 

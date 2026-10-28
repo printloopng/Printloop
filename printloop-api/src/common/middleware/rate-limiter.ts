@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import { RedisClient } from "@/common/redis/client";
 import { TooManyRequestsError } from "@/common/errors";
 import { Logger } from "@/common/logger";
-import { config as AppConfig } from "@/config";
+import { Config } from "@/config";
 
 export interface RateLimiterOptions {
   windowMs: number;
@@ -51,7 +51,7 @@ export class RateLimiter {
     res: Response,
     next: NextFunction,
   ): Promise<void> => {
-    if (process.env.DISABLE_RATE_LIMIT === "1" && process.env.NODE_ENV !== "production") return next();
+    if (Config.rateLimit.disabled) return next();
     try {
       const key = `rate_limit:${this.options.keyGenerator(req)}`;
       const now = Date.now();
@@ -107,8 +107,8 @@ export const createRateLimiter = (
 export const RateLimitPresets = {
   general: (redis: RedisClient) =>
     createRateLimiter(redis, {
-      windowMs: AppConfig.rateLimit.windowMs,
-      maxRequests: AppConfig.rateLimit.maxRequests,
+      windowMs: Config.rateLimit.windowMs,
+      maxRequests: Config.rateLimit.maxRequests,
       message: "Too many requests from this IP, please try again later.",
     }),
 

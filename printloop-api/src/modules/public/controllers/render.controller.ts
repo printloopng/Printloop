@@ -1,3 +1,4 @@
+import { Config } from '@/config';
 import crypto from 'node:crypto';
 import { Request, Response, NextFunction } from 'express';
 import {
@@ -10,7 +11,7 @@ import {
 } from '@/modules/public/validation/render.validation';
 
 function verifySignature(req: Request): boolean {
-  const secret = process.env.RENDER_CALLBACK_SECRET;
+  const secret = Config.render.callbackSecret;
   if (!secret) return false;
   const raw: Buffer | undefined = (req as any).rawBody;
   if (!raw) return false;

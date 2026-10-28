@@ -1,3 +1,4 @@
+import { Config } from '@/config';
 import { renderQueue } from '@/workers/queues';
 import { storageKeyFromUrl } from '@/core/utils/fileStore';
 import { REDIS_ENABLED } from '@/config/redis';
@@ -10,7 +11,7 @@ export async function enqueueRender(printJobId: string): Promise<{
   enqueued: boolean;
   reason?: string;
 }> {
-  if (!REDIS_ENABLED || process.env.RENDER_ENABLED !== '1') {
+  if (!REDIS_ENABLED || !Config.render.enabled) {
     return { enqueued: false, reason: 'render-disabled' };
   }
 

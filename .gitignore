@@ -42,8 +42,6 @@ pnpm-debug.log*
 Thumbs.db
 
 # ── API runtime data ─────────────────────────────────────────────────
-printloop-api/data/*.sqlite
-printloop-api/data/*.sqlite-*
 printloop-api/data/uploads/
 printloop-api/data/printed/
 

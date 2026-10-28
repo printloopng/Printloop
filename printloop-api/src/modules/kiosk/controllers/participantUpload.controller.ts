@@ -1,3 +1,4 @@
+import { Config } from '@/config';
 import { type Request, type Response, type NextFunction } from 'express';
 import { GroupSessionService } from '@/modules/customer/services/groupSession.service';
 import { AppDataSource } from '@/config/data-source';
@@ -268,7 +269,7 @@ export class KioskParticipantUploadController {
         ? await AppDataSource.getRepository(Tenant).findOne({ where: { id: session.tenantId } })
         : null;
       const callbackUrl = isTrustedReturnUrl(req.body?.callbackUrl, tenant?.customDomain) ? req.body.callbackUrl : undefined;
-      if (!process.env.PAYSTACK_SECRET_KEY) {
+      if (!Config.paystack.secretKey) {
         const reference = `DEV_JOB_${job.id}_${Date.now()}`;
         res.json({ success: true, data: { authorizationUrl: `https://checkout.paystack.com/mock_${reference}`, reference, mock: true } });
         return;

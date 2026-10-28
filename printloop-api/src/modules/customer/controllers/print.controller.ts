@@ -1,3 +1,4 @@
+import { Config } from '@/config';
 import crypto from 'node:crypto';
 import { In } from 'typeorm';
 import { type Request, type Response, type NextFunction } from 'express';
@@ -76,8 +77,8 @@ async function assertTenantHasOnlineKiosk(req: Request): Promise<string | null> 
   const online = kiosks.some(
     (k) =>
       k.status === KioskStatus.ACTIVE &&
-      (process.env.SEED_DEMO === '1' ||
-        process.env.NODE_ENV !== 'production' ||
+      (Config.seedDemo ||
+        Config.nodeEnv !== 'production' ||
         (k.lastSeenAt && new Date(k.lastSeenAt).getTime() > cutoff)),
   );
   if (online) return null;

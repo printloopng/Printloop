@@ -20,7 +20,7 @@ declare module "socket.io" {
 }
 
 const socketLogger = new Logger({
-  level: (process.env.LOG_LEVEL as any) ?? "info",
+  level: Config.logging.level,
   service: "socket-io"
 });
 

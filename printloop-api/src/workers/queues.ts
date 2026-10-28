@@ -1,3 +1,4 @@
+import { Config } from '@/config';
 import { Queue, type QueueOptions } from 'bullmq';
 import { REDIS_ENABLED } from '@/config/redis';
 
@@ -6,9 +7,9 @@ export interface JobQueue {
 }
 
 const redisConnection = {
-  host: process.env.REDIS_HOST || 'localhost',
-  port: parseInt(process.env.REDIS_PORT || '6379'),
-  password: process.env.REDIS_PASSWORD,
+  host: Config.redis.host,
+  port: Config.redis.port,
+  password: Config.redis.password || undefined,
 };
 
 const defaultJobOptions: QueueOptions['defaultJobOptions'] = {

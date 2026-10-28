@@ -5,7 +5,7 @@ import { createAdapter } from '@socket.io/redis-adapter';
 import { createClient } from 'redis';
 import { EditorSession } from '@/database/entities/editorSession.entity';
 import { AppDataSource } from '@/config/data-source';
-import { config } from '@/config';
+import { Config } from '@/config';
 import { isAllowedOrigin } from '@/config/origins';
 
 type Role = 'shop' | 'customer';
@@ -57,9 +57,9 @@ export class EditorCollaborationService {
       pingInterval: 25000,
     });
 
-    if (config.redis?.enabled && config.redis.url) {
+    if (Config.redis.enabled && Config.redis.url) {
       try {
-        const pub = createClient({ url: config.redis.url });
+        const pub = createClient({ url: Config.redis.url });
         const sub = pub.duplicate();
         pub.on('error', (err) => console.error('[EditorCollab] Redis error:', err));
         sub.on('error', (err) => console.error('[EditorCollab] Redis error:', err));

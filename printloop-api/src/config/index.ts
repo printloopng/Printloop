@@ -1,30 +1,42 @@
 import { z } from "zod";
 import dotenv from "dotenv";
-import path from "path";
 
 dotenv.config();
 
-const boolFromEnv = (v: string | undefined, fallback = false) => {
-  if (v === undefined || v === "") return fallback;
-  return !["0", "false", "no", "off"].includes(v.toLowerCase());
+const env = process.env;
+const num = (v: string | undefined) => (v === undefined || v === "" ? undefined : Number(v));
+const list = (v: string | undefined, fallback: string[]) => {
+  const items = (v || "").split(",").map((s) => s.trim()).filter(Boolean);
+  return items.length ? items : fallback;
 };
+const url = (v: string | undefined, fallback = "") => (v || fallback).replace(/\/+$/, "");
+const on = (v: string | undefined) => v === "1" || v === "true";
 
 const configSchema = z.object({
   port: z.coerce.number().default(4000),
-  nodeEnv: z
-    .enum(["development", "production", "staging", "test"])
-    .default("development"),
-  appUrl: z.string().default("http://localhost:4000"),
-  frontendUrl: z.string().default("http://localhost:3001"),
-  allowedOrigins: z.array(z.string()).default(["http://localhost:3000", "http://localhost:3001", "http://localhost:3002", "http://localhost:3003"]),
+  nodeEnv: z.enum(["development", "production", "staging", "test"]).default("development"),
+  publicBaseUrl: z.string().default(""),
+  seedDemo: z.boolean().default(false),
+  embedWorkers: z.boolean().default(false),
+  printDispatchMode: z.string().default(""),
+  commissionPctDefault: z.coerce.number().default(0.1),
+  allowedOrigins: z.array(z.string()),
+  apexDomains: z.array(z.string()),
+  domainsCname: z.string().default("domains.printloop.app"),
+  edgeSecret: z.string().default(""),
+  urls: z.object({
+    landing: z.string(),
+    customer: z.string(),
+    shop: z.string(),
+    backoffice: z.string(),
+  }),
   database: z.object({
-    url: z.string().optional(),
-    file: z.string().default("./data/printloop.sqlite"),
+    url: z.string().default("postgresql://postgres:postgres@localhost:5432/printloop"),
     ssl: z.boolean().default(false),
-    poolMax: z.coerce.number().default(10),
   }),
   redis: z.object({
-    url: z.string().optional(),
+    enabled: z.boolean(),
+    url: z.string().default(""),
     host: z.string().default("localhost"),
     port: z.coerce.number().default(6379),
     password: z.string().default(""),
@@ -43,176 +55,246 @@ const configSchema = z.object({
   }),
   logging: z.object({
     level: z.enum(["debug", "info", "warn", "error"]).default("info"),
+    pretty: z.boolean(),
+    fileLogging: z.boolean(),
   }),
-  commissionPctDefault: z.coerce.number().default(0.1),
-  printloopApexDomains: z.array(z.string()).default(["printloop.app", "printloop.test"]),
-  renderCallbackSecret: z.string().default(""),
+  rateLimit: z.object({
+    disabled: z.boolean(),
+    windowMs: z.number().default(900_000),
+    maxRequests: z.number().default(300),
+  }),
+  platformRequire2fa: z.boolean().default(true),
+  allowPrivateWebhooks: z.boolean().default(false),
   paystack: z.object({
     publicKey: z.string().default(""),
     secretKey: z.string().default(""),
     webhookSecret: z.string().default(""),
   }),
-  seedDemo: z.boolean().default(false),
-  disableRateLimit: z.boolean().default(false),
+  cloudinary: z.object({
+    cloudName: z.string().default(""),
+    apiKey: z.string().default(""),
+    apiSecret: z.string().default(""),
+  }),
+  s3: z.object({
+    endpoint: z.string().default(""),
+    bucket: z.string().default(""),
+    region: z.string().default("auto"),
+    accessKeyId: z.string().default(""),
+    secretAccessKey: z.string().default(""),
+    forcePathStyle: z.boolean().default(false),
+    publicUrl: z.string().default(""),
+  }),
+  backup: z.object({
+    dir: z.string().default(""),
+    keep: z.number().default(14),
+    s3: z.object({
+      endpoint: z.string().default(""),
+      bucket: z.string().default(""),
+      region: z.string().default("auto"),
+      accessKeyId: z.string().default(""),
+      secretAccessKey: z.string().default(""),
+      forcePathStyle: z.boolean().default(false),
+      publicUrl: z.string().default(""),
+    }),
+  }),
+  email: z.object({
+    host: z.string().default(""),
+    port: z.coerce.number().default(587),
+    secure: z.boolean().default(false),
+    user: z.string().default(""),
+    password: z.string().default(""),
+    from: z.string().default("PrintLoop <noreply@printloop.ng>"),
+  }),
+  sms: z.object({
+    apiKey: z.string().default(""),
+    senderId: z.string().default("PrintLoop"),
+  }),
+  conversion: z.object({
+    converter: z.string().default(""),
+    gotenbergUrl: z.string().default(""),
+    timeoutMs: z.number().default(60_000),
+    libreofficeBin: z.string().default(""),
+    ghostscriptBin: z.string().default(""),
+    univerExportUrl: z.string().default(""),
+  }),
+  editor: z.object({
+    turnServer: z.string().default(""),
+    turnTlsServer: z.string().default(""),
+    coturnPassword: z.string().default(""),
+    sessionTtlHours: z.number().default(24),
+  }),
+  ipp: z.object({
+    caCert: z.string().default(""),
+    path: z.string().default("/ipp/print"),
+    port: z.number().optional(),
+    rawPort: z.number().default(9100),
+    secure: z.boolean().default(false),
+    tlsRejectUnauthorized: z.boolean().default(false),
+    version: z.string().default("2.0"),
+    transport: z.string().default("ipp"),
+    socks5Proxy: z.string().default(""),
+  }),
+  geocoder: z.object({
+    provider: z.string().default("nominatim"),
+    userAgent: z.string().default("PrintLoop-SaaS/2.0 (https://printloop.app; ops@printloop.app)"),
+  }),
+  documentRetentionHours: z.number().optional(),
+  kioskAlertCooldownMinutes: z.number().default(30),
+  render: z.object({
+    enabled: z.boolean().default(false),
+    callbackSecret: z.string().default(""),
+  }),
+  sentry: z.object({
+    dsn: z.string().default(""),
+    tracesSampleRate: z.number().default(0.1),
+    profilesSampleRate: z.number().default(0),
+  }),
 });
 
-const parsed = configSchema.parse({
-  port: process.env.PORT ?? "4000",
-  nodeEnv: process.env.NODE_ENV ?? "development",
-  appUrl: process.env.APP_URL ?? process.env.FRONTEND_URL ?? "http://localhost:4000",
-  frontendUrl: process.env.FRONTEND_URL ?? "http://localhost:3001",
-  allowedOrigins: (process.env.ALLOWED_ORIGINS || "http://localhost:3000,http://localhost:3001,http://localhost:3002,http://localhost:3003")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean),
+const backupS3 = {
+  endpoint: env.BACKUP_S3_ENDPOINT,
+  bucket: env.BACKUP_S3_BUCKET,
+  region: env.BACKUP_S3_REGION,
+  accessKeyId: env.BACKUP_S3_ACCESS_KEY_ID,
+  secretAccessKey: env.BACKUP_S3_SECRET_ACCESS_KEY,
+  forcePathStyle: env.BACKUP_S3_FORCE_PATH_STYLE === "true",
+  publicUrl: env.BACKUP_S3_PUBLIC_URL,
+};
+
+export const Config = configSchema.parse({
+  port: env.PORT,
+  nodeEnv: env.NODE_ENV,
+  publicBaseUrl: url(env.PUBLIC_BASE_URL),
+  seedDemo: on(env.SEED_DEMO),
+  embedWorkers: on(env.EMBED_WORKERS),
+  printDispatchMode: env.PRINT_DISPATCH_MODE,
+  commissionPctDefault: env.COMMISSION_PCT_DEFAULT || undefined,
+  allowedOrigins: list(env.ALLOWED_ORIGINS, [
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "http://localhost:3002",
+    "http://localhost:3003",
+  ]),
+  apexDomains: list(env.PRINTLOOP_APEX_DOMAINS, ["printloop.app", "printloop.test"]).map((d) => d.toLowerCase()),
+  domainsCname: env.PRINTLOOP_DOMAINS_CNAME || undefined,
+  edgeSecret: env.PL_EDGE_SECRET,
+  urls: {
+    landing: url(env.LANDING_URL, "http://localhost:3000"),
+    customer: url(env.CUSTOMER_APP_URL, "http://localhost:3001"),
+    shop: url(env.SHOP_APP_URL, "http://localhost:3002"),
+    backoffice: url(env.BACKOFFICE_URL, "http://localhost:3003"),
+  },
   database: {
-    url: process.env.DATABASE_URL || undefined,
-    file: process.env.DATABASE_FILE || path.join(process.cwd(), "data", "printloop.sqlite"),
-    ssl: boolFromEnv(process.env.DB_SSL, false),
-    poolMax: process.env.DB_POOL_MAX ?? "10",
+    url: env.DATABASE_URL || undefined,
+    ssl: env.DB_SSL === "true",
   },
   redis: {
-    url: process.env.REDIS_URL || undefined,
-    host: process.env.REDIS_HOST || "localhost",
-    port: process.env.REDIS_PORT ?? "6379",
-    password: process.env.REDIS_PASSWORD || "",
-    username: process.env.REDIS_USERNAME || "",
-    db: process.env.REDIS_DB ?? "0",
-    keyPrefix: process.env.REDIS_KEY_PREFIX || "printloop",
-    ttl: process.env.REDIS_TTL ?? "3600",
+    enabled: env.DISABLE_REDIS !== "1" && Boolean(env.REDIS_URL || env.REDIS_HOST),
+    url: env.REDIS_URL,
+    host: env.REDIS_HOST || undefined,
+    port: env.REDIS_PORT || undefined,
+    password: env.REDIS_PASSWORD,
+    username: env.REDIS_USERNAME,
+    db: env.REDIS_DB || undefined,
+    keyPrefix: env.REDIS_KEY_PREFIX || undefined,
+    ttl: env.REDIS_TTL || undefined,
   },
   jwt: {
-    secret: process.env.JWT_SECRET || "printloop-dev-secret-please-change-32chars-minimum",
-    expiresIn: process.env.JWT_EXPIRES_IN || "7d",
+    secret: env.JWT_SECRET || undefined,
+    expiresIn: env.JWT_EXPIRES_IN || undefined,
   },
   service: {
-    name: process.env.SERVICE_NAME || "printloop-api",
-    version: process.env.APP_VERSION || "2.0.0",
+    version: env.APP_VERSION || undefined,
   },
   logging: {
-    level: (process.env.LOG_LEVEL as any) || "info",
+    level: env.LOG_LEVEL || undefined,
+    pretty: env.LOG_PRETTY === "true",
+    fileLogging: env.ENABLE_FILE_LOGGING === "true",
   },
-  commissionPctDefault: process.env.COMMISSION_PCT_DEFAULT ?? "0.10",
-  printloopApexDomains: (process.env.PRINTLOOP_APEX_DOMAINS || "printloop.app,printloop.test")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean),
-  renderCallbackSecret: process.env.RENDER_CALLBACK_SECRET || "",
+  rateLimit: {
+    disabled: env.DISABLE_RATE_LIMIT === "1" && env.NODE_ENV !== "production",
+  },
+  platformRequire2fa: env.PLATFORM_REQUIRE_2FA !== "0",
+  allowPrivateWebhooks: env.ALLOW_PRIVATE_WEBHOOKS === "1" && env.NODE_ENV !== "production",
   paystack: {
-    publicKey: process.env.PAYSTACK_PUBLIC_KEY || "",
-    secretKey: process.env.PAYSTACK_SECRET_KEY || "",
-    webhookSecret: process.env.PAYSTACK_WEBHOOK_SECRET || "",
+    publicKey: env.PAYSTACK_PUBLIC_KEY,
+    secretKey: env.PAYSTACK_SECRET_KEY,
+    webhookSecret: env.PAYSTACK_WEBHOOK_SECRET,
   },
-  seedDemo: boolFromEnv(process.env.SEED_DEMO, false),
-  disableRateLimit: boolFromEnv(process.env.DISABLE_RATE_LIMIT, false),
-});
-
-export const Config = parsed;
-
-export const config = {
-  app: {
-    env: Config.nodeEnv,
-    version: Config.service.version,
-    port: Config.port,
-    allowedOrigins: Config.allowedOrigins,
+  cloudinary: {
+    cloudName: env.CLOUDINARY_CLOUD_NAME,
+    apiKey: env.CLOUDINARY_API_KEY,
+    apiSecret: env.CLOUDINARY_API_SECRET,
   },
-  database: {
-    url: Config.database.url || "",
-    file: Config.database.file,
-    ssl: Config.database.ssl,
-    poolMax: Config.database.poolMax,
-    logging: false,
+  s3: {
+    endpoint: env.S3_ENDPOINT,
+    bucket: env.S3_BUCKET,
+    region: env.S3_REGION || undefined,
+    accessKeyId: env.S3_ACCESS_KEY_ID,
+    secretAccessKey: env.S3_SECRET_ACCESS_KEY,
+    forcePathStyle: env.S3_FORCE_PATH_STYLE === "true",
+    publicUrl: env.S3_PUBLIC_URL,
   },
-  redis: {
-    url: Config.redis.url || "",
-    host: Config.redis.host,
-    port: Config.redis.port,
-    password: Config.redis.password,
-    enabled: Boolean(Config.redis.url || process.env.REDIS_HOST),
-  },
-  auth: {
-    jwtSecret: Config.jwt.secret,
-    jwtExpiresIn: Config.jwt.expiresIn,
-  },
-  saas: {
-    commissionPctDefault: Config.commissionPctDefault,
-    apexDomains: Config.printloopApexDomains,
-    domainsCname: process.env.PRINTLOOP_DOMAINS_CNAME || "domains.printloop.app",
-    seedDemo: Config.seedDemo,
-    renderCallbackSecret: Config.renderCallbackSecret,
-  },
-  payments: {
-    paystack: Config.paystack,
-    commissionPctDefault: Config.commissionPctDefault,
-  },
-  storage: {
-    s3: {
-      bucket: process.env.S3_BUCKET || "printloop-uploads",
-      region: process.env.AWS_REGION || "us-east-1",
-      accessKeyId: process.env.AWS_ACCESS_KEY_ID || "",
-      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || "",
-      endpoint: process.env.S3_ENDPOINT || undefined,
-      forcePathStyle: process.env.S3_FORCE_PATH_STYLE === "true",
-    },
-    cloudinary: {
-      cloudName: process.env.CLOUDINARY_CLOUD_NAME || "",
-      apiKey: process.env.CLOUDINARY_API_KEY || "",
-      apiSecret: process.env.CLOUDINARY_API_SECRET || "",
-    },
+  backup: {
+    dir: env.BACKUP_DIR,
+    keep: (() => {
+      const n = num(env.BACKUP_KEEP);
+      return n !== undefined && Number.isFinite(n) && n > 0 ? Math.floor(n) : undefined;
+    })(),
+    s3: { ...backupS3, region: backupS3.region || undefined },
   },
   email: {
-    host: process.env.SMTP_HOST || "",
-    port: parseInt(process.env.SMTP_PORT || "587", 10),
-    secure: process.env.SMTP_SECURE === "true",
-    user: process.env.SMTP_USER || "",
-    password: process.env.SMTP_PASSWORD || "",
-    from: process.env.SMTP_FROM || "PrintLoop <noreply@printloop.app>",
+    host: env.SMTP_HOST,
+    port: env.SMTP_PORT || undefined,
+    secure: env.SMTP_SECURE === "true",
+    user: env.SMTP_USER,
+    password: env.SMTP_PASSWORD,
+    from: env.SMTP_FROM || undefined,
   },
   sms: {
-    termii: {
-      apiKey: process.env.TERMII_API_KEY || "",
-      senderId: process.env.TERMII_SENDER_ID || "PrintLoop",
-    },
+    apiKey: env.TERMII_API_KEY,
+    senderId: env.TERMII_SENDER_ID || undefined,
   },
-  logging: {
-    level: Config.logging.level,
-    pretty: process.env.LOG_PRETTY === "true" || Config.nodeEnv !== "production",
-  },
-  sentry: {
-    dsn: process.env.SENTRY_DSN || "",
-    tracesSampleRate: parseFloat(process.env.SENTRY_TRACES_SAMPLE_RATE || "0.1"),
-    profilesSampleRate: parseFloat(process.env.SENTRY_PROFILES_SAMPLE_RATE || "0"),
-  },
-  render: {
-    callbackSecret: Config.renderCallbackSecret,
-    callbackUrl:
-      process.env.RENDER_CALLBACK_URL ||
-      "http://localhost:4000/api/render/callback",
-  },
-  office: {
-    converter: process.env.DOC_CONVERTER || "gotenberg",
-    gotenbergUrl: process.env.GOTENBERG_URL || "http://localhost:3000",
-  },
-  print: {
-    dispatchMode: process.env.PRINT_DISPATCH_MODE || "cloud-push",
+  conversion: {
+    converter: (env.DOC_CONVERTER || "").trim().toLowerCase(),
+    gotenbergUrl: url(env.GOTENBERG_URL),
+    timeoutMs: Math.max(10_000, num(env.DOC_CONVERT_TIMEOUT_MS) || 60_000),
+    libreofficeBin: env.LIBREOFFICE_BIN,
+    ghostscriptBin: env.GHOSTSCRIPT_BIN,
+    univerExportUrl: env.UNIVER_EXPORT_URL,
   },
   editor: {
-    libreofficeUrl: process.env.LIBREOFFICE_URL || "http://localhost:9980",
-    univerLibreOfficeUrl:
-      process.env.LIBREOFFICE_UNO_URL ||
-      "socket,host=libreoffice,port=2002;urp;StarOffice.ComponentContext",
-    univerExportUrl: process.env.UNIVER_EXPORT_URL || "",
-    coturnPassword: process.env.COTURN_PASSWORD || "changeme",
-    turnServer: process.env.TURN_SERVER || "",
-    turnTlsServer: process.env.TURN_TLS_SERVER || "",
-    sessionTtlHours: parseInt(process.env.EDITOR_SESSION_TTL_HOURS || "24", 10),
-    snapshotIntervalMs: parseInt(process.env.EDITOR_SNAPSHOT_INTERVAL_MS || "30000", 10),
+    turnServer: env.TURN_SERVER,
+    turnTlsServer: env.TURN_TLS_SERVER,
+    coturnPassword: env.COTURN_PASSWORD,
+    sessionTtlHours: num(env.EDITOR_SESSION_TTL_HOURS) || undefined,
   },
-  frontendUrl: Config.frontendUrl,
-  rateLimit: {
-    windowMs: 900_000,
-    maxRequests: 300,
+  ipp: {
+    caCert: env.IPP_CA_CERT,
+    path: env.IPP_PATH || undefined,
+    port: num(env.IPP_PORT) || undefined,
+    rawPort: num(env.IPP_RAW_PORT) || undefined,
+    secure: env.IPP_SECURE === "true",
+    tlsRejectUnauthorized: env.IPP_TLS_REJECT_UNAUTHORIZED === "true",
+    version: env.IPP_VERSION || undefined,
+    transport: env.IPP_TRANSPORT || undefined,
+    socks5Proxy: env.TS_SOCKS5_PROXY,
   },
-};
+  geocoder: {
+    provider: (env.GEOCODER || "").toLowerCase() || undefined,
+    userAgent: env.GEOCODER_USER_AGENT || undefined,
+  },
+  documentRetentionHours: num(env.DOCUMENT_RETENTION_HOURS),
+  kioskAlertCooldownMinutes: num(env.KIOSK_ALERT_COOLDOWN_MINUTES) || undefined,
+  render: {
+    enabled: env.RENDER_ENABLED === "1",
+    callbackSecret: env.RENDER_CALLBACK_SECRET,
+  },
+  sentry: {
+    dsn: env.SENTRY_DSN,
+    tracesSampleRate: num(env.SENTRY_TRACES_SAMPLE_RATE),
+    profilesSampleRate: num(env.SENTRY_PROFILES_SAMPLE_RATE),
+  },
+});
 
 export default Config;

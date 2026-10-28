@@ -1,3 +1,4 @@
+import { Config } from '@/config';
 import fs from 'node:fs';
 import path from 'node:path';
 import { In, LessThan } from 'typeorm';
@@ -27,7 +28,7 @@ async function getRetentionHours(): Promise<number> {
   } catch {
     
   }
-  const envN = Number(process.env.DOCUMENT_RETENTION_HOURS);
+  const envN = Config.documentRetentionHours ?? NaN;
   return Number.isFinite(envN) && envN > 0 ? envN : DEFAULT_RETENTION_HOURS;
 }
 

@@ -1,3 +1,4 @@
+import { Config } from '@/config';
 import { type Request, type Response, type NextFunction } from 'express';
 import bcrypt from 'bcryptjs';
 import { mintToken, parseToken, secretsMatch } from '@/core/utils/resetToken';
@@ -58,7 +59,7 @@ export class PasswordResetController {
         console.error('[forgot-password] email send threw:', mailErr);
       }
 
-      if (process.env.NODE_ENV !== 'production') {
+      if (Config.nodeEnv !== 'production') {
         console.log(
           `[forgot-password] minted token for ${email}: ${token}`,
         );

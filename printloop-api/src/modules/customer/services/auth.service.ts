@@ -1,3 +1,4 @@
+import { Config } from '@/config';
 import { In } from 'typeorm';
 import { mintOtp, verifyStoredToken } from '@/core/utils/resetToken';
 import { Request } from 'express';
@@ -36,7 +37,7 @@ async function sendVerificationCode(user: User, code: string): Promise<void> {
   } catch (err) {
     console.warn('[auth] verification email failed:', err);
   }
-  if (process.env.NODE_ENV !== 'production') console.log(`[auth] verification code for ${user.email}: ${code}`);
+  if (Config.nodeEnv !== 'production') console.log(`[auth] verification code for ${user.email}: ${code}`);
 }
 
 const VERIFY_OK = { success: true, message: 'If that account exists and is unverified, a new code has been sent.' };

@@ -12,8 +12,7 @@ Human entry: `README.md`.
 - `printloop-api/` — **current** Express 5 + TypeORM API (neurapath
   layout: `modules/{public,customer,saas,platform,kiosk}` —
   `platform` owns PrintLoop staff routes + shared OpenAPI/files).
-  Driver from `DATABASE_URL`: **Postgres in prod, SQLite for
-  local dev**. Multi-tenant: shop data carries `tenantId`; customers and
+  **PostgreSQL only**, configured with a single `DATABASE_URL`. Multi-tenant: shop data carries `tenantId`; customers and
   staff have none (`common/middleware/tenant.middleware.ts`). **There is
   no default shop**: a request with no shop gets `400 TENANT_REQUIRED`.
   Webhooks live under `modules/public`; the only Paystack webhook is

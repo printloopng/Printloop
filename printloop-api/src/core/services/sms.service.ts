@@ -1,3 +1,4 @@
+import { Config } from '@/config';
 import axios from 'axios';
 
 export class SMSService {
@@ -6,8 +7,8 @@ export class SMSService {
   private baseUrl: string;
 
   constructor() {
-    this.apiKey = process.env.TERMII_API_KEY || '';
-    this.senderId = process.env.TERMII_SENDER_ID || 'PrintLoop';
+    this.apiKey = Config.sms.apiKey;
+    this.senderId = Config.sms.senderId;
     this.baseUrl = 'https://api.ng.termii.com/api';
   }
 

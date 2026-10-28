@@ -1,3 +1,4 @@
+import { Config } from '@/config';
 import winston from "winston";
 import "winston-daily-rotate-file";
 
@@ -23,8 +24,8 @@ export class Logger {
     ];
 
     if (
-      process.env.NODE_ENV === "production" ||
-      process.env.ENABLE_FILE_LOGGING === "true"
+      Config.nodeEnv === "production" ||
+      Config.logging.fileLogging
     ) {
       const fileRotateTransport = new winston.transports.DailyRotateFile({
         filename: "logs/%DATE%-error.log",

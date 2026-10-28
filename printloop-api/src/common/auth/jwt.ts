@@ -1,3 +1,4 @@
+import { Config } from '@/config';
 import jwt, { SignOptions } from "jsonwebtoken";
 import { UnauthorizedError } from "../errors";
 import { Logger } from "../logger";
@@ -5,7 +6,7 @@ import { UserPayload, DecodedToken } from "../types";
 
 export class JwtService {
   private readonly jwtLog = new Logger({
-    level: (process.env.LOG_LEVEL as any) ?? "info",
+    level: Config.logging.level,
     service: "jwt-service",
   });
   private readonly secret: string;

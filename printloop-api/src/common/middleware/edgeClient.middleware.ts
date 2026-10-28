@@ -1,3 +1,4 @@
+import { Config } from '@/config';
 import crypto from 'node:crypto';
 import net from 'node:net';
 import type { NextFunction, Request, Response } from 'express';
@@ -9,7 +10,7 @@ function secretMatches(given: string, expected: string): boolean {
 }
 
 export function edgeClientIp(req: Request, _res: Response, next: NextFunction): void {
-  const expected = process.env.PL_EDGE_SECRET;
+  const expected = Config.edgeSecret;
   const given = req.header('x-pl-edge-secret');
   const clientIp = (req.header('x-pl-client-ip') || '').trim();
   if (expected && given && net.isIP(clientIp) && secretMatches(given, expected)) {

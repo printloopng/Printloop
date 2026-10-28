@@ -1,14 +1,14 @@
+import { Config } from '@/config';
 import jwt, { type SignOptions } from 'jsonwebtoken';
 import { AppDataSource } from '@/config/data-source';
 import { TenantMember, TenantMemberRole } from '@/database/entities/tenantMember.entity';
 
-export const JWT_SECRET: string =
-  process.env.JWT_SECRET || 'printloop-dev-secret-please-change-32chars-minimum';
+export const JWT_SECRET: string = Config.jwt.secret;
 
-export const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
+export const JWT_EXPIRES_IN = Config.jwt.expiresIn;
 
 export function getJwtSecret(): string {
-  const s = process.env.JWT_SECRET;
+  const s = Config.jwt.secret;
   if (!s || s.length < 16) {
     throw new Error(
       'JWT_SECRET is required (≥16 chars) — used to sign handoff tokens.',

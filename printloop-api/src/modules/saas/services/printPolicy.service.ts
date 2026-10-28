@@ -1,3 +1,4 @@
+import { Config } from '@/config';
 import { repos } from '@/config/repos';
 
 export interface PolicyJob {
@@ -108,17 +109,17 @@ export async function ippConnectionPrefs(): Promise<{
   rawPort: number;
 }> {
   const s = await settingsMap();
-  const secure = bool(s.ippSecure) || process.env.IPP_SECURE === 'true';
+  const secure = bool(s.ippSecure) || Config.ipp.secure;
   const port =
-    num(s.ippPort, 0) || (process.env.IPP_PORT ? Number(process.env.IPP_PORT) : 0) || undefined;
+    num(s.ippPort, 0) || Config.ipp.port || undefined;
   const rejectUnauthorized =
-    bool(s.ippTlsRejectUnauthorized) || process.env.IPP_TLS_REJECT_UNAUTHORIZED === 'true';
-  const rawPath = (s.ippPath && String(s.ippPath).trim()) || process.env.IPP_PATH || '/ipp/print';
+    bool(s.ippTlsRejectUnauthorized) || Config.ipp.tlsRejectUnauthorized;
+  const rawPath = (s.ippPath && String(s.ippPath).trim()) || Config.ipp.path;
   const path = rawPath.startsWith('/') ? rawPath : `/${rawPath}`;
-  const versionRaw = String(s.ippVersion || process.env.IPP_VERSION || '2.0').trim();
+  const versionRaw = String(s.ippVersion || Config.ipp.version).trim();
   const version: '1.0' | '1.1' | '2.0' =
     versionRaw === '1.0' ? '1.0' : versionRaw === '1.1' ? '1.1' : '2.0';
-  const transportRaw = String(s.ippTransport || process.env.IPP_TRANSPORT || 'ipp').trim();
+  const transportRaw = String(s.ippTransport || Config.ipp.transport).trim();
   const transport: 'ipp' | 'raw9100' | 'lpr' | 'email' =
     transportRaw === 'raw9100'
       ? 'raw9100'
@@ -127,12 +128,12 @@ export async function ippConnectionPrefs(): Promise<{
       : transportRaw === 'email'
       ? 'email'
       : 'ipp';
-  const rawPort = num(s.ippRawPort, 0) || Number(process.env.IPP_RAW_PORT) || 9100;
+  const rawPort = num(s.ippRawPort, 0) || Config.ipp.rawPort;
   return { secure, port, rejectUnauthorized, path, version, transport, rawPort };
 }
 
 export async function printDispatchMode(): Promise<'cloud-push' | 'kiosk-pull'> {
   const s = await settingsMap();
-  const raw = String(process.env.PRINT_DISPATCH_MODE || s.printDispatchMode || 'cloud-push').trim();
+  const raw = String(Config.printDispatchMode || s.printDispatchMode || 'cloud-push').trim();
   return raw === 'kiosk-pull' ? 'kiosk-pull' : 'cloud-push';
 }

@@ -1,3 +1,4 @@
+import { Config } from '@/config';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -17,40 +18,39 @@ const here = __dirname;
 export const UPLOAD_DIR = path.resolve(here, '..', 'data', 'uploads');
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
-const PUBLIC_BASE =
-  process.env.PUBLIC_BASE_URL || `http://localhost:${process.env.PORT || 4000}`;
+const PUBLIC_BASE = Config.publicBaseUrl || `http://localhost:${Config.port}`;
 
 const hasCloudinary = Boolean(
-  process.env.CLOUDINARY_CLOUD_NAME &&
-  process.env.CLOUDINARY_API_KEY &&
-  process.env.CLOUDINARY_API_SECRET
+  Config.cloudinary.cloudName &&
+  Config.cloudinary.apiKey &&
+  Config.cloudinary.apiSecret
 );
 
 if (hasCloudinary) {
   cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.CLOUDINARY_API_KEY,
-    api_secret: process.env.CLOUDINARY_API_SECRET,
+    cloud_name: Config.cloudinary.cloudName,
+    api_key: Config.cloudinary.apiKey,
+    api_secret: Config.cloudinary.apiSecret,
   });
 }
 
 const hasS3 = Boolean(
-  process.env.S3_ENDPOINT &&
-  process.env.S3_BUCKET &&
-  process.env.S3_ACCESS_KEY_ID &&
-  process.env.S3_SECRET_ACCESS_KEY,
+  Config.s3.endpoint &&
+  Config.s3.bucket &&
+  Config.s3.accessKeyId &&
+  Config.s3.secretAccessKey,
 );
 
 let s3Client: S3Client | null = null;
 if (hasS3) {
   s3Client = new S3Client({
-    endpoint: process.env.S3_ENDPOINT,
-    region: process.env.S3_REGION || 'auto',
+    endpoint: Config.s3.endpoint,
+    region: Config.s3.region,
     credentials: {
-      accessKeyId: process.env.S3_ACCESS_KEY_ID!,
-      secretAccessKey: process.env.S3_SECRET_ACCESS_KEY!,
+      accessKeyId: Config.s3.accessKeyId,
+      secretAccessKey: Config.s3.secretAccessKey,
     },
-    forcePathStyle: process.env.S3_FORCE_PATH_STYLE === 'true',
+    forcePathStyle: Config.s3.forcePathStyle,
   });
 }
 
@@ -77,14 +77,14 @@ export async function saveBuffer(buf: Buffer, originalName: string): Promise<Sto
     try {
       await s3Client.send(
         new PutObjectCommand({
-          Bucket: process.env.S3_BUCKET!,
+          Bucket: Config.s3.bucket,
           Key: key,
           Body: buf,
           ContentType: 'application/octet-stream',
         }),
       );
-      const publicBase = process.env.S3_PUBLIC_URL || process.env.S3_ENDPOINT;
-      const url = `${publicBase}/${process.env.S3_BUCKET}/${encodeURIComponent(key)}`;
+      const publicBase = Config.s3.publicUrl || Config.s3.endpoint;
+      const url = `${publicBase}/${Config.s3.bucket}/${encodeURIComponent(key)}`;
       return {
         key,
         fileName,
@@ -174,7 +174,7 @@ export async function loadStoredObject(key: string): Promise<Buffer | null> {
   if (hasS3 && s3Client) {
     try {
       const out = await s3Client.send(
-        new GetObjectCommand({ Bucket: process.env.S3_BUCKET!, Key: key }),
+        new GetObjectCommand({ Bucket: Config.s3.bucket, Key: key }),
       );
       if (out.Body) return Buffer.from(await out.Body.transformToByteArray());
     } catch (err: any) {
@@ -221,7 +221,7 @@ export async function destroyCloudinaryDocument(url: string | null | undefined):
 export async function loadDocumentBytes(src: string): Promise<Buffer | null> {
   if (!src) return null;
   try {
-    const cloud = process.env.CLOUDINARY_CLOUD_NAME;
+    const cloud = Config.cloudinary.cloudName;
     if (hasCloudinary && cloud && src.startsWith(`https://res.cloudinary.com/${cloud}/`)) {
       const publicId = cloudinaryPublicId(src);
       if (!publicId) return null;

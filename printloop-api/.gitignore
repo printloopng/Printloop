@@ -3,7 +3,5 @@ dist/
 .env
 .env.local
 data/
-*.sqlite
-*.sqlite-*
 *.log
 .DS_Store

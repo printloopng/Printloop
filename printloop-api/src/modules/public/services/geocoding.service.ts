@@ -1,3 +1,4 @@
+import { Config } from '@/config';
 export interface GeocodeResult {
   lat: number;
   lng: number;
@@ -9,9 +10,7 @@ export interface Geocoder {
 }
 
 const NOMINATIM_BASE = 'https://nominatim.openstreetmap.org/search';
-const USER_AGENT =
-  process.env.GEOCODER_USER_AGENT ||
-  'PrintLoop-SaaS/2.0 (https://printloop.app; ops@printloop.app)';
+const USER_AGENT = Config.geocoder.userAgent;
 
 let lastNominatimAt = 0;
 async function nominatimThrottle(): Promise<void> {
@@ -90,7 +89,7 @@ let cached: Geocoder | null = null;
 
 export function getGeocoder(): Geocoder {
   if (cached) return cached;
-  const choice = (process.env.GEOCODER || 'nominatim').toLowerCase();
+  const choice = Config.geocoder.provider;
   if (choice === 'disabled') cached = new DisabledGeocoder();
   else if (choice === 'fixture') cached = new FixtureGeocoder();
   else cached = new NominatimGeocoder();

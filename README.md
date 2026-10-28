@@ -26,8 +26,8 @@ The four web apps (`printloop-web/apps/`):
 
 ## Local setup (5 minutes)
 
-Needs **Node 20.19+** and **pnpm** (for the web apps). Without
-`DATABASE_URL` the API uses SQLite.
+Needs **Node 20.19+** and **pnpm** (for the web apps). **PostgreSQL** is required (local install, or any Postgres you can reach).
+Create an empty database and point `DATABASE_URL` at it; the API runs its migrations on boot.
 
 ```powershell
 # 1. API
@@ -61,10 +61,10 @@ for gets `400 TENANT_REQUIRED`.
 ## Checks
 
 ```powershell
-cd printloop-api; npm run typecheck; npm test
+cd printloop-api; npm run typecheck; npm test   # tests create and drop their own databases on the Postgres in TEST_DATABASE_URL (default postgresql://postgres:postgres@localhost:5432/postgres)
 cd printloop-web; pnpm lint; pnpm typecheck; pnpm test; pnpm build
 cd printloop-web; pnpm --filter @printloop/e2e exec playwright install chromium   # once
-cd printloop-web; pnpm e2e    # starts its own API on SQLite; set E2E_LANDING_PORT if 3000 is taken
+cd printloop-web; pnpm e2e    # starts its own API on a throwaway database (needs Postgres from DB_*); set E2E_LANDING_PORT if 3000 is taken
 ```
 
 After changing an API route or response, regenerate the typed client:
@@ -83,7 +83,7 @@ Everything runs on Render (API with its background workers, Postgres, Redis) and
 4. **Vercel: one project per app**, root directory `printloop-web/apps/<app>`. Each needs `PL_API_URL` and `NEXT_PUBLIC_API_URL` (the API URL), `PL_APEX_DOMAINS`, `PL_EDGE_SECRET`, and the four `NEXT_PUBLIC_*_URL` origins (see `printloop-web/.env.example`).
 5. **Go back to Render** and set `LANDING_URL`, `CUSTOMER_APP_URL`, `SHOP_APP_URL`, `BACKOFFICE_URL` and `ALLOWED_ORIGINS` to the real Vercel URLs, then redeploy the API. (The two sides need each other's URLs, so this loop is unavoidable.)
 6. **Paystack:** set the webhook to `https://<api-host>/api/webhooks/paystack`.
-7. **First staff account:** the free plan has no Shell, so run it from `printloop-api` on your machine with `DATABASE_URL` set to the database's external connection string: `npm run admin:create -- <email> <password>`. Then sign in at the backoffice, which asks you to turn on two-step sign-in. Free-plan caveats: the API sleeps after 15 minutes idle (the first request then takes about a minute), and the free Postgres is deleted after 30 days, so upgrade it before real use.
+7. **First staff account:** the free plan has no Shell, so run it from `printloop-api` on your machine with `DATABASE_URL` set to the database's external connection URL (Render shows it on the database page): `npm run admin:create -- <email> <password>`. Then sign in at the backoffice, which asks you to turn on two-step sign-in. Free-plan caveats: the API sleeps after 15 minutes idle (the first request then takes about a minute), and the free Postgres is deleted after 30 days, so upgrade it before real use.
 8. **Check:** `https://<api-host>/health` returns ok, and a test signup on the shop app sends its verification email.
 
 Notes: the API refuses to start in production without `DATABASE_URL`, `REDIS_URL`, `PAYSTACK_SECRET_KEY`, `PRINTLOOP_APEX_DOMAINS`, `JWT_SECRET` and storage (or `PUBLIC_BASE_URL`), and its log says which one is missing. The background workers run inside the API (`EMBED_WORKERS=1`), so keep exactly one API instance. When you outgrow that, set `EMBED_WORKERS=0` and add a Render worker service running `npm run start:worker`. Migrations run on boot. Never set `SEED_DEMO=1`.

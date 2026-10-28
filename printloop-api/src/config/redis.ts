@@ -1,8 +1,7 @@
 import { createClient, type RedisClientType } from "redis";
+import { Config } from "./index";
 
-export const REDIS_ENABLED =
-  process.env.DISABLE_REDIS !== "1" &&
-  Boolean(process.env.REDIS_URL || process.env.REDIS_HOST);
+export const REDIS_ENABLED = Config.redis.enabled;
 
 interface MinimalRedis {
   get(key: string): Promise<string | null>;
@@ -91,9 +90,7 @@ function createStub(): MinimalRedis {
 }
 
 function createRealClient(): RedisClientType {
-  const url =
-    process.env.REDIS_URL ||
-    `redis://${process.env.REDIS_HOST || "localhost"}:${process.env.REDIS_PORT || "6379"}`;
+  const url = Config.redis.url || `redis://${Config.redis.host}:${Config.redis.port}`;
   const client = createClient({ url });
   client.on("error", (err) => {
     console.warn("[redis]", err?.message || err);

@@ -1,3 +1,4 @@
+import { Config } from '@/config';
 import ipp from 'ipp';
 import { loadDocumentBytes } from '@/core/utils/fileStore';
 import fs from 'node:fs';
@@ -31,7 +32,7 @@ export interface PrintOptions {
 let cachedCa: Buffer | null | undefined;
 function loadCa(): Buffer | undefined {
   if (cachedCa !== undefined) return cachedCa ?? undefined;
-  const p = process.env.IPP_CA_CERT;
+  const p = Config.ipp.caCert;
   try {
     cachedCa = p && fs.existsSync(p) ? fs.readFileSync(p) : null;
   } catch {
@@ -362,7 +363,7 @@ export class IppService {
   }
 
   private async openSocket(host: string, port: number): Promise<net.Socket> {
-    const proxy = process.env.TS_SOCKS5_PROXY;
+    const proxy = Config.ipp.socks5Proxy;
     if (!proxy) {
       return await new Promise<net.Socket>((resolve, reject) => {
         const s = net.createConnection(port, host);

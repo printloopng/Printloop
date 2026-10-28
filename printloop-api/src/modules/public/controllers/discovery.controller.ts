@@ -1,3 +1,4 @@
+import { Config } from '@/config';
 import { type Request, type Response, type NextFunction } from 'express';
 import { In, LessThanOrEqual } from 'typeorm';
 import jwt from 'jsonwebtoken';
@@ -150,7 +151,7 @@ async function buildPublicShops(
     const agentOnline = tKiosks.some(
       (k) =>
         k.status === KioskStatus.ACTIVE &&
-        (process.env.SEED_DEMO === '1' || process.env.NODE_ENV !== 'production' || (k.lastSeenAt && now - new Date(k.lastSeenAt).getTime() < ONLINE_WINDOW_MS)),
+        (Config.seedDemo || Config.nodeEnv !== 'production' || (k.lastSeenAt && now - new Date(k.lastSeenAt).getTime() < ONLINE_WINDOW_MS)),
     );
 
     const queueLength = jobsByTenant.get(t.id) || 0;
@@ -470,7 +471,7 @@ export class DiscoveryController {
 
   seedDemoNearby = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    if (process.env.SEED_DEMO !== '1' || process.env.NODE_ENV === 'production') {
+    if (!Config.seedDemo || Config.nodeEnv === 'production') {
       res.status(404).json({ success: false, message: 'Not found' });
       return;
     }

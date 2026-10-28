@@ -1,3 +1,4 @@
+import { Config } from '@/config';
 import bcrypt from 'bcryptjs';
 import { appUrls } from '@/core/utils/appUrls';
 import { randomInt } from 'node:crypto';
@@ -120,7 +121,7 @@ export async function signupTenant(input: SignupInput): Promise<SignupResult> {
       initialAddress,
       initialLat,
       initialLng,
-      commissionPct: Number(process.env.COMMISSION_PCT_DEFAULT || 0.1),
+      commissionPct: Config.commissionPctDefault,
     }));
   } catch (err: any) {
     if (err?.message === 'SLUG_TAKEN') {

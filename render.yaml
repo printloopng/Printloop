@@ -85,3 +85,11 @@ services:
         sync: false
       - key: SMTP_FROM
         sync: false
+      - key: TERMII_API_KEY
+        sync: false
+      - key: TERMII_SENDER_ID
+        sync: false
+      - key: GOTENBERG_URL
+        sync: false
+      - key: UNIVER_EXPORT_URL
+        sync: false

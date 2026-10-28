@@ -1,3 +1,4 @@
+import { Config } from '@/config';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { promises as fs } from 'node:fs';
@@ -49,11 +50,11 @@ export function isOfficeDocument(fileName?: string, mime?: string): boolean {
 type Provider = 'gotenberg' | 'soffice';
 
 function provider(): Provider | null {
-  const raw = String(process.env.DOC_CONVERTER || '').trim().toLowerCase();
+  const raw = Config.conversion.converter;
   if (raw === 'none') return null;
   if (raw === 'gotenberg') return 'gotenberg';
   if (raw === 'soffice' || raw === 'libreoffice') return 'soffice';
-  if (!raw && process.env.GOTENBERG_URL) return 'gotenberg';
+  if (!raw && Config.conversion.gotenbergUrl) return 'gotenberg';
   return null;
 }
 
@@ -68,11 +69,11 @@ export function acceptedDocsLabel(): string {
 }
 
 function timeoutMs(): number {
-  return Math.max(10_000, Number(process.env.DOC_CONVERT_TIMEOUT_MS) || 60_000);
+  return Config.conversion.timeoutMs;
 }
 
 async function convertViaGotenberg(buffer: Buffer, fileName: string): Promise<Buffer> {
-  const base = String(process.env.GOTENBERG_URL || '').replace(/\/+$/, '');
+  const base = Config.conversion.gotenbergUrl;
   if (!base) {
     throw new OfficeConversionError('GOTENBERG_URL is not set.');
   }
@@ -104,7 +105,7 @@ async function convertViaGotenberg(buffer: Buffer, fileName: string): Promise<Bu
 let cachedSofficeBin: string | null | undefined;
 
 function sofficeCandidates(): string[] {
-  const override = process.env.LIBREOFFICE_BIN;
+  const override = Config.conversion.libreofficeBin;
   if (override) return [override];
   if (process.platform === 'win32') {
     return [
@@ -183,7 +184,7 @@ export async function convertOfficeAvailable(): Promise<boolean> {
   if (!p) return false;
   if (p === 'soffice') return (await resolveSofficeBin()) !== null;
   try {
-    const base = String(process.env.GOTENBERG_URL || '').replace(/\/+$/, '');
+    const base = Config.conversion.gotenbergUrl;
     if (!base) return false;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 5000);

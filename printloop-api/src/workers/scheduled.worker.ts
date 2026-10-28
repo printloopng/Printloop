@@ -1,3 +1,4 @@
+import { Config } from '@/config';
 import { Worker, Job } from 'bullmq';
 import { Repository } from 'typeorm';
 import { AppDataSource } from '@/config/data-source';
@@ -11,9 +12,9 @@ import { enforceAcceptWindow } from '@/modules/customer/services/acceptWindow.se
 import { runDatabaseBackup } from '@/modules/platform/services/backup.service';
 
 const redisConnection = {
-  host: process.env.REDIS_HOST || 'localhost',
-  port: parseInt(process.env.REDIS_PORT || '6379'),
-  password: process.env.REDIS_PASSWORD,
+  host: Config.redis.host,
+  port: Config.redis.port,
+  password: Config.redis.password || undefined,
 };
 
 export const scheduledWorker = new Worker(

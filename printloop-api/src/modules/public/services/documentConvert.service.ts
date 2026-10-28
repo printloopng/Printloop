@@ -1,3 +1,4 @@
+import { Config } from '@/config';
 import { PDFDocument, PDFName, PDFArray, PDFDict, type PDFPage } from 'pdf-lib';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -269,7 +270,7 @@ export async function flattenAnnotations(input: Buffer): Promise<Buffer> {
 }
 
 function gsCandidates(): string[] {
-  const override = process.env.GHOSTSCRIPT_BIN;
+  const override = Config.conversion.ghostscriptBin;
   if (override) return [override];
   if (process.platform === 'win32') return ['gswin64c', 'gswin32c'];
   return ['gs'];

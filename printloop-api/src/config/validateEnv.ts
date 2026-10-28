@@ -20,7 +20,7 @@ export function validateDeployEnv(): EnvIssue[] {
     if (!v) issues.push({ key, detail });
   };
 
-  required('DATABASE_URL', 'missing (DATABASE_URL) — Postgres required in production');
+  required('DATABASE_URL');
   required('REDIS_URL', 'missing (REDIS_URL) — queues/accept-window depend on Redis');
   if (process.env.RENDER_ENABLED === '1') required('RENDER_CALLBACK_SECRET');
   const objectStorage = Boolean(

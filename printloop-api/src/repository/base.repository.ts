@@ -576,8 +576,6 @@ export class BaseRepository<T extends ObjectLiteral> extends Repository<T> {
       case "mysql":
       case "mariadb":
         return `LOWER(${qualifiedField}) LIKE LOWER(:${paramName})`;
-      case "sqlite":
-        return `${qualifiedField} LIKE :${paramName} COLLATE NOCASE`;
       default:
         return `LOWER(${qualifiedField}) LIKE LOWER(:${paramName})`;
     }
@@ -864,8 +862,6 @@ export class BaseRepository<T extends ObjectLiteral> extends Repository<T> {
       case "mysql":
       case "mariadb":
         return `LOWER(JSON_UNQUOTE(JSON_EXTRACT(${this.getAlias()}.${jsonField}, '$.${jsonProperty}'))) LIKE LOWER(:${paramName})`;
-      case "sqlite":
-        return `json_extract(${this.getAlias()}.${jsonField}, '$.${jsonProperty}') LIKE :${paramName} COLLATE NOCASE`;
       default:
         return `LOWER(${this.getAlias()}.${jsonField}->>'${jsonProperty}') LIKE LOWER(:${paramName})`;
     }
@@ -884,8 +880,6 @@ export class BaseRepository<T extends ObjectLiteral> extends Repository<T> {
       case "mysql":
       case "mariadb":
         return `JSON_UNQUOTE(JSON_EXTRACT(${this.getAlias()}.${jsonField}, '$.${jsonProperty}')) = :${paramName}`;
-      case "sqlite":
-        return `json_extract(${this.getAlias()}.${jsonField}, '$.${jsonProperty}') = :${paramName}`;
       default:
         return `${this.getAlias()}.${jsonField}->>'${jsonProperty}' = :${paramName}`;
     }

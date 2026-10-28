@@ -1,12 +1,12 @@
 import net from 'node:net';
-import os from 'node:os';
-import path from 'node:path';
-import fs from 'node:fs';
 import crypto from 'node:crypto';
 import type { Server } from 'node:http';
+import { Client } from 'pg';
 import { checkContract, contractViolations } from './contract';
 
-export const WEBHOOK_SECRET = 'whsec_test_suite';
+import { WEBHOOK_SECRET, TEST_SERVER_URL, TEST_DB_NAME, urlWithDatabase } from './env';
+
+export { WEBHOOK_SECRET };
 
 export interface TestApi {
   base: string;
@@ -43,24 +43,15 @@ async function freePort(): Promise<number> {
 
 export async function startTestApi(): Promise<TestApi> {
   const port = await freePort();
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'printloop-test-'));
+  const dbName = TEST_DB_NAME;
+  const admin = () => new Client({ connectionString: urlWithDatabase(TEST_SERVER_URL, 'postgres') });
+  const creator = admin();
+  await creator.connect();
+  await creator.query(`CREATE DATABASE "${dbName}"`);
+  await creator.end();
   Object.assign(process.env, {
-    NODE_ENV: 'test',
-    DATABASE_URL: '',
-    DATABASE_FILE: path.join(dir, 'test.sqlite'),
-    SEED_DEMO: '1',
     PORT: String(port),
     PUBLIC_BASE_URL: `http://127.0.0.1:${port}`,
-    PRINT_DISPATCH_MODE: 'kiosk-pull',
-    SMTP_HOST: '',
-    TERMII_API_KEY: '',
-    CLOUDINARY_CLOUD_NAME: '',
-    PAYSTACK_SECRET_KEY: '',
-    PAYSTACK_WEBHOOK_SECRET: WEBHOOK_SECRET,
-    REDIS_URL: '',
-    REDIS_HOST: '',
-    DISABLE_RATE_LIMIT: '1',
-    LOG_LEVEL: 'error',
   });
   const { createApp, initApp } = await import('@/app');
   const app = createApp();
@@ -109,6 +100,10 @@ export async function startTestApi(): Promise<TestApi> {
     await new Promise<void>((resolve) => server.close(() => resolve()));
     const { AppDataSource } = await import('@/config/data-source');
     if (AppDataSource.isInitialized) await AppDataSource.destroy();
+    const dropper = admin();
+    await dropper.connect();
+    await dropper.query(`DROP DATABASE IF EXISTS "${dbName}" WITH (FORCE)`);
+    await dropper.end();
     if (violations.length && process.env.CONTRACT_STRICT !== '0') {
       throw new Error(`Responses that do not match the OpenAPI contract:\n  ${violations.join('\n  ')}`);
     }

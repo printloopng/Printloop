@@ -1,9 +1,12 @@
 import { defineConfig, devices } from "@playwright/test";
-import os from "node:os";
 import path from "node:path";
 
 export const API_URL = process.env.E2E_API_URL ?? "http://localhost:4000";
 export const WEBHOOK_SECRET = process.env.E2E_WEBHOOK_SECRET ?? "whsec_scratch_only";
+export const E2E_DB_NAME = process.env.E2E_DB_NAME ?? "printloop_e2e";
+const e2eServer = new URL(process.env.TEST_DATABASE_URL ?? "postgresql://postgres:postgres@localhost:5432/postgres");
+e2eServer.pathname = `/${E2E_DB_NAME}`;
+const E2E_DATABASE_URL = e2eServer.toString();
 const landingPort = process.env.E2E_LANDING_PORT ?? "3000";
 
 export const APPS = {
@@ -44,7 +47,7 @@ export default defineConfig({
   },
   webServer: [
     {
-      command: "node -r ts-node/register/transpile-only -r tsconfig-paths/register src/index.ts",
+      command: "node ../printloop-web/e2e/prepare-db.cjs && node -r ts-node/register/transpile-only -r tsconfig-paths/register src/index.ts",
       cwd: apiDir,
       url: `${API_URL}/health`,
       reuseExistingServer: reuse,
@@ -52,8 +55,7 @@ export default defineConfig({
       timeout: 180_000,
       env: {
         PORT: "4000",
-        DATABASE_URL: "",
-        DATABASE_FILE: path.join(os.tmpdir(), `printloop-e2e-${Date.now()}.sqlite`),
+        DATABASE_URL: E2E_DATABASE_URL,
         SEED_DEMO: "1",
         PRINT_DISPATCH_MODE: "kiosk-pull",
         REDIS_URL: "",

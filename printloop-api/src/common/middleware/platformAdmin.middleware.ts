@@ -1,3 +1,4 @@
+import { Config } from '@/config';
 import { Request, Response, NextFunction } from 'express';
 import { User, UserRole } from '@/database/entities/user.entity';
 import { isPlatformStaff } from '@/common/middleware/impersonation';
@@ -22,7 +23,7 @@ export const requirePlatformAdmin = (
     });
     return;
   }
-  const require2fa = process.env.NODE_ENV === 'production' && process.env.PLATFORM_REQUIRE_2FA !== '0';
+  const require2fa = Config.nodeEnv === 'production' && Config.platformRequire2fa;
   if (require2fa && !user.totpEnabled) {
     res.status(403).json({
       success: false,

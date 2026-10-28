@@ -24,7 +24,7 @@ const startServer = async () => {
     });
     await editorCollaborationService.initialize(server);
     startRetentionSweep();
-    if (process.env.EMBED_WORKERS === "1" && REDIS_ENABLED) {
+    if (Config.embedWorkers && REDIS_ENABLED) {
       await import("./workers/scheduled.worker");
       await import("./workers/fileCleanup.worker");
       await import("./workers/webhook.worker");

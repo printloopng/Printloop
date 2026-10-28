@@ -1,3 +1,4 @@
+import { Config } from '@/config';
 import axios from 'axios';
 import crypto from 'node:crypto';
 import { Tenant } from '@/database/entities/tenant.entity';
@@ -12,7 +13,7 @@ export class PaystackService {
   private readonly baseUrl = 'https://api.paystack.co';
 
   constructor() {
-    this.secretKey = process.env.PAYSTACK_SECRET_KEY || '';
+    this.secretKey = Config.paystack.secretKey;
   }
 
   async initializeJobPayment(
@@ -214,7 +215,7 @@ export class PaystackService {
 
   verifyWebhookSignature(rawBody: Buffer | string, signature: string | undefined): boolean {
     if (!signature) return false;
-    const secret = process.env.PAYSTACK_WEBHOOK_SECRET || this.secretKey;
+    const secret = Config.paystack.webhookSecret || this.secretKey;
     if (!secret) return false;
     const hash = crypto.createHmac('sha512', secret).update(rawBody).digest('hex');
     const a = Buffer.from(hash, 'utf8');

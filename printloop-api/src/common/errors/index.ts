@@ -1,3 +1,4 @@
+import { Config } from '@/config';
 import { Request, Response, NextFunction } from "express";
 import { ZodError } from "zod";
 import { QueryFailedError } from "typeorm";
@@ -92,7 +93,7 @@ export const errorHandler = (
   _next: NextFunction
 ): void => {
   const context = buildErrorContext(req);
-  const isDevelopment = process.env.NODE_ENV === "development";
+  const isDevelopment = Config.nodeEnv === "development";
 
   if (err instanceof AppError) {
     logger.warn("Operational error", {

@@ -1,3 +1,4 @@
+import { Config } from '@/config';
 type Level = 'debug' | 'info' | 'warn' | 'error';
 const LEVEL_RANK: Record<Level, number> = {
   debug: 10,
@@ -6,8 +7,8 @@ const LEVEL_RANK: Record<Level, number> = {
   error: 40,
 };
 
-const threshold = LEVEL_RANK[(process.env.LOG_LEVEL as Level) || 'info'] ?? 20;
-const pretty = process.env.LOG_PRETTY === 'true';
+const threshold = LEVEL_RANK[Config.logging.level] ?? 20;
+const pretty = Config.logging.pretty;
 
 export interface Logger {
   debug(obj: Record<string, unknown> | string, msg?: string): void;

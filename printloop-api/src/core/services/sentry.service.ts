@@ -1,27 +1,27 @@
 import * as Sentry from '@sentry/node';
-import { config } from '@/config';
+import { Config } from '@/config';
 
 let sentryInitialized = false;
 
 export function initSentry(): void {
   if (sentryInitialized) return;
-  if (!config.sentry.dsn) {
+  if (!Config.sentry.dsn) {
     console.log('[Sentry] DSN not configured — error reporting disabled');
     return;
   }
 
   Sentry.init({
-    dsn: config.sentry.dsn,
-    environment: config.app.env,
-    release: config.app.version,
-    tracesSampleRate: config.sentry.tracesSampleRate,
-    profilesSampleRate: config.sentry.profilesSampleRate,
+    dsn: Config.sentry.dsn,
+    environment: Config.nodeEnv,
+    release: Config.service.version,
+    tracesSampleRate: Config.sentry.tracesSampleRate,
+    profilesSampleRate: Config.sentry.profilesSampleRate,
     integrations: [
       Sentry.httpIntegration(),
       Sentry.expressIntegration(),
     ],
     beforeSend(event, hint) {
-      if (config.app.env !== 'production') {
+      if (Config.nodeEnv !== 'production') {
         const error = hint.originalException;
         if (error instanceof Error) {
           if (error.message.includes('ValidationError') ||
@@ -45,32 +45,32 @@ export function initSentry(): void {
 }
 
 export function captureException(error: unknown, context?: Record<string, unknown>): string | undefined {
-  if (!sentryInitialized || !config.sentry.dsn) return undefined;
+  if (!sentryInitialized || !Config.sentry.dsn) return undefined;
   return Sentry.captureException(error, { extra: context });
 }
 
 export function captureMessage(message: string, level: 'info' | 'warning' | 'error' = 'info', context?: Record<string, unknown>): string | undefined {
-  if (!sentryInitialized || !config.sentry.dsn) return undefined;
+  if (!sentryInitialized || !Config.sentry.dsn) return undefined;
   return Sentry.captureMessage(message, { level, extra: context });
 }
 
 export function setUserContext(user: { id: string; email?: string; role?: string; tenantId?: string }): void {
-  if (!sentryInitialized || !config.sentry.dsn) return;
+  if (!sentryInitialized || !Config.sentry.dsn) return;
   Sentry.setUser(user);
 }
 
 export function clearUserContext(): void {
-  if (!sentryInitialized || !config.sentry.dsn) return;
+  if (!sentryInitialized || !Config.sentry.dsn) return;
   Sentry.setUser(null);
 }
 
 export function addBreadcrumb(breadcrumb: { category: string; message: string; level?: 'info' | 'warning' | 'error' }): void {
-  if (!sentryInitialized || !config.sentry.dsn) return;
+  if (!sentryInitialized || !Config.sentry.dsn) return;
   Sentry.addBreadcrumb(breadcrumb);
 }
 
 export function startSpan(name: string, op: string, callback: (span: unknown) => void): void {
-  if (!sentryInitialized || !config.sentry.dsn) {
+  if (!sentryInitialized || !Config.sentry.dsn) {
     callback({} as any);
     return;
   }

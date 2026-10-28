@@ -1,3 +1,4 @@
+import { Config } from '@/config';
 import { Response, NextFunction } from "express";
 import { AuthenticatedRequest } from "../types";
 import { JwtService } from "../auth/jwt";
@@ -7,7 +8,7 @@ import { loadAuthenticatedUserContext } from "./jwt-user.loader";
 import { getRequestContext } from "../context/request-context";
 
 const authLogger = new Logger({
-  level: (process.env.LOG_LEVEL as any) ?? "info",
+  level: Config.logging.level,
   service: "auth-middleware",
 });
 

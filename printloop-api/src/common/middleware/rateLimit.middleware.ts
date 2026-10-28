@@ -1,3 +1,4 @@
+import { Config } from '@/config';
 import rateLimit, { ipKeyGenerator, type Options } from 'express-rate-limit';
 import type { Request } from 'express';
 import { RedisStore } from 'rate-limit-redis';
@@ -15,7 +16,7 @@ const redisStore = () => {
 };
 
 function shouldSkip(): boolean {
-  return process.env.DISABLE_RATE_LIMIT === '1' || !REDIS_ENABLED;
+  return Config.rateLimit.disabled || !REDIS_ENABLED;
 }
 
 function tenantKey(req: Request, base: string): string {

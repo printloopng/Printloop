@@ -1,9 +1,6 @@
 import { PDFDocument, PDFPage, rgb, StandardFonts } from 'pdf-lib';
-import sharp from 'sharp';
 import { createHash } from 'node:crypto';
 import { extractPdfText } from '@/core/utils/pdfText';
-import { config } from '@/config';
-import { uploadToS3, getPresignedUrl, generatePreflightKey } from '@/core/utils/s3';
 import {
   isOfficeDocument,
   conversionEnabled,
@@ -31,7 +28,6 @@ export interface PreflightResult {
   fileHash: string;
   issues: PreflightIssue[];
   autoFixes: AutoFix[];
-  previewUrl: string;
   quote: InstantQuote;
   metadata: {
     pageCount: number;
@@ -141,15 +137,12 @@ async function analyzePreflightPdf(
   
   const autoFixes = generateAutoFixes(issues, metadata);
   
-  const previewUrl = await generatePreview(pdfBuffer, fileHash);
-  
   const quote = await generateInstantQuote(printConfig, metadata, issues);
   
   const result: PreflightResult = {
     fileHash,
     issues,
     autoFixes,
-    previewUrl,
     quote,
     metadata
   };
@@ -389,37 +382,6 @@ function generateAutoFixes(issues: PreflightIssue[], metadata: PreflightResult['
   }
   
   return fixes;
-}
-
-async function generatePreview(pdfBuffer: Buffer, fileHash: string): Promise<string> {
-  const previewKey = generatePreflightKey(fileHash, 'preview');
-  
-  try {
-    const pdfDoc = await PDFDocument.load(pdfBuffer);
-    const page = pdfDoc.getPage(0);
-    const { width, height } = page.getSize();
-
-    const previewBuffer = await createPlaceholderPreview();
-    await uploadToS3(previewKey, previewBuffer, 'image/png');
-    return await getPresignedUrl(previewKey, 86400);
-  } catch (err) {
-    console.error('Preview generation failed:', err);
-    return '';
-  }
-}
-
-async function createPlaceholderPreview(): Promise<Buffer> {
-  const svg = `
-    <svg width="400" height="500" xmlns="http://www.w3.org/2000/svg">
-      <rect width="400" height="500" fill="#F8F4ED" stroke="#1A1410" stroke-width="4"/>
-      <rect x="20" y="40" width="360" height="420" fill="#FFFFFF" stroke="#1A1410" stroke-width="2"/>
-      <text x="200" y="200" font-family="Georgia, serif" font-size="24" fill="#1A1410" text-anchor="middle" font-weight="bold">PREVIEW</text>
-      <text x="200" y="240" font-family="Georgia, serif" font-size="14" fill="#888888" text-anchor="middle">3D preview available after upload</text>
-      <rect x="150" y="300" width="100" height="40" rx="4" fill="#D14B2C"/>
-      <text x="200" y="328" font-family="system-ui" font-size="14" font-weight="bold" fill="#1A1410" text-anchor="middle">VIEW 3D</text>
-    </svg>
-  `;
-  return Buffer.from(svg);
 }
 
 export async function generateInstantQuote(

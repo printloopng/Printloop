@@ -1,3 +1,4 @@
+import { Config } from '@/config';
 import { Request, Response, NextFunction } from 'express';
 import { hasS3, s3Client, UPLOAD_DIR, isStorageKey, insideUploadDir } from '@/core/utils/fileStore';
 import { GetObjectCommand } from '@aws-sdk/client-s3';
@@ -23,7 +24,7 @@ export class FilesController {
       if (hasS3 && s3Client) {
         try {
           const command = new GetObjectCommand({
-            Bucket: process.env.S3_BUCKET!,
+            Bucket: Config.s3.bucket,
             Key: key,
           });
           const presignedUrl = await getSignedUrl(s3Client, command, { expiresIn: 300 });

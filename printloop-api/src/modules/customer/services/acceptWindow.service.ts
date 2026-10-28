@@ -1,3 +1,4 @@
+import { Config } from '@/config';
 import { repos } from '@/config/repos';
 import { PrintJob, PrintJobStatus } from '@/database/entities/printJob.entity';
 import { Tenant } from '@/database/entities/tenant.entity';
@@ -42,8 +43,8 @@ export async function findRerouteCandidates(
   for (const k of kiosks) {
     if (!k.tenantId) continue;
     const online =
-      process.env.SEED_DEMO === '1' ||
-      process.env.NODE_ENV !== 'production' ||
+      Config.seedDemo ||
+      Config.nodeEnv !== 'production' ||
       (k.lastSeenAt && now - new Date(k.lastSeenAt).getTime() < ONLINE_WINDOW_MS);
     if (online) onlineKioskByTenant.set(k.tenantId, true);
   }

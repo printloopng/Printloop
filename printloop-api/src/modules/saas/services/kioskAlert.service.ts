@@ -1,3 +1,4 @@
+import { Config } from '@/config';
 import { In } from 'typeorm';
 import { repos } from '@/config/repos';
 import { Kiosk, KioskStatus } from '@/database/entities/kiosk.entity';
@@ -7,9 +8,7 @@ import { Tenant } from '@/database/entities/tenant.entity';
 import { EmailService } from '@/core/services/email.service';
 import { SMSService } from '@/core/services/sms.service';
 
-const ALERT_COOLDOWN_MINUTES = parseInt(
-  process.env.KIOSK_ALERT_COOLDOWN_MINUTES || '30',
-);
+const ALERT_COOLDOWN_MINUTES = Config.kioskAlertCooldownMinutes;
 
 export async function notifyOfflineKiosks(kioskIds: string[]): Promise<void> {
   if (!kioskIds.length) return;

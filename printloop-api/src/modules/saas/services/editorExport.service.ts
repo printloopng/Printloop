@@ -1,3 +1,4 @@
+import { Config } from '@/config';
 import axios from 'axios';
 import { repos } from '@/config/repos';
 import { saveBuffer } from '@/core/utils/fileStore';
@@ -19,7 +20,7 @@ export interface ExportResult {
 
 export class EditorExportService {
   async renderPdf(document: UniverDocumentData): Promise<{ pdf: Buffer; renderer: ExportResult['renderer'] }> {
-    const external = process.env.UNIVER_EXPORT_URL;
+    const external = Config.conversion.univerExportUrl;
     if (external) {
       try {
         const response = await axios.post(external, { document, format: 'pdf' }, {

@@ -1,3 +1,4 @@
+import { Config } from '@/config';
 import { Worker, Job } from 'bullmq';
 import { destroyCloudinaryDocument } from '@/core/utils/fileStore';
 import { AppDataSource } from '@/config/data-source';
@@ -5,9 +6,9 @@ import { File } from '@/database/entities/file.entity';
 import { PrintJob, PrintJobStatus } from '@/database/entities/printJob.entity';
 
 const redisConnection = {
-  host: process.env.REDIS_HOST || 'localhost',
-  port: parseInt(process.env.REDIS_PORT || '6379'),
-  password: process.env.REDIS_PASSWORD,
+  host: Config.redis.host,
+  port: Config.redis.port,
+  password: Config.redis.password || undefined,
 };
 
 interface FileCleanupJobData {

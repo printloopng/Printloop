@@ -1,3 +1,4 @@
+import { Config } from '@/config';
 import bcrypt from 'bcryptjs';
 import { randomBytes } from 'node:crypto';
 import { AppDataSource } from '@/config/data-source';
@@ -31,7 +32,7 @@ export async function runSeed(): Promise<void> {
     return;
   }
 
-  if (process.env.SEED_DEMO !== '1') {
+  if (!Config.seedDemo) {
     console.log(
       'Seed: empty DB but SEED_DEMO != "1" — production mode, no ' +
         'demo data inserted. Run `npm run admin:create -- ' +
@@ -303,7 +304,7 @@ async function createDemoShop(): Promise<string> {
       slug: DEMO_SHOP_SLUG,
       customDomain: null,
       status: TenantStatus.ACTIVE,
-      commissionPct: Number(process.env.COMMISSION_PCT_DEFAULT || 0.1),
+      commissionPct: Config.commissionPctDefault,
       paystackSubaccountCode: null,
       suspendedAt: null,
       suspendReason: null,

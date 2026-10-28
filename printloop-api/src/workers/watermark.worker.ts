@@ -1,3 +1,4 @@
+import { Config } from '@/config';
 import { Worker, Job } from 'bullmq';
 import { PDFDocument, rgb, StandardFonts, degrees } from 'pdf-lib';
 import { v2 as cloudinary } from 'cloudinary';
@@ -6,15 +7,15 @@ import { File } from '@/database/entities/file.entity';
 import { loadDocumentBytes } from '@/core/utils/fileStore';
 
 const redisConnection = {
-  host: process.env.REDIS_HOST || 'localhost',
-  port: parseInt(process.env.REDIS_PORT || '6379'),
-  password: process.env.REDIS_PASSWORD,
+  host: Config.redis.host,
+  port: Config.redis.port,
+  password: Config.redis.password || undefined,
 };
 
 cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
+  cloud_name: Config.cloudinary.cloudName,
+  api_key: Config.cloudinary.apiKey,
+  api_secret: Config.cloudinary.apiSecret,
 });
 
 interface WatermarkJobData {

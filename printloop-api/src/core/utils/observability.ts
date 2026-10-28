@@ -1,10 +1,11 @@
+import { Config } from '@/config';
 import * as Sentry from '@sentry/node';
 
 let initialized = false;
 
 export function initSentryIfConfigured(): void {
   if (initialized) return;
-  const dsn = process.env.SENTRY_DSN;
+  const dsn = Config.sentry.dsn;
   if (!dsn) {
     console.log('[sentry] disabled (no SENTRY_DSN set).');
     initialized = true;
@@ -13,17 +14,14 @@ export function initSentryIfConfigured(): void {
   try {
     Sentry.init({
       dsn,
-      environment: process.env.NODE_ENV || 'development',
-      release: process.env.APP_VERSION || undefined,
-      tracesSampleRate: Number(process.env.SENTRY_TRACES_SAMPLE_RATE ?? 0.1),
-      profilesSampleRate: Number(
-        process.env.SENTRY_PROFILES_SAMPLE_RATE ?? 0,
-      ),
+      environment: Config.nodeEnv,
+      release: Config.service.version,
+      tracesSampleRate: Config.sentry.tracesSampleRate,
+      profilesSampleRate: Config.sentry.profilesSampleRate,
       sendDefaultPii: false,
     });
     console.log(
-      `[sentry] enabled (env=${process.env.NODE_ENV || 'development'}, ` +
-        `release=${process.env.APP_VERSION || 'unset'}).`,
+      `[sentry] enabled (env=${Config.nodeEnv}, release=${Config.service.version}).`,
     );
     initialized = true;
   } catch (err) {
@@ -33,7 +31,7 @@ export function initSentryIfConfigured(): void {
 }
 
 export function reportError(err: unknown, context?: Record<string, unknown>): string | undefined {
-  if (!process.env.SENTRY_DSN) return undefined;
+  if (!Config.sentry.dsn) return undefined;
   try {
     return Sentry.captureException(err, context ? { extra: context } : undefined);
   } catch {

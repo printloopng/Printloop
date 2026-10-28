@@ -1,3 +1,4 @@
+import { Config } from '@/config';
 import dns from 'node:dns/promises';
 import net from 'node:net';
 
@@ -35,7 +36,7 @@ export async function assertPublicUrl(raw: string): Promise<URL> {
   } catch {
     throw new UnsafeUrlError('Invalid URL');
   }
-  const allowPrivate = process.env.ALLOW_PRIVATE_WEBHOOKS === '1' && process.env.NODE_ENV !== 'production';
+  const allowPrivate = Config.allowPrivateWebhooks;
   if (url.protocol !== 'https:' && !(url.protocol === 'http:' && allowPrivate)) {
     throw new UnsafeUrlError('Webhook URL must use https://');
   }

@@ -1,3 +1,4 @@
+import { Config } from '@/config';
 import nodemailer, { Transporter } from 'nodemailer';
 import { repos } from '@/config/repos';
 import { TenantBranding } from '@/database/entities/tenantBranding.entity';
@@ -21,20 +22,20 @@ export class EmailService {
   private enabled: boolean;
 
   constructor() {
-    this.enabled = Boolean(process.env.SMTP_HOST);
+    this.enabled = Boolean(Config.email.host);
     this.transporter = this.enabled
       ? nodemailer.createTransport({
-          host: process.env.SMTP_HOST,
-          port: parseInt(process.env.SMTP_PORT || '587'),
-          secure: process.env.SMTP_SECURE === 'true',
+          host: Config.email.host,
+          port: Config.email.port,
+          secure: Config.email.secure,
           auth: {
-            user: process.env.SMTP_USER,
-            pass: process.env.SMTP_PASSWORD,
+            user: Config.email.user,
+            pass: Config.email.password,
           },
         })
       : null;
 
-    this.fromAddress = process.env.SMTP_FROM || 'PrintLoop <noreply@printloop.ng>';
+    this.fromAddress = Config.email.from;
   }
 
   private async getBranding(tenantId: string | undefined): Promise<Partial<TenantBranding> | null> {

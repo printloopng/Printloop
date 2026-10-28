@@ -1,3 +1,4 @@
+import { Config } from '@/config';
 import { Request, Response, NextFunction } from 'express';
 import { AppDataSource } from '@/config/data-source';
 import { Tenant, TenantStatus } from '@/database/entities/tenant.entity';
@@ -214,10 +215,7 @@ function customDomainOf(host: string): string | null {
 }
 
 function configuredApexes(): string[] {
-  return (process.env.PRINTLOOP_APEX_DOMAINS || 'printloop.app,printloop.test')
-    .split(',')
-    .map((s) => s.trim().toLowerCase())
-    .filter(Boolean);
+  return Config.apexDomains;
 }
 
 function ownedApexForHost(host: string): string | null {
