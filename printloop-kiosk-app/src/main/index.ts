@@ -25,7 +25,7 @@ function createWindow() {
       nodeIntegration: false,
       sandbox: true,
     },
-    icon: path.join(__dirname, '../../public/icon.png'),
+    icon: path.join(__dirname, '../../../public/icon.png'),
   });
 
   if (isDev) {

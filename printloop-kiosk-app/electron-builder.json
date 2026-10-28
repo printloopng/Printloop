@@ -5,23 +5,28 @@
   "directories": {
     "output": "release"
   },
+  "icon": "public/icon.png",
   "files": [
     "dist/**/*",
     "public/**/*"
   ],
   "win": {
     "target": "nsis",
-    "signAndEditExecutable": false
+    "icon": "public/icon.ico"
   },
   "nsis": {
     "oneClick": false,
     "allowToChangeInstallationDirectory": true,
     "createDesktopShortcut": true,
     "createStartMenuShortcut": true,
-    "shortcutName": "PrintLoop Kiosk"
+    "shortcutName": "PrintLoop Kiosk",
+    "installerIcon": "public/icon.ico",
+    "uninstallerIcon": "public/icon.ico",
+    "installerHeaderIcon": "public/icon.ico"
   },
   "linux": {
     "target": "AppImage",
-    "category": "Office"
+    "category": "Office",
+    "icon": "public/icon.png"
   }
 }
