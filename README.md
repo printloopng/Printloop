@@ -83,4 +83,5 @@ Everything runs on Render: the API (with its background workers), the four web a
 7. **Check:** `https://<api-host>/health` returns ok, and a test signup on the shop app sends its verification email.
 
 Notes: the API refuses to start in production without `DATABASE_URL`, `REDIS_URL`, `PAYSTACK_SECRET_KEY`, `PRINTLOOP_APEX_DOMAINS`, `JWT_SECRET` and storage (or `PUBLIC_BASE_URL`), and its log says which one is missing. The background workers run inside the API (`EMBED_WORKERS=1`), so keep exactly one API instance. When you outgrow that, set `EMBED_WORKERS=0` and add a Render worker service running `npm run start:worker`. Migrations run on boot. Never set `SEED_DEMO=1`.
+Staging: set `NODE_ENV=staging` and the API seeds the demo data on its first boot (only when the database has no users, so it runs once). `SEED_DEMO=0` turns that off. Production never seeds.
 Kiosks print by polling the API (`PRINT_DISPATCH_MODE=kiosk-pull`), so shops need no open ports. Word and PowerPoint uploads need a Gotenberg service (`GOTENBERG_URL`); PDFs and images work without it. The `render-worker/` is optional and off by default (`RENDER_ENABLED`), so it isn't in the blueprint.

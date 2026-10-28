@@ -165,7 +165,7 @@ export const Config = configSchema.parse({
   port: env.PORT,
   nodeEnv: env.NODE_ENV,
   publicBaseUrl: url(env.PUBLIC_BASE_URL),
-  seedDemo: on(env.SEED_DEMO),
+  seedDemo: env.SEED_DEMO ? on(env.SEED_DEMO) : env.NODE_ENV === "staging",
   embedWorkers: on(env.EMBED_WORKERS),
   printDispatchMode: env.PRINT_DISPATCH_MODE,
   commissionPctDefault: env.COMMISSION_PCT_DEFAULT || undefined,
