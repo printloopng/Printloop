@@ -13,6 +13,7 @@ import { requestMetricsMiddleware } from "./common/monitoring/metrics";
 import { auditMiddleware, AuditLogger } from "./common/monitoring/audit";
 import { runSeed } from "./database/seeders/seed";
 import { ensureSystemSettings } from "./config/settings";
+import { refreshPlatformCommissionRate } from "./modules/saas/services/commission.service";
 import { edgeClientIp } from "./common/middleware/edgeClient.middleware";
 import { isAllowedOrigin } from "./config/origins";
 
@@ -120,5 +121,6 @@ export async function initApp(app: express.Express): Promise<void> {
   await runPostInitMigrations();
   await runSeed();
   await ensureSystemSettings();
+  await refreshPlatformCommissionRate();
   app.use("/api", createRootRoutes(AppDataSource));
 }

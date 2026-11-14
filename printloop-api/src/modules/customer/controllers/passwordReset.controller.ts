@@ -138,6 +138,7 @@ export class PasswordResetController {
     user.passwordHash = bcrypt.hashSync(password, 12);
     user.salt = 'bcrypt';
     user.resetToken = null as any;
+    user.isEmailVerified = true;
     await userRepo.save(user);
 
     res.json({

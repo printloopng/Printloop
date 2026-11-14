@@ -104,7 +104,6 @@ export class TenantRepository extends BaseRepository<Tenant> {
       initialAddress: string | null;
       initialLat: number | null;
       initialLng: number | null;
-      commissionPct: number;
     },
   ): Promise<{ tenant: Tenant; owner: User }> {
     return this.manager.transaction(async (em) => {
@@ -132,7 +131,6 @@ export class TenantRepository extends BaseRepository<Tenant> {
           slug: input.slug,
           customDomain: null,
           status: TenantStatus.TRIAL,
-          commissionPct: input.commissionPct,
           paystackSubaccountCode: null,
           suspendedAt: null,
           suspendReason: null,

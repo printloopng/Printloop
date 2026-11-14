@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { effectiveCommissionRate } from '@/modules/saas/services/commission.service';
 import { DataSource } from 'typeorm';
 import { Tenant } from '@/database/entities/tenant.entity';
 import { PayoutSchedule } from '@/database/entities/payoutSchedule.entity';
@@ -48,7 +49,7 @@ export class PayoutController {
           availableBalance: available,
           pendingPayout: Number(pending?.total ?? 0),
           lifetimeCommissionPaidToPlatform: Number(lifetime?.total ?? 0),
-          commissionPct: Number(tenant.commissionPct),
+          commissionPct: effectiveCommissionRate(tenant),
         },
       });
     } catch (err: any) {

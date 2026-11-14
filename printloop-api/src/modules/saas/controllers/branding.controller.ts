@@ -16,6 +16,13 @@ export const photoUpload = multer({
   limits: { fileSize: 5 * 1024 * 1024 },
 });
 
+export const logoUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 2 * 1024 * 1024 },
+});
+
+const LOGO_MIME = new Set(['image/png', 'image/jpeg', 'image/webp']);
+
 export class BrandingController {
   constructor(private ds: DataSource) {}
 
@@ -79,6 +86,27 @@ export class BrandingController {
     }
   };
 
+  uploadLogo = async (req: Request, res: Response) => {
+    try {
+      const file = req.file;
+      if (!file || !LOGO_MIME.has(file.mimetype)) {
+        res.status(400).json({ success: false, message: 'Upload a PNG, JPEG or WebP image up to 2 MB' });
+        return;
+      }
+      const stored = await saveBuffer(file.buffer, file.originalname || 'logo.png', { public: true });
+      const { TenantBranding } = await import('@/database/entities/tenantBranding.entity');
+      const repo = this.ds.getRepository(TenantBranding);
+      let row = await repo.findOne({ where: { tenantId: req.tenant!.id } });
+      if (!row) row = repo.create({ tenantId: req.tenant!.id });
+      row.logoUrl = stored.url;
+      const saved = await repo.save(row);
+      res.json({ success: true, data: saved });
+    } catch (err: any) {
+      console.error('Logo upload error:', err);
+      res.status(500).json({ success: false, message: err.message || 'Failed to upload logo' });
+    }
+  };
+
   uploadPhoto = async (req: Request, res: Response) => {
     try {
       const file = req.file;
@@ -90,7 +118,7 @@ export class BrandingController {
         res.status(400).json({ success: false, message: 'Uploaded file must be an image' });
         return;
       }
-      const stored = await saveBuffer(file.buffer, file.originalname);
+      const stored = await saveBuffer(file.buffer, file.originalname, { public: true });
       const tenant = req.tenant!;
       tenant.photos = tenant.photos || [];
       tenant.photos.push(stored.url);

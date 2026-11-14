@@ -12,7 +12,7 @@ export function contentSecurityPolicy({ apiOrigin, connect = [], allowEval = fal
     "default-src 'self'",
     `script-src 'self' 'unsafe-inline'${evalSource}`,
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob: https:",
+    ["img-src 'self' data: blob: https:", api].filter(Boolean).join(" "),
     "font-src 'self' data:",
     ["connect-src 'self'", api, ws, ...connect].filter(Boolean).join(" "),
     "worker-src 'self' blob:",

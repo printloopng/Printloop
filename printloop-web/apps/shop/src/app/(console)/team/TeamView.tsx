@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { UserPlus } from "lucide-react";
-import { Button, ConfirmDialog, DataTable, Dialog, ErrorState, Input, Notice, PageHeader, Pill, Select, Skeleton, formatDate } from "@printloop/ui";
+import { Button, ConfirmDialog, DataTable, Dialog, ErrorState, Input, Notice, PageHeader, Pill, Select, Skeleton, formatDate, toast } from "@printloop/ui";
 import { errorMessage, unwrap, type Schemas } from "@printloop/api-client";
 import { useApi, useApiClient } from "@printloop/api-client/react";
 import { useSession } from "@printloop/auth/client";
@@ -38,6 +38,9 @@ function InviteDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o:
       { invalidate: ["/saas/team"] },
     ).then((r) => {
       if (!r) return;
+      if (!r.invited) toast.success(`${r.email} was added and can sign in with their existing account.`);
+      else if (r.emailSent) toast.success(`Invite sent to ${r.email}. They confirm their email and set a password from the link.`);
+      else toast.error(`${r.email} was added, but the invite email could not be sent. Use "Resend invite" once email is working.`);
       onOpenChange(false);
       setEmail("");
       setFirst("");
@@ -48,7 +51,7 @@ function InviteDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o:
       open={open}
       onOpenChange={onOpenChange}
       title="Add a team member"
-      description="New people get an email to set their password. Existing PrintLoop users are added straight away."
+      description="New people get an email to confirm their address and set a password, then they can sign in to this console. Existing PrintLoop users are added straight away."
       footer={
         <Button size="sm" disabled={!valid} loading={isPending("invite")} onClick={submit}>
           Add to team
@@ -149,16 +152,38 @@ export function TeamView() {
                   ),
               },
               { label: "Joined", hideOnMobile: true, cell: (m) => (m.joinedAt ? formatDate(m.joinedAt) : "—") },
-              { label: "", hideOnMobile: true, cell: (m) => (m.isBlocked ? <Pill tone="persimmon">Blocked</Pill> : null) },
+              {
+                label: "",
+                hideOnMobile: true,
+                cell: (m) => (m.isBlocked ? <Pill tone="persimmon">Blocked</Pill> : m.pending ? <Pill tone="ochre">Invite pending</Pill> : null),
+              },
               {
                 label: "",
                 align: "right",
-                cell: (m) =>
-                  canRemove(m) ? (
-                    <button type="button" className="text-xs pl-link" onClick={() => setRemoving(m)}>
-                      Remove
-                    </button>
-                  ) : null,
+                cell: (m) => (
+                  <span className="inline-flex items-center gap-3">
+                    {manage && m.pending && (owner || m.role === "staff") ? (
+                      <button
+                        type="button"
+                        className="text-xs pl-link"
+                        onClick={() =>
+                          void run("resend", () => unwrap(client.POST("/saas/team/{userId}/resend-invite", { params: { path: { userId: m.userId } } })), { invalidate: ["/saas/team"] }).then((r) => {
+                            if (!r) return;
+                            if (r.emailSent) toast.success(`Invite sent again to ${r.email}.`);
+                            else toast.error("The invite email could not be sent. Check the email settings.");
+                          })
+                        }
+                      >
+                        Resend invite
+                      </button>
+                    ) : null}
+                    {canRemove(m) ? (
+                      <button type="button" className="text-xs pl-link" onClick={() => setRemoving(m)}>
+                        Remove
+                      </button>
+                    ) : null}
+                  </span>
+                ),
               },
             ]}
           />

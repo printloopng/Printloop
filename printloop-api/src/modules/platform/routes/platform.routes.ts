@@ -10,6 +10,7 @@ router.use(authenticate, requirePlatformAdmin);
 
 router.get('/tenants', platformController.listTenants);
 router.get('/tenants/:id', platformController.getTenant);
+router.patch('/tenants/:id/commission', platformController.setCommission);
 router.post('/tenants/:id/suspend', platformController.suspendTenant);
 router.post('/tenants/:id/reactivate', platformController.reactivateTenant);
 router.post('/tenants/:id/impersonate', platformController.impersonateTenant);

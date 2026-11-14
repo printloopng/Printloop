@@ -40,6 +40,29 @@ export function scrubUser<T extends Record<string, any> | null | undefined>(u: T
 
 const num = (v: unknown) => (v === null ? null : Number(v));
 
+async function sendTeamInvite(tenantName: string, email: string, role: string, token: string | null): Promise<boolean> {
+  const link = token
+    ? `${appUrls.shop}/reset-password?invite=1&email=${encodeURIComponent(email)}&token=${encodeURIComponent(token)}`
+    : `${appUrls.shop}/login`;
+  const action = token ? 'Confirm your email and set your password' : 'Sign in';
+  try {
+    const sent = await new EmailService().send({
+      to: email,
+      subject: `You've been added to ${tenantName} on PrintLoop`,
+      text: `You've been added to ${tenantName} on PrintLoop as ${role}.
+
+${action}: ${link}
+
+${token ? 'This link works for 7 days. ' : ''}If you weren't expecting this, you can ignore this email.`,
+      html: `<p>You've been added to <strong>${tenantName}</strong> on PrintLoop as <strong>${role}</strong>.</p><p><a href="${link}" style="display:inline-block;background:#D14B2C;color:#fff;padding:12px 20px;text-decoration:none;font-weight:bold">${action}</a></p><p style="color:#666;font-size:13px">${token ? 'This link works for 7 days. ' : ''}If you weren't expecting this, you can ignore this email.</p>`,
+    });
+    return sent === true;
+  } catch (mailErr) {
+    console.warn('[team] invite email failed:', mailErr);
+    return false;
+  }
+}
+
 function memberRole(req: Request): TenantMemberRole | null {
   const user = (req as any).user;
   if (isPlatformStaff(req)) return TenantMemberRole.OWNER;
@@ -613,6 +636,7 @@ export class ShopAdminController {
             email: m.user?.email,
             phoneNumber: m.user?.phoneNumber,
             isBlocked: m.user?.isBlocked,
+            pending: m.user ? !m.user.isEmailVerified : false,
           })),
         },
       });
@@ -668,21 +692,9 @@ export class ShopAdminController {
         return;
       }
       await memberRepo.save(memberRepo.create({ tenantId: tenant.id, userId: user.id, role }));
-      const link = inviteToken
-        ? `${appUrls.shop}/reset-password?invite=1&email=${encodeURIComponent(email)}&token=${encodeURIComponent(inviteToken)}`
-        : `${appUrls.shop}/login`;
-      try {
-        await new EmailService().send({
-          to: email,
-          subject: `You've been added to ${tenant.name} on PrintLoop`,
-          text: `You now have ${role} access to ${tenant.name}. ${inviteToken ? 'Set your password' : 'Sign in'}: ${link}`,
-          html: `<p>You now have <strong>${role}</strong> access to <strong>${tenant.name}</strong> on PrintLoop.</p><p><a href="${link}">${inviteToken ? 'Set your password' : 'Sign in'}</a></p>`,
-        });
-      } catch (mailErr) {
-        console.warn('[team] invite email failed:', mailErr);
-      }
+      const emailSent = await sendTeamInvite(tenant.name, email, role, inviteToken);
       await writeAudit(req, 'team.member_added', `user:${user.id}`, { email, role });
-      res.status(201).json({ success: true, data: { userId: user.id, email, role, invited: Boolean(inviteToken) } });
+      res.status(201).json({ success: true, data: { userId: user.id, email, role, invited: Boolean(inviteToken), emailSent } });
     } catch (err) {
       next(err);
     }
@@ -715,6 +727,36 @@ export class ShopAdminController {
       await repo.save(member);
       await writeAudit(req, 'team.role_changed', `user:${member.userId}`, { from, to: role });
       res.json({ success: true, data: { userId: member.userId, role } });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  resendInvite = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const tenant = req.tenant!;
+      const member = await AppDataSource.getRepository(TenantMember).findOne({
+        where: { tenantId: tenant.id, userId: req.params.userId },
+        relations: ['user'],
+      });
+      if (!member?.user) {
+        res.status(404).json({ success: false, message: 'Team member not found' });
+        return;
+      }
+      if (member.user.isEmailVerified) {
+        res.status(409).json({ success: false, message: 'This person has already confirmed their email and can sign in.' });
+        return;
+      }
+      if (member.role === TenantMemberRole.ADMIN && memberRole(req) !== TenantMemberRole.OWNER) {
+        res.status(403).json({ success: false, message: 'Only the shop owner can resend an admin invite.' });
+        return;
+      }
+      const { token } = mintToken(INVITE_TTL_MS);
+      member.user.resetToken = token;
+      await AppDataSource.getRepository(User).save(member.user);
+      const emailSent = await sendTeamInvite(tenant.name, member.user.email, member.role, token);
+      await writeAudit(req, 'team.invite_resent', `user:${member.userId}`, { email: member.user.email });
+      res.json({ success: true, data: { userId: member.userId, email: member.user.email, emailSent } });
     } catch (err) {
       next(err);
     }

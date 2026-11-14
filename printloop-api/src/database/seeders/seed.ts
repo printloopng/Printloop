@@ -304,7 +304,7 @@ async function createDemoShop(): Promise<string> {
       slug: DEMO_SHOP_SLUG,
       customDomain: null,
       status: TenantStatus.ACTIVE,
-      commissionPct: Config.commissionPctDefault,
+      commissionPct: null,
       paystackSubaccountCode: null,
       suspendedAt: null,
       suspendReason: null,

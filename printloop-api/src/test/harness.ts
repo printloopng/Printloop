@@ -1,10 +1,9 @@
-import net from 'node:net';
 import crypto from 'node:crypto';
 import type { Server } from 'node:http';
 import { Client } from 'pg';
 import { checkContract, contractViolations } from './contract';
 
-import { WEBHOOK_SECRET, TEST_SERVER_URL, TEST_DB_NAME, urlWithDatabase } from './env';
+import { WEBHOOK_SECRET, TEST_SERVER_URL, TEST_DB_NAME, TEST_PORT, urlWithDatabase } from './env';
 
 export { WEBHOOK_SECRET };
 
@@ -30,29 +29,14 @@ export interface CallResult {
   headers: Headers;
 }
 
-async function freePort(): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const srv = net.createServer();
-    srv.listen(0, '127.0.0.1', () => {
-      const { port } = srv.address() as net.AddressInfo;
-      srv.close(() => resolve(port));
-    });
-    srv.on('error', reject);
-  });
-}
-
 export async function startTestApi(): Promise<TestApi> {
-  const port = await freePort();
+  const port = TEST_PORT;
   const dbName = TEST_DB_NAME;
   const admin = () => new Client({ connectionString: urlWithDatabase(TEST_SERVER_URL, 'postgres') });
   const creator = admin();
   await creator.connect();
   await creator.query(`CREATE DATABASE "${dbName}"`);
   await creator.end();
-  Object.assign(process.env, {
-    PORT: String(port),
-    PUBLIC_BASE_URL: `http://127.0.0.1:${port}`,
-  });
   const { createApp, initApp } = await import('@/app');
   const app = createApp();
   await initApp(app);

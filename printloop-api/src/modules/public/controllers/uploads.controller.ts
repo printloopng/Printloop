@@ -36,7 +36,7 @@ export class UploadsController {
         res.status(400).json({ success: false, message: 'Upload a PNG, JPEG or WebP image' });
         return;
       }
-      const stored = await saveBuffer(file.buffer, file.originalname || 'photo.jpg');
+      const stored = await saveBuffer(file.buffer, file.originalname || 'photo.jpg', { public: true });
       res.status(201).json({ success: true, data: { fileURL: stored.url, size: stored.sizeBytes } });
     } catch (err) {
       next(err);

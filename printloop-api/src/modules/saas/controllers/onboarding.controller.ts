@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { effectiveCommissionRate } from '@/modules/saas/services/commission.service';
 import { DataSource } from 'typeorm';
 import { Tenant } from '@/database/entities/tenant.entity';
 import { PayoutSchedule } from '@/database/entities/payoutSchedule.entity';
@@ -148,7 +149,7 @@ export class OnboardingController {
         businessName: businessName || tenant.name,
         settlementBank: bankCode,
         accountNumber,
-        percentageCharge: Number(tenant.commissionPct),
+        percentageCharge: effectiveCommissionRate(tenant) * 100,
       });
       tenant.paystackSubaccountCode = created.subaccountCode;
       await this.ds.getRepository(Tenant).save(tenant);

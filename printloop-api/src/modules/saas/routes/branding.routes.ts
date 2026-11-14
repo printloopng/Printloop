@@ -8,6 +8,7 @@ import { requireVerifiedEmail } from '@/common/middleware/verifiedEmail.middlewa
 import {
   BrandingController,
   photoUpload,
+  logoUpload,
 } from '@/modules/saas/controllers/branding.controller';
 
 export function createBrandingRoutes(ds: DataSource): Router {
@@ -31,6 +32,15 @@ export function createBrandingRoutes(ds: DataSource): Router {
     requireTenantRole(TenantMemberRole.OWNER, TenantMemberRole.ADMIN),
     photoUpload.single('photo'),
     ctrl.uploadPhoto,
+  );
+  router.post(
+    '/me/logo',
+    allowUploadTicket('branding-photo'),
+    authenticate,
+    resolveTenant,
+    requireTenantRole(TenantMemberRole.OWNER, TenantMemberRole.ADMIN),
+    logoUpload.single('logo'),
+    ctrl.uploadLogo,
   );
   router.delete('/me/photos', authenticate, resolveTenant, requireTenantRole(TenantMemberRole.OWNER, TenantMemberRole.ADMIN), ctrl.deletePhoto);
 

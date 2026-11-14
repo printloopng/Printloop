@@ -38,6 +38,7 @@ router.patch('/customers/:id/block', manager, ctrl.blockCustomer);
 
 router.get('/team', ctrl.listTeam);
 router.post('/team', manager, ctrl.inviteMember);
+router.post('/team/:userId/resend-invite', manager, ctrl.resendInvite);
 router.patch('/team/:userId', manager, ctrl.updateMember);
 router.delete('/team/:userId', manager, ctrl.removeMember);
 

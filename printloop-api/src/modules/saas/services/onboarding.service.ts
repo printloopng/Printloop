@@ -121,7 +121,6 @@ export async function signupTenant(input: SignupInput): Promise<SignupResult> {
       initialAddress,
       initialLat,
       initialLng,
-      commissionPct: Config.commissionPctDefault,
     }));
   } catch (err: any) {
     if (err?.message === 'SLUG_TAKEN') {

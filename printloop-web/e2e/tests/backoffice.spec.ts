@@ -80,6 +80,20 @@ test.describe("backoffice", () => {
     await again.close();
   });
 
+  test("sets a fee for one shop and puts it back on the platform rate", async ({ page }) => {
+    await signIn(page, "backoffice", staff());
+    await page.goto(`${APPS.backoffice}/tenants/${shop.id}`);
+    const card = page.getByText("Platform rate", { exact: true });
+    await expect(card).toBeVisible();
+    await page.getByLabel("Fee for this shop (%)").fill("7.5");
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    await expect(page.getByText("7.5%").first()).toBeVisible();
+    await expect(page.getByText("This shop's own rate")).toBeVisible();
+    await page.getByRole("button", { name: "Use the platform rate" }).click();
+    await expect(page.getByText("Platform rate", { exact: true })).toBeVisible();
+    await expect(page.getByText("10%").first()).toBeVisible();
+  });
+
   test("opens a support session that can't touch security or payouts", async ({ page, context }) => {
     await signIn(page, "backoffice", staff());
     await page.goto(`${APPS.backoffice}/tenants/${shop.id}`);

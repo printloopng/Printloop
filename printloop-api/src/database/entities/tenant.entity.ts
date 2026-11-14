@@ -44,9 +44,9 @@ export class Tenant {
     type: 'decimal',
     precision: 5,
     scale: 4,
-    default: 0.1,
+    nullable: true,
   })
-  commissionPct: number;
+  commissionPct: number | null;
 
   
   @Column({ type: 'varchar', length: 64, nullable: true })

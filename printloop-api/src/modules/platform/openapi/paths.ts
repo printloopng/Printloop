@@ -444,6 +444,10 @@ export const routes: Array<[string, string, Op]> = [
   ['POST', '/saas/me/2fa/disable', { tag: 'Shop', summary: 'Turn off two-factor', auth: 'user', body: obj({ code: str() }, ['code']), data: obj({ enabled: bool() }, ['enabled']) }],
   ['GET', '/saas/me/branding', { tag: 'Shop', summary: 'Shop branding', auth: 'user', data: ref('Branding') }],
   ['PUT', '/saas/me/branding', { tag: 'Shop', summary: 'Update shop branding', auth: 'user', body: ref('BrandingInput'), data: ref('Branding') }],
+  ['POST', '/saas/me/logo', {
+    tag: 'Shop', summary: 'Upload the shop logo (PNG, JPEG or WebP up to 2 MB; bearer or branding-photo ticket)', auth: 'upload',
+    multipart: obj({ logo: str({ format: 'binary' }) }, ['logo']), data: ref('Branding'),
+  }],
   ['POST', '/saas/me/photos', {
     tag: 'Shop', summary: 'Add a shop photo (bearer or branding-photo ticket)', auth: 'upload',
     multipart: obj({ photo: str({ format: 'binary' }) }, ['photo']), data: obj({ photos: arr(str()) }),
@@ -573,8 +577,9 @@ export const routes: Array<[string, string, Op]> = [
   ['POST', '/saas/team', {
     tag: 'Shop team', summary: 'Add a team member; new people get a set-password email (owner/admin)', auth: 'user', status: 201,
     body: obj({ email: str(), role: en(['admin', 'staff']), firstName: str(), lastName: str(), phoneNumber: str() }, ['email', 'role']),
-    data: obj({ userId: uuid(), email: str(), role: en(TENANT_ROLES), invited: bool() }),
+    data: obj({ userId: uuid(), email: str(), role: en(TENANT_ROLES), invited: bool(), emailSent: bool() }),
   }],
+  ['POST', '/saas/team/{userId}/resend-invite', { tag: 'Shop team', summary: 'Send a pending team member a fresh set-password email (owner/admin)', auth: 'user', data: obj({ userId: uuid(), email: str(), emailSent: bool() }, ['userId', 'email', 'emailSent']) }],
   ['PATCH', '/saas/team/{userId}', { tag: 'Shop team', summary: "Change a member's role (owner)", auth: 'user', body: obj({ role: en(['admin', 'staff']) }, ['role']), data: obj({ userId: uuid(), role: str() }) }],
   ['DELETE', '/saas/team/{userId}', { tag: 'Shop team', summary: 'Remove a team member (owner/admin)', auth: 'user' }],
 
@@ -639,6 +644,10 @@ export const routes: Array<[string, string, Op]> = [
       },
       ['tenant', 'stats', 'members'],
     ),
+  }],
+  ['PATCH', '/platform/tenants/{id}/commission', {
+    tag: 'Platform', summary: "Set one shop's platform fee as a fraction (0 to 0.5), or null to follow the platform rate", auth: 'user', body: obj({ commissionPct: nullable(num()) }, ['commissionPct']),
+    data: obj({ id: uuid(), commissionPct: num(), commissionPctCustom: bool() }, ['id', 'commissionPct', 'commissionPctCustom']),
   }],
   ['POST', '/platform/tenants/{id}/suspend', {
     tag: 'Platform', summary: 'Suspend a shop', auth: 'user', body: obj({ reason: str() }),

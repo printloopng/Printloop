@@ -9,7 +9,6 @@ import { PayoutsTab } from "./PayoutsTab";
 import { DomainsTab } from "./DomainsTab";
 import { WebhooksTab } from "./WebhooksTab";
 import { SecurityTab } from "./SecurityTab";
-import { IntegrationsTab } from "./IntegrationsTab";
 import { AccountTab } from "./AccountTab";
 import { SETTINGS_TABS, type SettingsTab } from "./tabs";
 
@@ -31,7 +30,6 @@ export function SettingsView({ initialTab }: { initialTab: SettingsTab }) {
       {tab === "domains" ? <DomainsTab /> : null}
       {tab === "webhooks" ? <WebhooksTab /> : null}
       {tab === "security" ? <SecurityTab /> : null}
-      {tab === "integrations" ? <IntegrationsTab /> : null}
       {tab === "account" ? <AccountTab /> : null}
     </div>
   );

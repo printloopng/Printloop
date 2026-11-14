@@ -8,6 +8,8 @@ export const WEBHOOK_SECRET = 'whsec_test_suite';
 export const TEST_SERVER_URL =
   process.env.TEST_DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/postgres';
 
+export const TEST_PORT = 30000 + Math.floor(Math.random() * 25000);
+
 export const TEST_DB_NAME = `printloop_test_${crypto.randomBytes(6).toString('hex')}`;
 
 export function urlWithDatabase(serverUrl: string, name: string): string {
@@ -18,6 +20,8 @@ export function urlWithDatabase(serverUrl: string, name: string): string {
 
 Object.assign(process.env, {
   NODE_ENV: 'test',
+  PORT: String(TEST_PORT),
+  PUBLIC_BASE_URL: `http://127.0.0.1:${TEST_PORT}`,
   DATABASE_URL: urlWithDatabase(TEST_SERVER_URL, TEST_DB_NAME),
   DB_SSL: 'false',
   SEED_DEMO: '1',

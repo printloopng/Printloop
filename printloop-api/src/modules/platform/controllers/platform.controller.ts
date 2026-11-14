@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { effectiveCommissionRate, MAX_COMMISSION_RATE } from '@/modules/saas/services/commission.service';
 import { AppDataSource } from '@/config/data-source';
 import { Tenant, TenantStatus } from '@/database/entities/tenant.entity';
 import { TenantMember, TenantMemberRole } from '@/database/entities/tenantMember.entity';
@@ -35,7 +36,8 @@ export class PlatformController {
           name: t.name,
           slug: t.slug,
           status: t.status,
-          commissionPct: Number(t.commissionPct),
+          commissionPct: effectiveCommissionRate(t),
+          commissionPctCustom: t.commissionPct !== null,
           customDomain: t.customDomain,
           paystackSubaccountCode: t.paystackSubaccountCode,
           suspendedAt: t.suspendedAt,
@@ -84,7 +86,8 @@ export class PlatformController {
           name: tenant.name,
           slug: tenant.slug,
           status: tenant.status,
-          commissionPct: Number(tenant.commissionPct),
+          commissionPct: effectiveCommissionRate(tenant),
+          commissionPctCustom: tenant.commissionPct !== null,
           customDomain: tenant.customDomain,
           paystackSubaccountCode: tenant.paystackSubaccountCode,
           address: tenant.address,
@@ -159,6 +162,37 @@ export class PlatformController {
       .json({ success: false, message: err?.message || 'Failed to suspend tenant' });
   }
 };
+
+  setCommission = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const repo = AppDataSource.getRepository(Tenant);
+      const tenant = await repo.findOne({ where: { id: req.params.id } });
+      if (!tenant) {
+        res.status(404).json({ success: false, message: 'Tenant not found' });
+        return;
+      }
+      const raw = req.body?.commissionPct;
+      let next_: number | null;
+      if (raw === null) {
+        next_ = null;
+      } else if (typeof raw === 'number' && Number.isFinite(raw) && raw >= 0 && raw <= MAX_COMMISSION_RATE) {
+        next_ = Math.round(raw * 10000) / 10000;
+      } else {
+        res.status(400).json({ success: false, message: 'commissionPct must be a fraction between 0 and 0.5, or null to use the platform rate' });
+        return;
+      }
+      const from = tenant.commissionPct === null ? null : Number(tenant.commissionPct);
+      tenant.commissionPct = next_;
+      await repo.save(tenant);
+      await writeAudit(req, 'tenant.commission_changed', `tenant:${tenant.id}`, { from, to: next_, slug: tenant.slug });
+      res.json({
+        success: true,
+        data: { id: tenant.id, commissionPct: effectiveCommissionRate(tenant), commissionPctCustom: tenant.commissionPct !== null },
+      });
+    } catch (err) {
+      next(err);
+    }
+  };
 
   reactivateTenant = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {

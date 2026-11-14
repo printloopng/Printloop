@@ -11,6 +11,47 @@ import { appUrls } from "@printloop/auth/config";
 import { useAction } from "@printloop/auth/actions";
 import { TENANT_TONE } from "../TenantsView";
 
+function FeeCard({ id, name, rate, custom }: { id: string; name: string; rate: number; custom: boolean }) {
+  const client = useApiClient();
+  const { run, isPending } = useAction();
+  const current = (rate * 100).toFixed(2).replace(/.?0+$/, "");
+  const [draft, setDraft] = useState(current);
+  const parsed = Number(draft);
+  const valid = draft.trim() !== "" && Number.isFinite(parsed) && parsed >= 0 && parsed <= 50;
+  const refresh = ["/platform/tenants/{id}", "/platform/tenants"];
+  const save = (commissionPct: number | null) =>
+    run("fee", () => unwrap(client.PATCH("/platform/tenants/{id}/commission", { params: { path: { id } }, body: { commissionPct } })), {
+      success: commissionPct === null ? `${name} now follows the platform fee.` : `${name}'s fee is ${(commissionPct * 100).toFixed(2).replace(/.?0+$/, "")}%.`,
+      invalidate: refresh,
+    });
+
+  return (
+    <Card className="space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <div className="pl-serif text-3xl font-extrabold">{current}%</div>
+          <div className="editorial-label text-ink/50 text-[10px]">TAKEN FROM EACH PAID JOB</div>
+        </div>
+        <Pill tone={custom ? "persimmon" : "fog"}>{custom ? "This shop's own rate" : "Platform rate"}</Pill>
+      </div>
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="w-40">
+          <Input label="Fee for this shop (%)" inputMode="decimal" value={draft} onChange={(e) => setDraft(e.target.value)} />
+        </div>
+        <Button size="sm" disabled={!valid || draft === current} loading={isPending("fee")} onClick={() => save(Math.round(parsed * 100) / 10000)}>
+          Save
+        </Button>
+        {custom ? (
+          <Button size="sm" variant="ghost" onClick={() => save(null)}>
+            Use the platform rate
+          </Button>
+        ) : null}
+      </div>
+      <p className="text-xs text-ink/60">Between 0 and 50. It applies to payments made from now on. The platform rate for every shop without its own is set under Settings → commissionPctDefault.</p>
+    </Card>
+  );
+}
+
 export function TenantDetail({ id }: { id: string }) {
   const $api = useApi();
   const client = useApiClient();
@@ -134,6 +175,10 @@ export function TenantDetail({ id }: { id: string }) {
           />
         </Section>
       </div>
+
+      <Section title="Platform fee">
+        <FeeCard key={String(tenant.commissionPct)} id={id} name={tenant.name} rate={tenant.commissionPct ?? 0} custom={Boolean(tenant.commissionPctCustom)} />
+      </Section>
 
       <Section title="Danger zone">
         <Card className="border-persimmon flex flex-wrap items-center justify-between gap-4">

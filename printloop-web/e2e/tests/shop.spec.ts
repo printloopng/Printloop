@@ -79,6 +79,8 @@ test.describe("shop console", () => {
     await page.getByRole("button", { name: "Add to team" }).click();
     const row = page.getByRole("row", { name: new RegExp(email) });
     await expect(row).toBeVisible();
+    await expect(row.getByText("Invite pending")).toBeVisible();
+    await expect(row.getByRole("button", { name: "Resend invite" })).toBeVisible();
 
     await row.getByLabel("Role for E2E Staffer").selectOption("admin");
     await expect(page.getByText("E2E Staffer is now admin.")).toBeVisible();
@@ -101,6 +103,15 @@ test.describe("shop console", () => {
     await expect(page.getByText("Branding saved.")).toBeVisible();
     const branding = await (await fetch(`${API_URL}/api/branding`, { headers: { "x-tenant-slug": DEMO_SHOP } })).json();
     expect(branding.data.branding.wordmark).toBe("Campus Print Hub E2E");
+
+    await page.getByLabel("Choose logo file").setInputFiles({
+      name: "logo.png",
+      mimeType: "image/png",
+      buffer: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64"),
+    });
+    await expect(page.getByText("Logo updated.")).toBeVisible();
+    await expect(page.getByAltText("Shop logo")).toBeVisible();
+    await expect(page.getByRole("tab", { name: "Integrations" })).toHaveCount(0);
 
     await page.getByRole("tab", { name: "Payouts" }).click();
     const save = page.getByRole("button", { name: "Save account" });

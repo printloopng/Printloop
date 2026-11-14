@@ -1,4 +1,5 @@
 import { AppDataSource } from '@/config/data-source';
+import { Config } from '@/config';
 import { SystemSetting } from '@/database/entities/systemSetting.entity';
 
 export type SettingValueType = 'string' | 'number' | 'boolean';
@@ -28,6 +29,7 @@ export const DEFAULT_SETTINGS: DefaultSetting[] = [
   { key: 'maxGroupParticipants', value: '40', valueType: 'number', category: 'Jobs', description: 'Maximum participants allowed in one group session.' },
 
   { key: 'paystackEnabled', value: 'true', valueType: 'boolean', category: 'Payments', description: 'Allow card / transfer / USSD payments via Paystack.' },
+  { key: 'commissionPctDefault', value: String(Math.round(Config.commissionPctDefault * 10000) / 100), valueType: 'number', category: 'Payments', description: 'Platform fee taken from every paid job, in percent (0 to 50). Applies to every shop that has no rate of its own.' },
   { key: 'currency', value: 'NGN', valueType: 'string', category: 'Payments', description: 'Platform settlement currency.', isReadOnly: true },
 
   { key: 'emailNotificationsEnabled', value: 'true', valueType: 'boolean', category: 'Notifications', description: 'Send transactional emails (receipts, job-ready).' },

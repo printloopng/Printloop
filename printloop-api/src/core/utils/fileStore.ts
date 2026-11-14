@@ -69,7 +69,11 @@ function sanitize(name: string): string {
   return (name || 'document').replace(/[^\w.-]+/g, '_').slice(0, 80);
 }
 
-export async function saveBuffer(buf: Buffer, originalName: string): Promise<StoredFile> {
+export async function saveBuffer(
+  buf: Buffer,
+  originalName: string,
+  opts: { public?: boolean } = {},
+): Promise<StoredFile> {
   const fileName = sanitize(originalName);
   const key = `${randomUUID()}__${fileName}`;
 
@@ -102,12 +106,18 @@ export async function saveBuffer(buf: Buffer, originalName: string): Promise<Sto
       const uploadResult = await new Promise<any>((resolve, reject) => {
         cloudinary.uploader
           .upload_stream(
-            {
-              resource_type: 'raw',
-              type: 'authenticated',
-              folder: 'printloop/documents',
-              public_id: key.replace(/\.[^.]+$/, ''),
-            },
+            opts.public
+              ? {
+                  resource_type: 'image',
+                  folder: 'printloop/public',
+                  public_id: key.replace(/\.[^.]+$/, ''),
+                }
+              : {
+                  resource_type: 'raw',
+                  type: 'authenticated',
+                  folder: 'printloop/documents',
+                  public_id: key.replace(/\.[^.]+$/, ''),
+                },
             (error, result) => {
               if (error) reject(error);
               else resolve(result);

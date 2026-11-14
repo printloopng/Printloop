@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { effectiveCommissionRate, platformCommissionRate, refreshPlatformCommissionRate, COMMISSION_SETTING_KEY } from '@/modules/saas/services/commission.service';
 import { AppDataSource } from '@/config/data-source';
 import { User, UserRole } from '@/database/entities/user.entity';
 import { PrintJob } from '@/database/entities/printJob.entity';
@@ -191,9 +192,14 @@ export class PlatformAdminController {
         res.status(400).json({ success: false, message: `Value must be a valid ${setting.valueType}` });
         return;
       }
+      if (setting.key === COMMISSION_SETTING_KEY && (Number(value) < 0 || Number(value) > 50)) {
+        res.status(400).json({ success: false, message: 'The platform fee must be between 0 and 50 percent' });
+        return;
+      }
       const from = setting.value;
       setting.value = value;
       await repo.save(setting);
+      if (setting.key === COMMISSION_SETTING_KEY) await refreshPlatformCommissionRate();
       await writeAudit(req, 'setting.updated', `setting:${setting.key}`, { from, to: value });
       res.json({ success: true, data: { setting } });
     } catch (err) {
@@ -387,7 +393,7 @@ export class PlatformAdminController {
           slug: t?.slug ?? null,
           transactions: parseInt(r.transactions || '0', 10),
           gmv: value,
-          commission: Math.round(value * Number(t?.commissionPct ?? 0)) / 100,
+          commission: Math.round(value * (t ? effectiveCommissionRate(t) : platformCommissionRate()) * 100) / 100,
         };
       });
       res.json({

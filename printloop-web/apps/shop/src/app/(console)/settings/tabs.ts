@@ -5,7 +5,6 @@ export const SETTINGS_TABS = [
   { value: "domains", label: "Domains" },
   { value: "webhooks", label: "Webhooks" },
   { value: "security", label: "Security" },
-  { value: "integrations", label: "Integrations" },
   { value: "account", label: "Data & account" },
 ] as const;
 

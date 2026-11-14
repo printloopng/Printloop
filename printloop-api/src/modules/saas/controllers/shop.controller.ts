@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import { effectiveCommissionRate } from '@/modules/saas/services/commission.service';
 import { tenantRoleOf } from '@/common/middleware/tenant.middleware';
 import { Request, Response } from 'express';
 import { DataSource } from 'typeorm';
@@ -46,7 +47,7 @@ export class ShopController {
         name: tenant.name,
         slug: tenant.slug,
         status: tenant.status,
-        commissionPct: Number(tenant.commissionPct),
+        commissionPct: effectiveCommissionRate(tenant),
         customDomain: tenant.customDomain,
         address: tenant.address,
         lat: tenant.lat,

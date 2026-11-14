@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { ImagePlus, Trash2 } from "lucide-react";
-import { Button, Card, ErrorState, Input, Notice, Section, Skeleton } from "@printloop/ui";
+import { Button, Card, ErrorState, Input, Notice, Section, Skeleton, toast } from "@printloop/ui";
 import { errorMessage, unwrap, uploadDirect, type Schemas } from "@printloop/api-client";
 import { useApi, useApiClient, useApiContext } from "@printloop/api-client/react";
 import { useAction } from "@printloop/auth/actions";
@@ -15,7 +15,6 @@ const HEX = /^#[0-9a-fA-F]{6}$/;
 const FIELDS: Array<{ key: keyof BrandingInput; label: string; placeholder?: string; type?: string }> = [
   { key: "wordmark", label: "Display name", placeholder: "How your shop name appears" },
   { key: "tagline", label: "Tagline", placeholder: "e.g. Fast prints beside the Faculty of Arts" },
-  { key: "logoUrl", label: "Logo URL", placeholder: "https://…" },
   { key: "supportPhone", label: "Support phone", placeholder: "+234…", type: "tel" },
   { key: "supportEmail", label: "Support email", type: "email" },
   { key: "emailFromName", label: "Email sender name", placeholder: "Shown on receipts" },
@@ -34,7 +33,70 @@ function ColorField({ label, value, onChange, disabled }: { label: string; value
   );
 }
 
-function BrandingForm({ initial }: { initial: Branding | null }) {
+function LogoField({ logoUrl }: { logoUrl: string | null }) {
+  const client = useApiClient();
+  const manage = useCanManage();
+  const { apiOrigin } = useApiContext();
+  const { run, isPending } = useAction();
+  const input = useRef<HTMLInputElement>(null);
+  const [progress, setProgress] = useState<number | null>(null);
+  const upload = async (file: File) => {
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("The logo must be 2 MB or smaller.");
+      return;
+    }
+    const form = new FormData();
+    form.append("logo", file);
+    setProgress(0);
+    await run("logo", () => uploadDirect({ purpose: "branding-photo", path: "/saas/me/logo", form, apiOrigin, onProgress: setProgress }), {
+      success: "Logo updated.",
+      invalidate: ["/saas/me/branding", "/saas/me"],
+    });
+    setProgress(null);
+  };
+  return (
+    <div className="flex items-center gap-4 pb-4">
+      <div className="h-20 w-20 border-2 border-ink bg-paper-light flex items-center justify-center overflow-hidden shrink-0">
+        {logoUrl ? <img src={logoUrl} alt="Shop logo" className="max-h-full max-w-full object-contain" /> : <ImagePlus size={22} className="text-fog" aria-hidden />}
+      </div>
+      <div className="space-y-1.5">
+        <div className="editorial-label">Logo</div>
+        {manage ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              ref={input}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              className="sr-only"
+              aria-label="Choose logo file"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                e.target.value = "";
+                if (f) void upload(f);
+              }}
+            />
+            <Button size="sm" variant="ghost" loading={isPending("logo")} onClick={() => input.current?.click()}>
+              <ImagePlus size={14} /> {progress != null ? `${Math.round(progress * 100)}%` : logoUrl ? "Replace logo" : "Upload logo"}
+            </Button>
+            {logoUrl ? (
+              <Button
+                size="sm"
+                variant="ghost"
+                loading={isPending("logo-remove")}
+                onClick={() => void run("logo-remove", () => unwrap(client.PUT("/saas/me/branding", { body: { logoUrl: null } })), { success: "Logo removed.", invalidate: ["/saas/me/branding", "/saas/me"] })}
+              >
+                <Trash2 size={14} /> Remove
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
+        <p className="text-xs text-fog">PNG, JPEG or WebP, up to 2 MB. A square or wide logo on a transparent background works best.</p>
+      </div>
+    </div>
+  );
+}
+
+function BrandingForm({ initial, logoUrl }: { initial: Branding | null; logoUrl: string | null }) {
   const client = useApiClient();
   const manage = useCanManage();
   const { run, isPending } = useAction();
@@ -55,6 +117,7 @@ function BrandingForm({ initial }: { initial: Branding | null }) {
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_300px]">
       <Card className="space-y-1">
+        <LogoField logoUrl={logoUrl} />
         <div className="grid sm:grid-cols-2 gap-x-4">
           {FIELDS.map((f) => (
             <Input key={f.key} label={f.label} type={f.type} disabled={!manage} placeholder={f.placeholder} value={form[f.key]} onChange={(e) => set(f.key, e.target.value)} />
@@ -72,7 +135,7 @@ function BrandingForm({ initial }: { initial: Branding | null }) {
       </Card>
       <div className="border-2 border-ink h-fit overflow-hidden" aria-label="Preview">
         <div className="p-4 text-paper" style={{ background: HEX.test(form.primaryColor) ? form.primaryColor : "#1A1410" }}>
-          {form.logoUrl ? <img src={form.logoUrl} alt="" className="h-8 mb-2 object-contain" /> : null}
+          {logoUrl ? <img src={logoUrl} alt="" className="h-8 mb-2 object-contain" /> : null}
           <div className="font-serif text-xl font-bold">{form.wordmark || "Your shop"}</div>
           <div className="text-sm opacity-80">{form.tagline || "Your tagline"}</div>
         </div>
@@ -163,7 +226,7 @@ export function BrandingTab() {
   return (
     <div>
       <Section title="Look and feel" description="Your name, colours and contact details on receipts and your print page.">
-        {q.isLoading ? <Skeleton className="h-72" /> : <BrandingForm key={String(q.data?.data?.updatedAt ?? "new")} initial={(q.data?.data as Branding) ?? null} />}
+        {q.isLoading ? <Skeleton className="h-72" /> : <BrandingForm key="form" initial={(q.data?.data as Branding) ?? null} logoUrl={q.data?.data?.logoUrl ?? null} />}
       </Section>
       <Photos />
     </div>
