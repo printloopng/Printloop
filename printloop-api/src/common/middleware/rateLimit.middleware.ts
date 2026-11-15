@@ -19,6 +19,11 @@ function shouldSkip(): boolean {
   return Config.rateLimit.disabled || !REDIS_ENABLED;
 }
 
+function loginEmail(req: Request): string {
+  const email = req.body?.email;
+  return typeof email === 'string' ? email.trim().toLowerCase().slice(0, 254) : '';
+}
+
 function tenantKey(req: Request, base: string): string {
   const tid = req.tenant?.id || 'global';
   return `${tid}:${base}`;
@@ -41,12 +46,13 @@ export const apiLimiter = rateLimit({
 
 export const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 5,
+  max: 50,
   standardHeaders: true,
   legacyHeaders: false,
   store: redisStore(),
   skip: shouldSkip,
-  keyGenerator: (req) => tenantKey(req, `login:${ipToken(req)}`),
+  skipSuccessfulRequests: true,
+  keyGenerator: (req) => tenantKey(req, `login:${ipToken(req)}:${loginEmail(req)}`),
   message: {
     success: false,
     message: 'Too many login attempts. Try again in 15 minutes.',

@@ -6,6 +6,7 @@ import { appUrls, safeNextPath } from "@printloop/auth/config";
 import { LoginForm } from "@printloop/auth/forms";
 import { getCurrentUser } from "@printloop/auth/server";
 import { canAccessShop } from "@/lib/access";
+import { ClearDeniedSession } from "./ClearDeniedSession";
 
 export const metadata: Metadata = { title: "Sign in" };
 
@@ -19,6 +20,8 @@ export default async function LoginPage({
   const user = await getCurrentUser();
   if (user && canAccessShop(user) && !params.denied) redirect(next);
 
+  const staleSession = Boolean(user && params.denied && !canAccessShop(user));
+
   return (
     <AuthFrame
       kicker="Shop console"
@@ -30,6 +33,7 @@ export default async function LoginPage({
       }
       lede="Queue, kiosks, prices and payouts for your print shop."
     >
+      {staleSession ? <ClearDeniedSession /> : null}
       <h2 className="font-serif text-2xl font-bold mb-1">Sign in to your shop</h2>
       <p className="text-sm text-ink/60 mb-5">Owners, admins and staff use the same sign-in.</p>
       <LoginForm

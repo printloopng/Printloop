@@ -208,8 +208,17 @@ function pickCustomDomain(req: Request): string | null {
   return customDomainOf(host) ?? customDomainOf((req.header('x-tenant-domain') || '').toLowerCase().trim());
 }
 
+function isPlatformHost(host: string): boolean {
+  if (host.endsWith('.onrender.com') || host.endsWith('.vercel.app')) return true;
+  try {
+    return Config.publicBaseUrl !== '' && new URL(Config.publicBaseUrl).hostname.toLowerCase() === host;
+  } catch {
+    return false;
+  }
+}
+
 function customDomainOf(host: string): string | null {
-  if (!host || isApexOrLocal(host)) return null;
+  if (!host || isApexOrLocal(host) || isPlatformHost(host)) return null;
   const ourApexes = configuredApexes();
   if (ourApexes.some((apex) => host === apex || host.endsWith('.' + apex))) {
     return null;
