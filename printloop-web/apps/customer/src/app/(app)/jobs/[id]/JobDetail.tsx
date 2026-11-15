@@ -25,25 +25,25 @@ import { ReviewDialog } from "./ReviewDialog";
 
 const TIMELINE = [
   { key: "uploaded", label: "Uploaded" },
-  { key: "paid", label: "Paid" },
-  { key: "ready", label: "Ready to print" },
-  { key: "printing", label: "Printing" },
+  { key: "shop", label: "Shop" },
+  { key: "pay", label: "Pay" },
+  { key: "ready", label: "Ready" },
   { key: "done", label: "Collected" },
 ] as const;
 
 function stageOf(job: Job): number {
   switch (job.status) {
     case "pending":
+    case "rendering":
+      return 0;
+    case "awaiting_accept":
+      return 1;
     case "awaiting_payment":
     case "awaiting_edit":
     case "edit_complete":
-      return 0;
     case "paid":
-    case "rendering":
-    case "awaiting_accept":
-      return 1;
-    case "ready":
       return 2;
+    case "ready":
     case "releasing":
     case "printing":
       return 3;
@@ -139,10 +139,21 @@ export function JobDetail({ id, justPaid }: { id: string; justPaid: boolean }) {
         </Notice>
       ) : null}
       {justPaid && job.code && !awaitingWebhook ? <Notice tone="success" title="Payment confirmed">Your print code is ready.</Notice> : null}
+      {job.status === "awaiting_accept" ? (
+        <Notice tone="info" title="Waiting for the shop">
+          You pay only after this shop accepts. If they don&apos;t, the job is offered to another shop. Nothing is charged until you pay.
+        </Notice>
+      ) : null}
+      {job.status === "awaiting_payment" ? (
+        <Notice tone="info" title="The shop accepted">Pay now and the money goes straight to this shop. Then you get a code for the kiosk.</Notice>
+      ) : null}
       {job.status === "awaiting_edit" ? (
         <Notice tone="info" title="The shop is editing your document">You&apos;ll review the changes before paying.</Notice>
       ) : null}
-      {job.status === "failed" ? (
+      {job.status === "failed" && !job.code ? (
+        <Notice tone="danger" title="No shop took this job">You were not charged. Upload it again and choose a shop that is open.</Notice>
+      ) : null}
+      {job.status === "failed" && job.code ? (
         <Notice tone="danger" title="This print failed">
           The printer reported a problem. Report it and the shop will reprint or refund you.
         </Notice>

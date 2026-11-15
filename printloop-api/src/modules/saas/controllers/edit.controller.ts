@@ -298,7 +298,7 @@ export class EditController {
       }
       res.json({
         success: true,
-        data: { editId: edit.id, status: DocumentEditStatus.APPROVED, printJobStatus: PrintJobStatus.PENDING, amountDue: result.amountDue, pageCount: result.pageCount },
+        data: { editId: edit.id, status: DocumentEditStatus.APPROVED, printJobStatus: PrintJobStatus.AWAITING_PAYMENT, amountDue: result.amountDue, pageCount: result.pageCount },
       });
     } catch (err: any) {
       console.error('[saas/edit/confirm] error:', err);

@@ -160,11 +160,17 @@ describe('customer API', () => {
       const { token } = await newCustomer(api);
       const up = await api.call('POST', '/customer/print-jobs', { token, form: pdfForm(await pdfBytes(2), 'x.pdf', { printConfiguration: DEFAULT_CONFIG }) });
       const job = up.body.data.job;
+      expect(job.status).toBe('awaiting_accept');
       const under = paystackEvent(job.id, `ref_under_${job.id}`, 100);
       await api.call('POST', '/webhooks/paystack', { raw: under.raw, headers: under.headers });
       const listed = async () => (await api.call('GET', '/customer/print-jobs', { token })).body.data.jobs.find((j: any) => j.id === job.id);
-      expect((await listed()).status).toBe('pending');
+      expect((await listed()).status).toBe('awaiting_accept');
       expect((await api.call('POST', '/webhooks/paystack', { raw: under.raw, headers: { 'x-paystack-signature': 'bad' } })).status).toBe(401);
+      const ops = await api.login('ops@printloop.app', 'Password1!');
+      expect((await api.call('POST', `/saas/jobs/${job.id}/accept`, { token: ops })).status).toBe(200);
+      expect((await listed()).status).toBe('awaiting_payment');
+      await api.call('POST', '/webhooks/paystack', { raw: under.raw, headers: under.headers });
+      expect((await listed()).status).toBe('awaiting_payment');
       const full = paystackEvent(job.id, `ref_full_${job.id}`, Math.round(job.cost * 100));
       await api.call('POST', '/webhooks/paystack', { raw: full.raw, headers: full.headers });
       expect((await listed()).status).toBe('ready');
@@ -172,7 +178,7 @@ describe('customer API', () => {
       const reuse = paystackEvent(second.body.data.job.id, `ref_full_${job.id}`, 1_000_000);
       await api.call('POST', '/webhooks/paystack', { raw: reuse.raw, headers: reuse.headers });
       const again = (await api.call('GET', '/customer/print-jobs', { token })).body.data.jobs.find((j: any) => j.id === second.body.data.job.id);
-      expect(again.status).toBe('pending');
+      expect(again.status).toBe('awaiting_accept');
     });
 
     it("lists only the current shop's stations", async () => {

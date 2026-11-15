@@ -74,32 +74,11 @@ export async function completePrintJobPayment(
     }
   }
 
-  if (result.success) {
+  if (result.completedPayment && result.needsRender) {
     try {
       await enqueueRenderOrReady(jobId);
     } catch (e) {
       console.error('Failed to enqueue render for paid job:', e);
-    }
-    try {
-      const job = await repos.printJob().findOne({
-        where: { id: jobId },
-      });
-      if (job?.requiresAccept) {
-        const { scheduledQueue } = await import('@/workers/queues');
-        const { ACCEPT_WINDOW_MS } = await import('./acceptWindow.service');
-        await scheduledQueue.add(
-          'accept-window',
-          { printJobId: job.id },
-          {
-            delay: ACCEPT_WINDOW_MS,
-            attempts: 3,
-            backoff: { type: 'exponential', delay: 5000 },
-            jobId: `accept-window:${job.id}`,
-          },
-        );
-      }
-    } catch (e) {
-      console.error('Failed to arm accept window:', e);
     }
   }
 

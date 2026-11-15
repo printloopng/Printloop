@@ -5,6 +5,7 @@ import { AppDataSource } from '@/config/data-source';
 import { PrintJob, PrintJobStatus } from '@/database/entities/printJob.entity';
 import { initializeJobPaymentBodySchema } from '@/modules/customer/validation/payments.validation';
 import { Tenant } from '@/database/entities/tenant.entity';
+import { payoutAccountMissing } from '@/modules/saas/helpers/liveGate';
 import { isTrustedReturnUrl } from '@/core/utils/appUrls';
 
 const paystack = new PaystackService();
@@ -31,8 +32,23 @@ export class CustomerPaymentsController {
         res.status(404).json({ success: false, message: 'Print job not found' });
         return;
       }
-      if (job.status !== PrintJobStatus.PENDING) {
-        res.status(400).json({ success: false, message: 'Job is not in PENDING state' });
+      const payable =
+        job.status === PrintJobStatus.AWAITING_PAYMENT ||
+        job.status === PrintJobStatus.PENDING;
+      if (!payable) {
+        res.status(409).json({
+          success: false,
+          message: 'The shop has to accept this job before you can pay.',
+          code: 'SHOP_NOT_ACCEPTED',
+        });
+        return;
+      }
+      const tenant = job.tenantId
+        ? await AppDataSource.getRepository(Tenant).findOne({ where: { id: job.tenantId } })
+        : null;
+      const payout = payoutAccountMissing(tenant);
+      if (payout) {
+        res.status(409).json({ success: false, message: payout.message, code: payout.code });
         return;
       }
       const amount = Number(job.cost);
@@ -52,9 +68,6 @@ export class CustomerPaymentsController {
         });
         return;
       }
-      const tenant = job.tenantId
-        ? await AppDataSource.getRepository(Tenant).findOne({ where: { id: job.tenantId } })
-        : null;
       const callbackUrl = isTrustedReturnUrl(parsed.data.callbackUrl, tenant?.customDomain)
         ? parsed.data.callbackUrl
         : undefined;

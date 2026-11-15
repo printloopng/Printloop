@@ -3,7 +3,7 @@ import type { Schemas } from "@printloop/api-client";
 export type Job = Schemas["CustomerJob"];
 
 export const LIVE_STATUSES = new Set(["rendering", "releasing", "printing", "awaiting_accept"]);
-export const PAYABLE_STATUSES = new Set(["pending", "awaiting_payment"]);
+export const PAYABLE_STATUSES = new Set(["awaiting_payment"]);
 export const RELEASABLE_STATUSES = new Set(["ready"]);
 export const FINISHED_STATUSES = new Set(["done", "failed", "expired", "refunded"]);
 

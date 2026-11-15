@@ -33,7 +33,9 @@ export function HomeView({ firstName }: { firstName: string }) {
     return a === "pay" || a === "review-edit" || a === "track" || a === "wait-edit";
   });
   const recent = jobs.slice(0, 6);
-  const spent = jobs.filter((j) => !["pending", "awaiting_payment", "refunded"].includes(j.status)).reduce((s, j) => s + jobAmount(j), 0);
+  const spent = jobs
+    .filter((j) => !["pending", "rendering", "awaiting_accept", "awaiting_payment", "awaiting_edit", "edit_complete", "failed", "refunded"].includes(j.status))
+    .reduce((s, j) => s + jobAmount(j), 0);
   const pages = jobs.filter((j) => j.status === "done").reduce((s, j) => s + Number(j.pageCount || 0), 0);
 
   return (

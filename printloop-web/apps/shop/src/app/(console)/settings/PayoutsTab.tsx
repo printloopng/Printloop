@@ -63,12 +63,12 @@ export function PayoutsTab() {
             )}
           </Card>
         </Section>
-        <Section title="Instant split settlement" description="Optional. Paystack pays your share straight to this account on every order, minus the PrintLoop fee.">
+        <Section title="Paystack account" description="Required before this shop can take jobs or be listed. Paystack pays your share straight to this account on every order, minus the PrintLoop fee.">
           <Card className="space-y-3">
             {shop.onboarding.subaccountSet ? (
-              <Notice tone="success">Split settlement is on. Paystack settles your share automatically.</Notice>
+              <Notice tone="success">Paystack is connected. Student payments settle to this account.</Notice>
             ) : (
-              <p className="text-sm text-ink/70">Turn this on to skip weekly payouts. It uses the bank and account number above.</p>
+              <p className="text-sm text-ink/70">Connect the bank account above. Until this is on, students cannot send jobs here and the shop stays off Find a shop.</p>
             )}
             {manage ? (
               <Button size="sm" variant="ghost" disabled={!ready} loading={isPending("split")} onClick={enableSplit}>

@@ -62,10 +62,10 @@ export function GuideView({ downloadUrl }: { downloadUrl: string | null }) {
         <Step n={4} title="Run a test print" done={Boolean(gate?.testPrintDone)}>
           <p>Open the kiosk in Kiosks and press Test print. When the page comes out, confirm it. This proves paper, toner and drivers are fine.</p>
         </Step>
-        <Step n={5} title="Pin your shop and add a payout account" done={Boolean(gate?.locationSet) && (shop.onboarding.bankAccountSet || shop.onboarding.subaccountSet)}>
+        <Step n={5} title="Pin your shop and connect Paystack" done={Boolean(gate?.locationSet) && shop.onboarding.subaccountSet}>
           <p>
-            Add your <Link href="/settings?tab=location" className="pl-link font-semibold">address</Link> so students can find you, and a{" "}
-            <Link href="/settings?tab=payouts" className="pl-link font-semibold">bank account</Link> so we can pay you.
+            Add your <Link href="/settings?tab=location" className="pl-link font-semibold">address</Link> so students can find you, and connect a{" "}
+            <Link href="/settings?tab=payouts" className="pl-link font-semibold">Paystack account</Link>. Student payments go straight to that account. The shop cannot take jobs or be listed until it is connected.
           </p>
         </Step>
         <Step n={6} title="Go live" done={Boolean(gate?.isDiscoverable)}>
@@ -77,7 +77,7 @@ export function GuideView({ downloadUrl }: { downloadUrl: string | null }) {
       <Card className="mt-8">
         <h2 className="font-serif text-lg font-bold">Day to day</h2>
         <ul className="mt-2 text-sm space-y-1.5 list-disc pl-5">
-          <li>Students pay online and get a 6-digit code. They type it at your counter or kiosk and the job prints.</li>
+          <li>A student uploads a document. You accept it, then they pay. The money goes to your Paystack account, and they get a 6-digit code for the kiosk.</li>
           <li>
             Watch the <Link href="/queue" className="pl-link font-semibold">Job queue</Link> for anything stuck, and mark yourself Busy or Closed from the top bar.
           </li>

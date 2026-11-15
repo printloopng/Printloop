@@ -9,6 +9,41 @@ fs.mkdirSync(outDir, { recursive: true });
 
 let nextJobId = 1;
 
+// The ipp parser decodes the document as UTF-8, which replaces bytes inside
+// a PDF and leaves the pages blank. The document starts immediately after
+// the end-of-attributes tag (0x03).
+function documentBytes(buf) {
+  let p = 8;
+  const skipValue = (at) => {
+    const len = buf.readUInt16BE(at);
+    return at + 2 + len;
+  };
+  const skipAttr = (at) => {
+    let tag = buf[at++];
+    if (tag === 0x7f) at += 4;
+    const nameLen = buf.readUInt16BE(at);
+    at = skipValue(at + 2 + nameLen);
+    while (
+      at + 2 < buf.length &&
+      buf[at] >= 0x10 &&
+      buf[at] !== 0x4a &&
+      buf[at] !== 0x37 &&
+      buf[at + 1] === 0 &&
+      buf[at + 2] === 0
+    ) {
+      tag = buf[at++];
+      at = skipValue(at + 2);
+    }
+    return at;
+  };
+  while (p < buf.length) {
+    const tag = buf[p++];
+    if (tag === 0x03) return buf.subarray(p);
+    while (p < buf.length && buf[p] >= 0x10) p = skipAttr(p);
+  }
+  return Buffer.alloc(0);
+}
+
 function respond(res, body) {
   const buf = ipp.serialize(body);
   res.writeHead(200, { "Content-Type": "application/ipp", "Content-Length": buf.length });
@@ -20,9 +55,10 @@ http
     const chunks = [];
     req.on("data", (c) => chunks.push(c));
     req.on("end", () => {
+      const raw = Buffer.concat(chunks);
       let msg;
       try {
-        msg = ipp.parse(Buffer.concat(chunks));
+        msg = ipp.parse(raw);
       } catch {
         res.writeHead(400);
         return res.end();
@@ -32,10 +68,12 @@ http
       if (msg.operation === "Print-Job") {
         const id = nextJobId++;
         const name = String(msg["operation-attributes-tag"]?.["job-name"] || `job-${id}`).replace(/[^\w.-]+/g, "_");
-        const file = path.join(outDir, `${String(id).padStart(3, "0")}-${name}.pdf`);
-        fs.writeFileSync(file, msg.data || Buffer.alloc(0));
+        const filename = name.toLowerCase().endsWith(".pdf") ? name : `${name}.pdf`;
+        const file = path.join(outDir, `${String(id).padStart(3, "0")}-${filename}`);
+        const pdf = documentBytes(raw);
+        fs.writeFileSync(file, pdf);
         const attrs = msg["job-attributes-tag"] || {};
-        console.log(`[fake-printer] job ${id} "${name}" ${(msg.data || []).length} bytes ${JSON.stringify(attrs)} -> ${file}`);
+        console.log(`[fake-printer] job ${id} "${name}" ${pdf.length} bytes ${JSON.stringify(attrs)} -> ${file}`);
         return respond(res, {
           ...base,
           statusCode: "successful-ok",

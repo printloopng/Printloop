@@ -222,6 +222,7 @@ export class DiscoveryController {
     .where('t.isDiscoverable = :d', { d: true })
     .andWhere('t.status = :s', { s: TenantStatus.ACTIVE })
     .andWhere("t.availability != 'closed'")
+    .andWhere('t.paystackSubaccountCode IS NOT NULL')
     .andWhere('t.lat IS NOT NULL AND t.lng IS NOT NULL')
     .andWhere('t.lat BETWEEN :latMin AND :latMax', {
       latMin: lat - dLat,
@@ -257,6 +258,7 @@ export class DiscoveryController {
     .where('t.isDiscoverable = :d', { d: true })
     .andWhere('t.status = :s', { s: TenantStatus.ACTIVE })
     .andWhere("t.availability != 'closed'")
+    .andWhere('t.paystackSubaccountCode IS NOT NULL')
     .orderBy('t.name', 'ASC')
     .limit(limit)
     .getMany();
@@ -276,7 +278,7 @@ export class DiscoveryController {
   const tenant = await AppDataSource.getRepository(Tenant).findOne({
     where: { slug },
   });
-  if (!tenant || !tenant.isDiscoverable || tenant.status !== TenantStatus.ACTIVE) {
+  if (!tenant || !tenant.isDiscoverable || tenant.status !== TenantStatus.ACTIVE || !tenant.paystackSubaccountCode) {
     res.status(404).json({
       success: false,
       message: 'Shop not found.',
@@ -391,7 +393,8 @@ export class DiscoveryController {
     if (
       !tenant ||
       !tenant.isDiscoverable ||
-      tenant.status !== TenantStatus.ACTIVE
+      tenant.status !== TenantStatus.ACTIVE ||
+      !tenant.paystackSubaccountCode
     ) {
       res.status(404).json({
         success: false,
@@ -485,6 +488,7 @@ export class DiscoveryController {
     const tenantRepo = AppDataSource.getRepository(Tenant);
     const count = await tenantRepo.createQueryBuilder('t')
       .where('t.isDiscoverable = :d', { d: true })
+      .andWhere('t.paystackSubaccountCode IS NOT NULL')
       .andWhere('t.lat BETWEEN :latMin AND :latMax', { latMin: lat - 0.05, latMax: lat + 0.05 })
       .andWhere('t.lng BETWEEN :lngMin AND :lngMax', { lngMin: lng - 0.05, lngMax: lng + 0.05 })
       .getCount();
@@ -551,6 +555,7 @@ export class DiscoveryController {
           slug: d.slug,
           status: TenantStatus.ACTIVE,
           isDiscoverable: true,
+          paystackSubaccountCode: 'ACCT_demo',
           lat: lat + d.latOffset,
           lng: lng + d.lngOffset,
           address: d.address,
@@ -565,6 +570,7 @@ export class DiscoveryController {
         t.lng = lng + d.lngOffset;
         t.isDiscoverable = true;
         t.status = TenantStatus.ACTIVE;
+        if (!t.paystackSubaccountCode) t.paystackSubaccountCode = 'ACCT_demo';
         await tenantRepo.save(t);
       }
 

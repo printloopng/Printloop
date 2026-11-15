@@ -164,7 +164,8 @@ export class ShopController {
         liveGate.locationSet &&
         liveGate.statusActive &&
         liveGate.testPrintDone &&
-        liveGate.kioskOnline;
+        liveGate.kioskOnline &&
+        Boolean(tenant.paystackSubaccountCode);
 
       res.json({
         success: true,

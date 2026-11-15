@@ -49,7 +49,7 @@ function JobActions({ job, onDone }: { job: Job; onDone?: () => void }) {
   const id = { params: { path: { id: job.id } } };
   if (job.status === "awaiting_accept")
     return (
-      <Button size="sm" loading={isPending("accept")} onClick={() => run("accept", () => unwrap(client.POST("/saas/jobs/{id}/accept", id)), { success: "Accepted.", invalidate }).then(onDone)}>
+      <Button size="sm" loading={isPending("accept")} onClick={() => run("accept", () => unwrap(client.POST("/saas/jobs/{id}/accept", id)), { success: "Accepted. The student can pay now.", invalidate }).then(onDone)}>
         Accept
       </Button>
     );
@@ -127,7 +127,7 @@ export function QueueView() {
           rowKey={(j) => j.id}
           onRowClick={setOpen}
           caption="Jobs"
-          empty={lane === "action" ? "Nothing waiting. New paid jobs appear here automatically." : "No jobs here."}
+          empty={lane === "action" ? "Nothing waiting. New jobs appear here for you to accept. The student pays after that." : "No jobs here."}
           mobileTitle={(j) => j.fileName ?? "Document"}
           mobileTrailing={(j) => <StatusPill status={j.status} />}
           columns={[

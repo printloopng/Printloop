@@ -21,6 +21,7 @@ import { Tenant } from '@/database/entities/tenant.entity';
 import { GroupParticipant } from '@/database/entities/groupParticipant.entity';
 import { PaystackService } from '@/core/services/paystack.service';
 import { isTrustedReturnUrl } from '@/core/utils/appUrls';
+import { payoutAccountMissing } from '@/modules/saas/helpers/liveGate';
 
 const groupService = new GroupSessionService();
 
@@ -268,6 +269,11 @@ export class KioskParticipantUploadController {
       const tenant = session.tenantId
         ? await AppDataSource.getRepository(Tenant).findOne({ where: { id: session.tenantId } })
         : null;
+      const payout = payoutAccountMissing(tenant);
+      if (payout) {
+        res.status(409).json({ success: false, message: payout.message, code: payout.code });
+        return;
+      }
       const callbackUrl = isTrustedReturnUrl(req.body?.callbackUrl, tenant?.customDomain) ? req.body.callbackUrl : undefined;
       if (!Config.paystack.secretKey) {
         const reference = `DEV_JOB_${job.id}_${Date.now()}`;

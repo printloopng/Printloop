@@ -45,6 +45,12 @@ export async function startTestApi(): Promise<TestApi> {
   });
   const { editorCollaborationService } = await import('@/modules/saas/services/editorCollaboration.service');
   await editorCollaborationService.initialize(server);
+  const { AppDataSource } = await import('@/config/data-source');
+  const { Tenant } = await import('@/database/entities/tenant.entity');
+  await AppDataSource.getRepository(Tenant).update(
+    { slug: 'campus-print' },
+    { paystackSubaccountCode: 'ACCT_test' },
+  );
   const base = `http://127.0.0.1:${port}`;
   let ip = 1;
 
@@ -145,6 +151,11 @@ export async function paidJob(api: TestApi, token: string, pages = 2): Promise<{
   });
   const job = up.body?.data?.job;
   if (!job) throw new Error(`upload failed: ${up.status} ${up.text.slice(0, 120)}`);
+  if (job.status === 'awaiting_accept') {
+    const ops = await api.login('ops@printloop.app', 'Password1!');
+    const accepted = await api.call('POST', `/saas/jobs/${job.id}/accept`, { token: ops });
+    if (accepted.status !== 200) throw new Error(`accept failed: ${accepted.status} ${accepted.text.slice(0, 160)}`);
+  }
   const ev = paystackEvent(job.id, `ref_${job.id}`, Math.round(Number(job.cost) * 100));
   await api.call('POST', '/webhooks/paystack', { raw: ev.raw, headers: ev.headers });
   const list = await api.call('GET', '/customer/print-jobs', { token });

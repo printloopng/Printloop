@@ -61,14 +61,14 @@ describe('Edit & Print', () => {
     const stranger = await newCustomer(api, 'stranger');
     expect([403, 404]).toContain((await api.call('POST', `/saas/edit/${job.id}/confirm`, { token: stranger.token })).status);
     const approved = await api.call('POST', `/saas/edit/${job.id}/confirm`, { token });
-    expect(approved.body.data.printJobStatus).toBe('pending');
+    expect(approved.body.data.printJobStatus).toBe('awaiting_payment');
     const due = approved.body.data.amountDue;
     expect(due).toBeGreaterThan(1000);
 
     const partial = paystackEvent(job.id, `ref_part_${job.id}`, Math.round((due - 500) * 100));
     await api.call('POST', '/webhooks/paystack', { raw: partial.raw, headers: partial.headers });
     const mine = async () => (await api.call('GET', '/customer/print-jobs', { token })).body.data.jobs.find((j: any) => j.id === job.id);
-    expect((await mine()).status).toBe('pending');
+    expect((await mine()).status).toBe('awaiting_payment');
     const full = paystackEvent(job.id, `ref_full_${job.id}`, Math.round(due * 100));
     await api.call('POST', '/webhooks/paystack', { raw: full.raw, headers: full.headers });
     const paid = await mine();

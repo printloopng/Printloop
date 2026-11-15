@@ -140,6 +140,12 @@ describe('journey: shop onboarding, student order, kiosk print', () => {
       expect(noTest.body.reason).toBe('TEST_PRINT_MISSING');
       expect((await api.call('POST', `/saas/kiosks/${kioskA.id}/test-print-pass`, { token: owner })).status).toBe(200);
 
+      const noAccount = await api.call('PATCH', '/saas/me/location', { token: owner, body: { isDiscoverable: true } });
+      expect(noAccount.body.reason).toBe('SUBACCOUNT_MISSING');
+      const { AppDataSource } = await import('@/config/data-source');
+      const { Tenant } = await import('@/database/entities/tenant.entity');
+      await AppDataSource.getRepository(Tenant).update({ id: shopId }, { paystackSubaccountCode: 'ACCT_journey' });
+
       const live = await api.call('PATCH', '/saas/me/location', { token: owner, body: { isDiscoverable: true } });
       expect(live.status).toBe(200);
       expect(live.body.data.isDiscoverable).toBe(true);
@@ -175,23 +181,25 @@ describe('journey: shop onboarding, student order, kiosk print', () => {
       expect(upload.status).toBe(201);
       const job = upload.body.data.job;
       jobId = job.id;
-      expect([job.status, job.totalPages ?? job.pageCount]).toEqual(['pending', 3]);
+      expect([job.status, job.totalPages ?? job.pageCount]).toEqual(['awaiting_accept', 3]);
 
       const event = paystackEvent(jobId, `ref_${jobId}`, Math.round(Number(job.cost) * 100));
       await api.call('POST', '/webhooks/paystack', { raw: event.raw, headers: event.headers });
       const mine = (await api.call('GET', '/customer/print-jobs', { token: student })).body.data.jobs.find((j: any) => j.id === jobId);
-      expect(['awaiting_accept', 'ready']).toContain(mine.status);
-      expect(mine.code).toMatch(/^[A-Z0-9]{6}$/);
+      expect(mine.status).toBe('awaiting_accept');
+      expect(mine.code).toBeFalsy();
     });
 
-    it('waits for the shop to accept an order that came through the marketplace', async () => {
-      const before = (await api.call('GET', '/customer/print-jobs', { token: student })).body.data.jobs.find((j: any) => j.id === jobId);
-      if (before.status === 'awaiting_accept') {
-        expect((await api.call('POST', `/saas/jobs/${jobId}/release`, { token: owner })).status).toBe(409);
-        expect((await api.call('POST', `/saas/jobs/${jobId}/accept`, { token: owner })).status).toBe(200);
-      }
+    it('lets the shop accept before the student pays', async () => {
+      expect((await api.call('POST', `/saas/jobs/${jobId}/release`, { token: owner })).status).toBe(409);
+      expect((await api.call('POST', `/saas/jobs/${jobId}/accept`, { token: owner })).status).toBe(200);
+      const accepted = (await api.call('GET', '/customer/print-jobs', { token: student })).body.data.jobs.find((j: any) => j.id === jobId);
+      expect(accepted.status).toBe('awaiting_payment');
+      const event = paystackEvent(jobId, `ref_${jobId}`, Math.round(Number(accepted.cost) * 100));
+      await api.call('POST', '/webhooks/paystack', { raw: event.raw, headers: event.headers });
       const after = (await api.call('GET', '/customer/print-jobs', { token: student })).body.data.jobs.find((j: any) => j.id === jobId);
       expect(after.status).toBe('ready');
+      expect(after.code).toMatch(/^[A-Z0-9]{6}$/);
     });
   });
 

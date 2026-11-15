@@ -17,7 +17,8 @@ import { applyPromotion } from '@/modules/customer/services/promotion.service';
 import { computeCost, type PrintConfiguration } from '@/modules/public/services/pricing.service';
 import { PaystackService } from '@/core/services/paystack.service';
 import { makeCode } from '@/core/utils/releaseCode';
-import type { Tenant } from '@/database/entities/tenant.entity';
+import { Tenant } from '@/database/entities/tenant.entity';
+import { payoutAccountMissing } from '@/modules/saas/helpers/liveGate';
 
 let warnedQueryTokenInProd = false;
 
@@ -27,6 +28,7 @@ async function initCheckout(
   cost: number,
   tenant: Tenant | undefined,
 ): Promise<string | null> {
+  if (payoutAccountMissing(tenant)) return null;
   if (!Config.paystack.secretKey) return null;
   try {
     const paystack = new PaystackService();
@@ -147,6 +149,16 @@ export class KioskCupsController {
       }
       if (user.isBlocked) {
         res.status(403).json({ success: false, message: 'Account is blocked' });
+        return;
+      }
+      const shop =
+        req.tenant ??
+        (user.tenantId
+          ? await AppDataSource.getRepository(Tenant).findOne({ where: { id: user.tenantId } })
+          : null);
+      const payout = payoutAccountMissing(shop);
+      if (payout) {
+        res.status(409).json({ success: false, message: payout.message, code: payout.code });
         return;
       }
 

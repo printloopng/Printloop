@@ -36,6 +36,7 @@ export class TenantRepository extends BaseRepository<Tenant> {
       .where("t.isDiscoverable = :d", { d: true })
       .andWhere("t.status = :s", { s: TenantStatus.ACTIVE })
       .andWhere("t.availability != 'closed'")
+      .andWhere("t.paystackSubaccountCode IS NOT NULL")
       .getMany();
   }
 

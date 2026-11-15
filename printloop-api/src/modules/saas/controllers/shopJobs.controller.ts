@@ -13,6 +13,7 @@ const LIVE_STATUSES = [
   PrintJobStatus.PENDING,
   PrintJobStatus.RENDERING,
   PrintJobStatus.AWAITING_ACCEPT,
+  PrintJobStatus.AWAITING_PAYMENT,
   PrintJobStatus.READY,
   PrintJobStatus.RELEASING,
   PrintJobStatus.PRINTING,
@@ -111,7 +112,7 @@ export class ShopJobsController {
       const result = await acceptJob(job.id);
       if (!result.accepted) return conflict(res, `Job can't be accepted (${result.reason})`);
       await writeAudit(req, 'job.accepted', `job:${job.id}`, { code: job.code });
-      res.json({ success: true, data: { status: PrintJobStatus.READY } });
+      res.json({ success: true, data: { status: result.status } });
     } catch (err) {
       next(err);
     }

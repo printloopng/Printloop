@@ -56,7 +56,7 @@ export async function approveEdit(
   job.fileId = editedFile.id;
   job.totalPages = pageCount;
   job.cost = Math.round((Number(printCost) + (Number(edit.totalEditFee) || 0)) * 100) / 100;
-  job.status = PrintJobStatus.PENDING;
+  job.status = PrintJobStatus.AWAITING_PAYMENT;
   job.renderedKey = null;
   job.renderedPdfUrl = null;
   await ds.getRepository(PrintJob).save(job);

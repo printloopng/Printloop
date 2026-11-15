@@ -65,7 +65,7 @@ export async function applyRenderCostReconciliation(
     finalCost,
   });
 
-  if (isFirstCallback && delta < 0 && job.tenantId) {
+  if (isFirstCallback && delta < 0 && job.tenantId && job.paymentReference) {
     const writeOff = -delta;
     try {
       const tenant = await repos.tenant().findOne({

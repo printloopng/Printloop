@@ -5,6 +5,7 @@ import { REDIS_ENABLED } from '@/config/redis';
 import { PrintJob, PrintJobStatus, JobType } from '@/database/entities/printJob.entity';
 import { repos } from '@/config/repos';
 import { applyRenderCostReconciliation } from '@/modules/saas/services/costReconciliation.service';
+import { armAcceptWindow } from '@/modules/customer/services/acceptWindow.service';
 import { stuckRendersGauge } from '@/core/services/metrics';
 
 export async function enqueueRender(printJobId: string): Promise<{
@@ -25,6 +26,7 @@ export async function enqueueRender(printJobId: string): Promise<{
 
   const TRIGGER_STATES = new Set<PrintJobStatus>([
     PrintJobStatus.PENDING,
+    PrintJobStatus.PAID,
     PrintJobStatus.AWAITING_ACCEPT,
   ]);
   if (!TRIGGER_STATES.has(job.status)) {
@@ -86,11 +88,17 @@ export async function enqueueRenderOrReady(printJobId: string): Promise<{
   const repo = repos.printJob();
   const job = await repo.findOne({ where: { id: printJobId } });
   if (!job) return { path: 'ready-direct', reason: 'not-found' };
-  if (job.status === PrintJobStatus.PENDING) {
-    job.status = job.requiresAccept
-      ? PrintJobStatus.AWAITING_ACCEPT
-      : PrintJobStatus.READY;
+  if (job.status === PrintJobStatus.PENDING || job.status === PrintJobStatus.PAID) {
+    const paid = Boolean(job.paymentReference) || job.status === PrintJobStatus.PAID;
+    if (paid) {
+      job.status = PrintJobStatus.READY;
+    } else {
+      job.status = PrintJobStatus.AWAITING_ACCEPT;
+      job.requiresAccept = true;
+      if (job.finalCost == null) job.finalCost = Number(job.cost);
+    }
     await repo.save(job);
+    if (job.status === PrintJobStatus.AWAITING_ACCEPT) await armAcceptWindow(job.id);
   }
   return { path: 'ready-direct', reason: result.reason };
 }
@@ -112,7 +120,10 @@ export async function applyRenderResult(opts: {
   if (job.status !== PrintJobStatus.RENDERING) {
     return { updated: false, reason: `bad-status:${job.status}` };
   }
-  return applyRenderCostReconciliation(job, opts);
+  const unpaid = !job.paymentReference;
+  const result = await applyRenderCostReconciliation(job, opts);
+  if (result.updated && unpaid) await armAcceptWindow(job.id);
+  return result;
 }
 
 export async function applyRenderFailure(opts: {
@@ -125,11 +136,14 @@ export async function applyRenderFailure(opts: {
   if (job.status !== PrintJobStatus.RENDERING) {
     return { updated: false, reason: `bad-status:${job.status}` };
   }
-  job.status = job.requiresAccept ? PrintJobStatus.AWAITING_ACCEPT : PrintJobStatus.READY;
+  const paid = Boolean(job.paymentReference);
+  job.status = paid ? PrintJobStatus.READY : PrintJobStatus.AWAITING_ACCEPT;
+  if (!paid) job.requiresAccept = true;
   job.renderingStatus = 'failed';
   job.renderingError = opts.errorMessage;
   job.renderingCompletedAt = new Date();
   await repo.save(job);
+  if (!paid) await armAcceptWindow(job.id);
   console.warn(`[render] job ${job.id} render failed (${opts.errorMessage}); falling back to PDF`);
   return { updated: true };
 }

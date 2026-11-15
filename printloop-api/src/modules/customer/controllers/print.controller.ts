@@ -37,6 +37,8 @@ import { ShopReview } from '@/database/entities/shopReview.entity';
 import { Dispute, DisputeStatus } from '@/database/entities/dispute.entity';
 import { Payment } from '@/database/entities/payment.entity';
 import { shopPriceList } from '@/modules/public/services/priceList.service';
+import { payoutAccountMissing } from '@/modules/saas/helpers/liveGate';
+import { enqueueRenderOrReady } from '@/modules/public/services/renderEnqueue.service';
 
 function formatJob(j: PrintJob) {
   const title = (j.fileName || 'Document').replace(/\.[^.]+$/, '');
@@ -102,6 +104,11 @@ export class CustomerPrintController {
         message: offlineReason,
         code: 'SHOP_OFFLINE',
       });
+      return;
+    }
+    const payout = payoutAccountMissing(req.tenant);
+    if (req.tenant && payout) {
+      res.status(409).json({ success: false, message: payout.message, code: payout.code });
       return;
     }
     const isOffice =
@@ -263,6 +270,14 @@ export class CustomerPrintController {
     });
     const saved = await jobRepo.save(job);
 
+    if (!editingRequired) {
+      try {
+        await enqueueRenderOrReady(saved.id);
+      } catch (e) {
+        console.error('Failed to offer job to the shop:', e);
+      }
+    }
+
     if (editingRequired && req.tenant?.id && editPricing) {
       try {
         {
@@ -307,9 +322,10 @@ export class CustomerPrintController {
       }
     }
 
+    const offered = (await jobRepo.findOne({ where: { id: saved.id } })) ?? saved;
     res.status(201).json({
       success: true,
-      data: { job: formatJob(saved) },
+      data: { job: formatJob(offered) },
     });
   } catch (error) {
     console.error('Customer create print job error:', error);
@@ -332,6 +348,11 @@ export class CustomerPrintController {
         message: offlineReason,
         code: 'SHOP_OFFLINE',
       });
+      return;
+    }
+    const payout = payoutAccountMissing(req.tenant);
+    if (req.tenant && payout) {
+      res.status(409).json({ success: false, message: payout.message, code: payout.code });
       return;
     }
     const officeOk = conversionEnabled();
@@ -481,10 +502,16 @@ export class CustomerPrintController {
     savedJob.cost = promo.cost;
     savedJob.totalPages = totalPages;
     await jobRepo.save(savedJob);
+    try {
+      await enqueueRenderOrReady(savedJob.id);
+    } catch (e) {
+      console.error('Failed to offer batch job to the shop:', e);
+    }
 
+    const offered = (await jobRepo.findOne({ where: { id: savedJob.id } })) ?? savedJob;
     res.status(201).json({
       success: true,
-      data: { job: formatJob(savedJob), itemCount: files.length },
+      data: { job: formatJob(offered), itemCount: files.length },
     });
   } catch (error) {
     console.error('Customer batch job error:', error);

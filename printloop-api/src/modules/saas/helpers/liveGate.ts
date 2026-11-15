@@ -4,6 +4,17 @@ import { Tenant, TenantStatus } from '@/database/entities/tenant.entity';
 
 const LIVE_ONLINE_WINDOW_MS = 5 * 60 * 1000;
 
+export function payoutAccountMissing(
+  tenant: { paystackSubaccountCode?: string | null } | null | undefined,
+): { code: string; message: string } | null {
+  if (tenant?.paystackSubaccountCode) return null;
+  return {
+    code: 'SHOP_PAYOUT_ACCOUNT_REQUIRED',
+    message:
+      'This shop has to connect a Paystack account before it can take print jobs. The payment goes straight to that account.',
+  };
+}
+
 export async function assertLiveGateMet(
   tenant: Tenant,
 ): Promise<{ code: string; message: string } | null> {
@@ -43,6 +54,13 @@ export async function assertLiveGateMet(
       code: 'NO_KIOSK_ONLINE',
       message:
         'No kiosk is online right now. Bring your kiosk app online and try again.',
+    };
+  }
+  if (!tenant.paystackSubaccountCode) {
+    return {
+      code: 'SUBACCOUNT_MISSING',
+      message:
+        'Connect a Paystack account in Payouts first. Student payments go straight to that account, so the shop cannot be listed without one.',
     };
   }
   return null;

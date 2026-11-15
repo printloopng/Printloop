@@ -1,7 +1,7 @@
 import { DataSource } from "typeorm";
 import { RedisClient } from "@/common";
 import { BaseRepository } from "@/repository/base.repository";
-import { PrintJob, PrintJobStatus } from "@/database/entities/printJob.entity";
+import { PrintJob, PrintJobStatus, JobType } from "@/database/entities/printJob.entity";
 import { Tenant } from "@/database/entities/tenant.entity";
 import { Payment } from "@/database/entities/payment.entity";
 import { Wallet } from "@/database/entities/wallet.entity";
@@ -59,9 +59,13 @@ export class PrintJobRepository extends BaseRepository<PrintJob> {
       job.previewImageUrls = opts.previewImageUrls;
       job.renderingStatus = "ready";
       job.renderingCompletedAt = new Date();
-      job.status = job.requiresAccept
-        ? PrintJobStatus.AWAITING_ACCEPT
-        : PrintJobStatus.READY;
+      if (job.paymentReference) {
+        job.status = PrintJobStatus.READY;
+      } else {
+        job.status = PrintJobStatus.AWAITING_ACCEPT;
+        job.requiresAccept = true;
+        job.cost = opts.finalCost;
+      }
       if (opts.isFirstCallback) {
         job.finalCost = opts.finalCost;
         job.costReconciledAt = new Date();
@@ -117,6 +121,7 @@ export class PrintJobRepository extends BaseRepository<PrintJob> {
     job?: PrintJob;
     commissionAmount?: number;
     completedPayment?: boolean;
+    needsRender?: boolean;
     reason?: string;
   }> {
     return this.manager.transaction(async (em) => {
@@ -127,13 +132,23 @@ export class PrintJobRepository extends BaseRepository<PrintJob> {
       if (!job) {
         throw new Error(`Print job ${jobId} not found`);
       }
-      if (job.status !== PrintJobStatus.PENDING) {
+      const payable =
+        job.status === PrintJobStatus.PENDING ||
+        job.status === PrintJobStatus.AWAITING_PAYMENT;
+      if (!payable) {
         return {
           success: true,
           code: job.code || undefined,
           job,
           completedPayment: false,
         };
+      }
+      const payingTenant = job.tenantId
+        ? await em.findOne(Tenant, { where: { id: job.tenantId } })
+        : null;
+      if (!payingTenant?.paystackSubaccountCode) {
+        console.error(`[payments] job ${jobId}: shop has no Paystack account, leaving it unpaid`);
+        return { success: false, job, completedPayment: false, reason: "no-subaccount" };
       }
 
       const dueKobo = Math.round(Number(job.cost) * 100);
@@ -150,15 +165,10 @@ export class PrintJobRepository extends BaseRepository<PrintJob> {
 
       const code = job.code || makeCode(6);
       job.code = code;
-
-      let requiresAccept = false;
-      if (job.tenantId) {
-        const tenant = await em.findOne(Tenant, { where: { id: job.tenantId } });
-        requiresAccept = Boolean(tenant?.isDiscoverable);
-      }
-      job.requiresAccept = requiresAccept;
       job.paymentReference = reference;
-      job.status = PrintJobStatus.PENDING;
+      const needsRender =
+        !job.renderedKey && job.jobType !== JobType.PERSONAL_BATCH;
+      job.status = needsRender ? PrintJobStatus.PAID : PrintJobStatus.READY;
       await em.save(PrintJob, job);
 
       let commissionAmount = 0;
@@ -204,6 +214,7 @@ export class PrintJobRepository extends BaseRepository<PrintJob> {
         job,
         commissionAmount,
         completedPayment: true,
+        needsRender,
       };
     });
   }

@@ -114,7 +114,7 @@ export function MoneyView() {
   const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const balance = $api.useQuery("get", "/saas/balance", {}, { refetchInterval: 60_000 });
   const b = balance.data?.data;
-  const hasAccount = shop.onboarding.bankAccountSet || shop.onboarding.subaccountSet;
+  const splitOn = shop.onboarding.subaccountSet;
 
   return (
     <div className="space-y-6">
@@ -139,9 +139,9 @@ export function MoneyView() {
         }
       />
 
-      {!hasAccount ? (
-        <Notice tone="warn" title="Add a bank account to get paid" action={<Link href="/settings?tab=payouts" className="pl-btn-primary pl-btn-sm">Add account</Link>}>
-          Your earnings are safe; they&apos;re paid out once you add an account.
+      {!splitOn ? (
+        <Notice tone="warn" title="Connect Paystack before this shop can take jobs" action={<Link href="/settings?tab=payouts" className="pl-btn-primary pl-btn-sm">Connect Paystack</Link>}>
+          Student payments go straight to your Paystack account. Until that account is connected, this shop cannot be listed or receive print jobs.
         </Notice>
       ) : null}
 
@@ -158,7 +158,7 @@ export function MoneyView() {
         )}
       </div>
 
-      {manage && hasAccount && !shop.onboarding.subaccountSet ? (
+      {manage && shop.onboarding.bankAccountSet && !splitOn ? (
         <div className="flex justify-end">
           <Button variant="dark" disabled={!b?.availableBalance} onClick={() => setConfirm(true)}>
             <Zap size={14} /> Pay out now
