@@ -73,6 +73,7 @@ const App: React.FC = () => {
   const settingsScreen = (
     <SettingsScreen
       onSave={handleBack}
+      canExit={isConfigured}
       settings={settings}
       onUpdateSetting={(key, value) => updateSetting(key as any, value)}
       printers={printers}

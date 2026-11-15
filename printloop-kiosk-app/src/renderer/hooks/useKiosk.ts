@@ -67,7 +67,12 @@ export function useKiosk() {
 
   const updateSetting = useCallback(
     async (key: keyof KioskSettings, value: unknown) => {
-      await window.electronAPI?.settings.set(key, String(value));
+      if (!window.electronAPI) {
+        throw new Error(
+          'Settings can only be saved inside the PrintLoop Kiosk app window, not a web browser tab.',
+        );
+      }
+      await window.electronAPI.settings.set(key, String(value));
       await reloadSettings();
     },
     [reloadSettings],

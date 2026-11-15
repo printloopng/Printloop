@@ -30,7 +30,7 @@ describe('live editor', () => {
 
   beforeAll(async () => {
     api = await startTestApi();
-    ops = await api.login('ops@printloop.test', 'Admin1234!');
+    ops = await api.login('ops@printloop.app', 'Password1!');
     await api.call('POST', '/saas/edit-pricing', { token: ops, body: { editingEnabled: true, baseFee: 500, perPageFee: 100 } });
   });
 

@@ -2,11 +2,14 @@ import axios, { AxiosError, AxiosInstance } from 'axios';
 import { API_URL } from '../config';
 import { getSettings } from './settings';
 
-export function kioskApi(): AxiosInstance {
+export const DEFAULT_TIMEOUT_MS = 15_000;
+export const WAKE_TIMEOUT_MS = 75_000;
+
+export function kioskApi(timeout = DEFAULT_TIMEOUT_MS): AxiosInstance {
   return axios.create({
     baseURL: `${API_URL}/api`,
     headers: { 'X-Kiosk-Key': getSettings().apiKey },
-    timeout: 15_000,
+    timeout,
   });
 }
 

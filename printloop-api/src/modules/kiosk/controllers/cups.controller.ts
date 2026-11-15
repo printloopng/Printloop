@@ -37,7 +37,7 @@ async function initCheckout(
       user.email,
       tenant ?? undefined,
     );
-    return data?.authorization_url ?? null;
+    return data?.authorizationUrl ?? null;
   } catch (err: any) {
     console.warn('[cups] checkout init failed:', err?.message);
     return null;

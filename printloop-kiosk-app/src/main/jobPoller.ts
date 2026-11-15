@@ -2,7 +2,7 @@ import axios from 'axios';
 import { logger } from '../utils/logger';
 import { getSettings, isConfigured } from './settings';
 import { emitKioskEvent } from './ipc';
-import { kioskApi, unwrap, apiErrorMessage, httpStatus } from './api';
+import { kioskApi, unwrap, apiErrorMessage, httpStatus, WAKE_TIMEOUT_MS } from './api';
 import { getPrinterState, printDocument, PrinterState } from './ipp';
 
 export interface AgentJobItem {
@@ -146,7 +146,7 @@ async function tick(): Promise<void> {
     const printerOk = printer.state === 'idle' || printer.state === 'processing';
     const idle = !current && queue.length === 0 && Date.now() >= claimPausedUntil;
 
-    const res = await kioskApi().post('/agent/poll', {
+    const res = await kioskApi(WAKE_TIMEOUT_MS).post('/agent/poll', {
       inFlight: inFlightIds(),
       max: idle && printerOk ? 1 : 0,
     });

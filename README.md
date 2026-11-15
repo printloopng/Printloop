@@ -34,8 +34,8 @@ Create an empty database and point `DATABASE_URL` at it; the API runs its migrat
 cd printloop-api
 Copy-Item .env.example .env
 npm install
-$env:SEED_DEMO='1'; $env:PORT='4000'; npm run boot
-# http://localhost:4000/health
+npm run db-seed    # DROPS the database, migrates it and loads demo data
+npm run dev      # http://localhost:4000
 
 # 2. Web apps (new terminal)
 cd printloop-web
@@ -44,16 +44,18 @@ pnpm dev
 # landing :3000  customer :3001  shop :3002  backoffice :3003
 ```
 
-Demo data (`SEED_DEMO=1` on an empty database only) lives on one shop,
+Demo data (from `npm run db-seed`, or automatically on first boot when `NODE_ENV=staging`) lives on one shop,
 `campus-print`. Open the customer app at
 `http://localhost:3001/?shop=campus-print` to print there.
 
 | Account | Email | Password | Where |
 |---|---|---|---|
-| Student | `student@printloop.test` | `Password1!` | customer app |
-| Shop owner | `owner@printloop.test` | `Admin1234!` | shop console |
-| Shop admin | `ops@printloop.test` | `Admin1234!` | shop console |
-| PrintLoop staff | `admin@printloop.test` | `Admin1234!` | backoffice |
+| Student | `student@printloop.app` | `Password1!` | customer app |
+| Shop owner | `owner@printloop.app` | `Password1!` | shop console |
+| Shop admin | `ops@printloop.app` | `Password1!` | shop console |
+| PrintLoop staff | `admin@printloop.app` | `Password1!` | backoffice |
+
+Every seeded account uses the same password, `Password1!`. There are also `student2` to `student9@printloop.app`.
 
 There is no default shop: a request that doesn't say which shop it is
 for gets `400 TENANT_REQUIRED`.
@@ -79,7 +81,7 @@ Everything runs on Render: the API (with its background workers), the four web a
 3. **Render: New → Blueprint**, pick the repo, and Render reads `render.yaml`. It creates Postgres, Redis, `printloop-api` and the four web services `printloop-landing`, `printloop-customer`, `printloop-shop` and `printloop-backoffice` (all on the free plan). It generates `JWT_SECRET` and the shared `PL_EDGE_SECRET` itself, and asks for the variables marked `sync: false`: Paystack, Cloudinary, SMTP and Termii (blank is fine for the optional ones). `printloop-api/.env.production.example` lists everything.
 4. **URLs:** `render.yaml` assumes the services keep the names above, so their addresses are `https://printloop-api.onrender.com`, `https://printloop-landing.onrender.com`, `https://printloop-customer.onrender.com`, `https://printloop-shop.onrender.com` and `https://printloop-backoffice.onrender.com`. If Render says a name is taken, rename the service in `render.yaml` and update every URL in it (the web apps bake the `NEXT_PUBLIC_*` URLs in at build time, so redeploy them after any change). Custom domains: set `PRINTLOOP_APEX_DOMAINS` and `PL_APEX_DOMAINS` to your domain.
 5. **Paystack:** set the webhook to `https://<api-host>/api/webhooks/paystack`.
-6. **First staff account:** the free plan has no Shell, so run it from `printloop-api` on your machine with `DATABASE_URL` set to the database's external connection URL (Render shows it on the database page): `npm run admin:create -- <email> <password>`. Then sign in at the backoffice, which asks you to turn on two-step sign-in. Free-plan caveats: the API sleeps after 15 minutes idle (the first request then takes about a minute), and the free Postgres is deleted after 30 days, so upgrade it before real use.
+6. **First staff account:** the free plan has no Shell, so run it from `printloop-api` on your machine with `DATABASE_URL` set to the database's external connection URL (Render shows it on the database page): with `BOOTSTRAP_ADMIN_EMAIL` and `BOOTSTRAP_ADMIN_PASSWORD` set, run `npm run db-seed:setup` (it applies the settings defaults and creates the first staff account, and never drops anything). `npm run admin:create -- <email> <password>` does the same for one account. Then sign in at the backoffice, which asks you to turn on two-step sign-in. Free-plan caveats: the API sleeps after 15 minutes idle (the first request then takes about a minute), and the free Postgres is deleted after 30 days, so upgrade it before real use.
 7. **Check:** `https://<api-host>/health` returns ok, and a test signup on the shop app sends its verification email.
 
 Notes: the API refuses to start in production without `DATABASE_URL`, `REDIS_URL`, `PAYSTACK_SECRET_KEY`, `PRINTLOOP_APEX_DOMAINS`, `JWT_SECRET` and storage (or `PUBLIC_BASE_URL`), and its log says which one is missing. The background workers run inside the API (`EMBED_WORKERS=1`), so keep exactly one API instance. When you outgrow that, set `EMBED_WORKERS=0` and add a Render worker service running `npm run start:worker`. Migrations run on boot. Never set `SEED_DEMO=1`.

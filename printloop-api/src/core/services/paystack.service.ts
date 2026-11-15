@@ -1,12 +1,27 @@
 import { Config } from '@/config';
 import axios from 'axios';
 import crypto from 'node:crypto';
+import { AppError, ServiceUnavailableError } from '@/common/errors';
 import { Tenant } from '@/database/entities/tenant.entity';
 import {
   computeCommissionSplit,
   commissionInKobo,
 } from '@/modules/saas/services/commission.service';
 import { applyTransferWebhook } from '@/modules/saas/services/payout.service';
+
+function toPaymentError(err: unknown): Error {
+  if (!axios.isAxiosError(err)) return err instanceof Error ? err : new Error(String(err));
+  const status = err.response?.status;
+  const providerMessage = (err.response?.data as { message?: string } | undefined)?.message;
+  if (status && status >= 400 && status < 500) {
+    return new AppError(
+      `Payment provider rejected the request: ${providerMessage || 'invalid request'}`,
+      400,
+      'PAYMENT_PROVIDER_REJECTED',
+    );
+  }
+  return new ServiceUnavailableError('The payment provider is unavailable. Try again shortly.');
+}
 
 export class PaystackService {
   private readonly secretKey: string;
@@ -23,7 +38,7 @@ export class PaystackService {
     email: string,
     tenant?: Tenant,
     callbackUrl?: string,
-  ): Promise<any> {
+  ): Promise<{ authorizationUrl: string; reference: string; accessCode: string }> {
     if (!this.secretKey) throw new Error('Paystack secret key is missing');
 
     const amountKobo = Math.round(amountNaira * 100);
@@ -54,18 +69,26 @@ export class PaystackService {
       body.bearer = 'account';
     }
 
-    const response = await axios.post(
-      `${this.baseUrl}/transaction/initialize`,
-      body,
-      {
-        headers: {
-          Authorization: `Bearer ${this.secretKey}`,
-          'Content-Type': 'application/json',
+    try {
+      const response = await axios.post(
+        `${this.baseUrl}/transaction/initialize`,
+        body,
+        {
+          headers: {
+            Authorization: `Bearer ${this.secretKey}`,
+            'Content-Type': 'application/json',
+          },
         },
-      },
-    );
-
-    return response.data.data;
+      );
+      const data = response.data.data;
+      return {
+        authorizationUrl: data.authorization_url,
+        reference: data.reference,
+        accessCode: data.access_code,
+      };
+    } catch (err) {
+      throw toPaymentError(err);
+    }
   }
 
   async chargeAuthorization(opts: {

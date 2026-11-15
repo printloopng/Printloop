@@ -9,8 +9,8 @@ describe('backoffice API', () => {
 
   beforeAll(async () => {
     api = await startTestApi();
-    admin = await api.login('admin@printloop.test', 'Admin1234!');
-    ops = await api.login('ops@printloop.test', 'Admin1234!');
+    admin = await api.login('admin@printloop.app', 'Password1!');
+    ops = await api.login('ops@printloop.app', 'Password1!');
   });
 
   afterAll(() => api.close());
@@ -21,7 +21,7 @@ describe('backoffice API', () => {
   });
 
   it('searches users and protects the last super admin', async () => {
-    const users = await api.call('GET', '/platform/users?search=printloop.test', { token: admin });
+    const users = await api.call('GET', '/platform/users?search=printloop.app', { token: admin });
     expect(users.body.data.users.length).toBeGreaterThan(0);
     expect(users.text).not.toMatch(/passwordHash|totpSecret/);
     const me = (await api.call('GET', '/customer/auth/me', { token: admin })).body.data;

@@ -18,11 +18,16 @@
     "boot": "ts-node --transpile-only -r tsconfig-paths/register src/index.ts",
     "start:worker": "node dist/workers/main.js",
     "openapi:export": "ts-node --transpile-only -r tsconfig-paths/register scripts/export-openapi.ts",
-    "admin:create": "ts-node --transpile-only -r tsconfig-paths/register scripts/create-super-admin.ts"
+    "admin:create": "ts-node --transpile-only -r tsconfig-paths/register scripts/create-super-admin.ts",
+    "db-seed": "ts-node --transpile-only -r tsconfig-paths/register src/database/seeders/seed-runner.ts",
+    "db-seed:prod": "node dist/database/seeders/seed-runner.js",
+    "db-seed:setup": "ts-node --transpile-only -r tsconfig-paths/register src/database/seeders/production-setup-runner.ts",
+    "db-seed:setup:prod": "node dist/database/seeders/production-setup-runner.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1121.0",
     "@aws-sdk/s3-request-presigner": "^3.1121.0",
+    "@faker-js/faker": "9.9.0",
     "@napi-rs/canvas": "^1.0.0",
     "@sentry/node": "^10.72.0",
     "@socket.io/redis-adapter": "^8.3.0",

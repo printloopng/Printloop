@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 interface SettingsScreenProps {
   onSave: () => void;
+  canExit: boolean;
   settings: {
     apiKey: string;
     printerUri: string;
@@ -16,6 +17,7 @@ interface SettingsScreenProps {
 
 export function SettingsScreen({
   onSave,
+  canExit,
   settings,
   onUpdateSetting,
   printers,
@@ -26,9 +28,12 @@ export function SettingsScreen({
   const [testingPrinter, setTestingPrinter] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<{ success: boolean; error?: string } | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [showKey, setShowKey] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
 
   useEffect(() => {
-    setFormData(settings);
+    if (!savingRef.current) setFormData(settings);
   }, [settings]);
 
   const handleChange = (key: string, value: string | number) => {
@@ -36,15 +41,28 @@ export function SettingsScreen({
   };
 
   const handleSave = async () => {
+    if (savingRef.current) return;
     setSaveError(null);
+
+    if (!formData.apiKey.trim() || !formData.printerUri.trim()) {
+      setSaveError('Enter the API key and the printer address to continue.');
+      return;
+    }
+
+    savingRef.current = true;
+    setSaving(true);
     try {
       for (const [key, value] of Object.entries(formData)) {
         await onUpdateSetting(key, value);
       }
+      savingRef.current = false;
       onSave();
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Could not save settings';
       setSaveError(msg.replace(/^Error invoking remote method '[^']+': (Error: )?/, ''));
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
     }
   };
 
@@ -56,81 +74,142 @@ export function SettingsScreen({
     setTestingPrinter(null);
   };
 
+  const checking = testingPrinter !== null;
+  const pollSeconds = Number.isFinite(formData.pollInterval)
+    ? Math.round(formData.pollInterval / 1000)
+    : null;
+
   return (
     <div className="screen settings">
-      <header className="header">
-        <button className="back-btn" onClick={onSave} aria-label="Back">←</button>
-        <h1>Kiosk Settings</h1>
+      <header className="header settings-header">
+        {canExit ? (
+          <button className="back-btn" onClick={onSave} aria-label="Back">←</button>
+        ) : (
+          <div className="spacer" />
+        )}
+        <div className="settings-title">
+          <span className="editorial-label">{canExit ? 'Kiosk setup' : 'First-time setup'}</span>
+          <h1>Settings</h1>
+        </div>
         <div className="spacer" />
       </header>
-      
-      <main className="main">
-        <div className="card">
-          <section className="settings-section">
-            <h2>Cloud Connection</h2>
-            <div className="form-group">
-              <label htmlFor="apiKey">API Key</label>
-              <input
-                id="apiKey"
-                type="password"
-                value={formData.apiKey}
-                onChange={(e) => handleChange('apiKey', e.target.value)}
-                placeholder="kiosk_..."
-              />
-              <p className="form-hint">Tenant is resolved by the server from this key.</p>
+
+      <main className="settings-main">
+        <div className="settings-stack">
+          <section className="settings-card">
+            <div className="settings-card-intro">
+              <span className="settings-index">01</span>
+              <h2>Cloud connection</h2>
+              <p>Links this kiosk to your shop on PrintLoop.</p>
             </div>
-            <div className="form-group">
-              <label htmlFor="kioskName">Kiosk Name</label>
-              <input
-                id="kioskName"
-                type="text"
-                value={formData.kioskName}
-                onChange={(e) => handleChange('kioskName', e.target.value)}
-                placeholder="Main Kiosk"
-              />
+            <div className="settings-card-fields">
+              <div className="form-group">
+                <label htmlFor="apiKey">API key</label>
+                <div className="input-with-action">
+                  <input
+                    id="apiKey"
+                    type={showKey ? 'text' : 'password'}
+                    value={formData.apiKey}
+                    onChange={(e) => handleChange('apiKey', e.target.value)}
+                    placeholder="kiosk_..."
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-compact"
+                    onClick={() => setShowKey((v) => !v)}
+                  >
+                    {showKey ? 'Hide' : 'Show'}
+                  </button>
+                </div>
+                <p className="form-hint">The shop is resolved by the server from this key.</p>
+              </div>
+              <div className="form-group">
+                <label htmlFor="kioskName">Kiosk name</label>
+                <input
+                  id="kioskName"
+                  type="text"
+                  value={formData.kioskName}
+                  onChange={(e) => handleChange('kioskName', e.target.value)}
+                  placeholder="Main Kiosk"
+                />
+                <p className="form-hint">Shown to shop staff in the dashboard.</p>
+              </div>
             </div>
           </section>
 
-          <section className="settings-section">
-            <h2>Printer</h2>
-            <div className="form-group">
-              <div className="form-row">
-                <label htmlFor="printerUri">Printer IPP address</label>
-                <button className="btn btn-secondary" onClick={onRefreshPrinters}>
-                  Refresh
-                </button>
+          <section className="settings-card">
+            <div className="settings-card-intro">
+              <span className="settings-index">02</span>
+              <h2>Printer</h2>
+              <p>Where released jobs are sent to print.</p>
+            </div>
+            <div className="settings-card-fields">
+              <div className="form-group">
+                <div className="form-row">
+                  <label htmlFor="printerUri">Printer IPP address</label>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-compact"
+                    onClick={onRefreshPrinters}
+                  >
+                    Refresh
+                  </button>
+                </div>
+                <input
+                  id="printerUri"
+                  type="text"
+                  value={formData.printerUri}
+                  onChange={(e) => handleChange('printerUri', e.target.value.trim())}
+                  placeholder="ipp://192.168.1.50/ipp/print"
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+                <p className="form-hint">
+                  Network: <code>ipp://&lt;printer-ip&gt;/ipp/print</code> · Local CUPS:{' '}
+                  <code>ipp://localhost:631/printers/&lt;queue&gt;</code>
+                </p>
               </div>
-              <input
-                id="printerUri"
-                type="text"
-                list="known-printers"
-                value={formData.printerUri}
-                onChange={(e) => handleChange('printerUri', e.target.value.trim())}
-                placeholder="ipp://192.168.1.50/ipp/print"
-              />
-              <datalist id="known-printers">
-                {printers.map((p) => (
-                  <option key={p.uri} value={p.uri}>
-                    {p.name} ({p.makeAndModel}) · {p.state}
-                  </option>
-                ))}
-              </datalist>
-              <p className="form-hint">
-                Network printers: ipp://&lt;printer-ip&gt;/ipp/print. Local CUPS:
-                ipp://localhost:631/printers/&lt;queue-name&gt;.
-              </p>
+
+              {printers.length > 0 && (
+                <div className="form-group">
+                  <span className="field-label">Detected printers</span>
+                  <ul className="printer-list">
+                    {printers.map((p) => (
+                      <li key={p.uri}>
+                        <button
+                          type="button"
+                          className={`printer-option${
+                            formData.printerUri === p.uri ? ' selected' : ''
+                          }`}
+                          onClick={() => handleChange('printerUri', p.uri)}
+                        >
+                          <span className="printer-option-main">
+                            <strong>{p.name}</strong>
+                            <span>{p.makeAndModel}</span>
+                          </span>
+                          <span className="chip">{p.state}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               {formData.printerUri && (
                 <div className="printer-actions">
                   <button
-                    className="btn btn-secondary"
-                    onClick={() => handleTest(formData.printerUri!)}
-                    disabled={testingPrinter === formData.printerUri}
+                    type="button"
+                    className="btn btn-secondary btn-compact"
+                    onClick={() => handleTest(formData.printerUri)}
+                    disabled={checking}
                   >
-                    {testingPrinter ? 'Checking...' : 'Check Printer'}
+                    {checking ? 'Checking…' : 'Check printer'}
                   </button>
                   {testResult && (
-                    <span className={testResult.success ? 'success' : 'error'}>
-                      {testResult.success ? '✓ Test successful' : `✗ ${testResult.error}`}
+                    <span className={`test-result ${testResult.success ? 'ok' : 'fail'}`}>
+                      {testResult.success ? 'Printer responded' : testResult.error}
                     </span>
                   )}
                 </div>
@@ -138,37 +217,65 @@ export function SettingsScreen({
             </div>
           </section>
 
-          <section className="settings-section">
-            <h2>Advanced</h2>
-            <div className="form-group">
-              <label htmlFor="pollInterval">Job check interval (ms)</label>
-              <input
-                id="pollInterval"
-                type="number"
-                value={formData.pollInterval}
-                onChange={(e) => handleChange('pollInterval', parseInt(e.target.value, 10))}
-                min="3000"
-                max="60000"
-                step="1000"
-              />
-              <p className="form-hint">
-                How often the kiosk asks PrintLoop for released jobs. The server speeds this up
-                automatically while jobs are queued.
-              </p>
+          <section className="settings-card">
+            <div className="settings-card-intro">
+              <span className="settings-index">03</span>
+              <h2>Advanced</h2>
+              <p>Tuning for how often this kiosk checks in.</p>
+            </div>
+            <div className="settings-card-fields">
+              <div className="form-group">
+                <label htmlFor="pollInterval">Job check interval</label>
+                <div className="input-with-suffix">
+                  <input
+                    id="pollInterval"
+                    type="number"
+                    value={Number.isFinite(formData.pollInterval) ? formData.pollInterval : ''}
+                    onChange={(e) => handleChange('pollInterval', parseInt(e.target.value, 10))}
+                    min="3000"
+                    max="60000"
+                    step="1000"
+                  />
+                  <span className="suffix">ms{pollSeconds ? ` · ${pollSeconds}s` : ''}</span>
+                </div>
+                <p className="form-hint">
+                  How often the kiosk asks PrintLoop for released jobs (3–60 seconds). The server
+                  speeds this up automatically while jobs are queued.
+                </p>
+              </div>
             </div>
           </section>
+        </div>
+      </main>
 
-          {saveError && <div className="error">{saveError}</div>}
-          <div className="actions">
-            <button className="btn btn-primary btn-large" onClick={handleSave}>
-              Save Settings
-            </button>
-            <button className="btn btn-secondary btn-large" onClick={onSave}>
-              Cancel
+      <footer className="settings-footer">
+        <div className="settings-footer-inner">
+          {saveError ? (
+            <div className="settings-error" role="alert">{saveError}</div>
+          ) : (
+            <span className="settings-footer-note">
+              {canExit
+                ? 'Changes apply when you save.'
+                : 'Add an API key and a printer to start using this kiosk.'}
+            </span>
+          )}
+          <div className="settings-footer-actions">
+            {canExit && (
+              <button type="button" className="btn btn-secondary" onClick={onSave}>
+                Cancel
+              </button>
+            )}
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={handleSave}
+              disabled={saving}
+            >
+              {saving ? 'Saving…' : 'Save settings'}
             </button>
           </div>
         </div>
-      </main>
+      </footer>
     </div>
   );
 }

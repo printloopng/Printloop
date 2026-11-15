@@ -3,10 +3,10 @@ import { expect, type Page } from "@playwright/test";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import { API_URL, APPS, WEBHOOK_SECRET } from "../playwright.config";
 
-export const STUDENT = { email: "student@printloop.test", password: "Password1!" };
-export const SHOP_OWNER = { email: "owner@printloop.test", password: "Admin1234!" };
-export const SHOP_ADMIN = { email: "ops@printloop.test", password: "Admin1234!" };
-export const STAFF = { email: "admin@printloop.test", password: "Admin1234!" };
+export const STUDENT = { email: "student@printloop.app", password: "Password1!" };
+export const SHOP_OWNER = { email: "owner@printloop.app", password: "Password1!" };
+export const SHOP_ADMIN = { email: "ops@printloop.app", password: "Password1!" };
+export const STAFF = { email: "admin@printloop.app", password: "Password1!" };
 export const DEMO_SHOP = "campus-print";
 
 export async function pdf(pages: number, title = "PrintLoop test"): Promise<Buffer> {
