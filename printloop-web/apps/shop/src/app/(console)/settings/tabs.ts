@@ -1,7 +1,7 @@
 export const SETTINGS_TABS = [
   { value: "location", label: "Shop & location" },
   { value: "branding", label: "Branding" },
-  { value: "payouts", label: "Payouts" },
+  { value: "payouts", label: "Payments" },
   { value: "domains", label: "Domains" },
   { value: "webhooks", label: "Webhooks" },
   { value: "security", label: "Security" },

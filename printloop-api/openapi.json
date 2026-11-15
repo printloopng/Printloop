@@ -14004,7 +14004,7 @@
         "tags": [
           "Shop onboarding"
         ],
-        "summary": "Set up Paystack split settlement (owner/admin)",
+        "summary": "Set up Paystack split settlement (owner only)",
         "security": [
           {
             "bearerAuth": []
@@ -14142,7 +14142,7 @@
         "tags": [
           "Shop onboarding"
         ],
-        "summary": "Set the payout bank account (owner/admin)",
+        "summary": "Set the payout bank account (owner only)",
         "security": [
           {
             "bearerAuth": []

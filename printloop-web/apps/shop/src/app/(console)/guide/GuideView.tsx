@@ -65,7 +65,7 @@ export function GuideView({ downloadUrl }: { downloadUrl: string | null }) {
         <Step n={5} title="Pin your shop and connect Paystack" done={Boolean(gate?.locationSet) && shop.onboarding.subaccountSet}>
           <p>
             Add your <Link href="/settings?tab=location" className="pl-link font-semibold">address</Link> so students can find you, and connect a{" "}
-            <Link href="/settings?tab=payouts" className="pl-link font-semibold">Paystack account</Link>. Student payments go straight to that account. The shop cannot take jobs or be listed until it is connected.
+            <Link href="/payments" className="pl-link font-semibold">Paystack account</Link>. Student payments go straight to that account. The shop cannot take jobs or be listed until it is connected.
           </p>
         </Step>
         <Step n={6} title="Go live" done={Boolean(gate?.isDiscoverable)}>

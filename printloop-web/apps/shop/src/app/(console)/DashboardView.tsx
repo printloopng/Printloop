@@ -30,7 +30,7 @@ function Checklist() {
     { done: gate.statusActive, label: "Verify your email", href: "/settings" },
     { done: shop.onboarding.brandingSet, label: "Add your logo and colours", href: "/settings?tab=branding" },
     { done: gate.locationSet, label: "Pin your shop on the map", href: "/settings?tab=location" },
-    { done: shop.onboarding.subaccountSet, label: "Connect a Paystack account", href: "/settings?tab=payouts" },
+    { done: shop.onboarding.subaccountSet, label: "Connect a Paystack account", href: "/payments" },
     { done: gate.kioskOnline, label: "Connect a printer (kiosk app)", href: "/kiosks" },
     { done: gate.testPrintDone, label: "Print a test page", href: "/kiosks" },
   ];

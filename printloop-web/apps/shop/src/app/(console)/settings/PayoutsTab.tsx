@@ -6,14 +6,14 @@ import { unwrap } from "@printloop/api-client";
 import { useApiClient } from "@printloop/api-client/react";
 import { NIGERIAN_BANKS, bankName } from "@/lib/banks";
 import { useAction } from "@printloop/auth/actions";
-import { useCanManage, useShopProfile } from "@/lib/shop-context";
+import { useIsOwner, useShopProfile } from "@/lib/shop-context";
 
 const BANK_OPTIONS = [{ value: "", label: "Choose your bank" }, ...NIGERIAN_BANKS.map((b) => ({ value: b.code, label: b.name }))];
 
 export function PayoutsTab() {
   const shop = useShopProfile();
   const client = useApiClient();
-  const manage = useCanManage();
+  const owner = useIsOwner();
   const { run, isPending } = useAction();
   const current = shop.payoutSchedule;
   const [bankCode, setBank] = useState(current?.bankCode ?? "");
@@ -38,28 +38,28 @@ export function PayoutsTab() {
       <div>
         <Section title="Payout bank account" description="Where we send your earnings. Use a Nigerian NUBAN account in your business or your name.">
           <Card className="space-y-1">
-            <Select label="Bank" value={bankCode} disabled={!manage} onChange={(e) => setBank(e.target.value)} options={BANK_OPTIONS} />
+            <Select label="Bank" value={bankCode} disabled={!owner} onChange={(e) => setBank(e.target.value)} options={BANK_OPTIONS} />
             <div className="grid sm:grid-cols-2 gap-x-4">
               <Input
                 label="Account number"
                 inputMode="numeric"
                 maxLength={10}
-                disabled={!manage}
+                disabled={!owner}
                 value={accountNumber}
                 onChange={(e) => setNumber(e.target.value.replace(/\D/g, "").slice(0, 10))}
                 error={accountNumber && !validNumber ? "10 digits" : undefined}
                 className="pl-mono"
               />
-              <Input label="Account name" disabled={!manage} value={accountName} onChange={(e) => setName(e.target.value)} helper="Exactly as the bank shows it" />
+              <Input label="Account name" disabled={!owner} value={accountName} onChange={(e) => setName(e.target.value)} helper="Exactly as the bank shows it" />
             </div>
-            {manage ? (
+            {owner ? (
               <div className="pt-2">
                 <Button size="sm" disabled={!ready || accountName.trim().length < 3} loading={isPending("bank")} onClick={saveAccount}>
                   Save account
                 </Button>
               </div>
             ) : (
-              <Notice tone="info">Only owners and admins can change where money goes.</Notice>
+              <Notice tone="info">Only the shop owner can change the payment account.</Notice>
             )}
           </Card>
         </Section>
@@ -70,9 +70,9 @@ export function PayoutsTab() {
             ) : (
               <p className="text-sm text-ink/70">Connect the bank account above. Until this is on, students cannot send jobs here and the shop stays off Find a shop.</p>
             )}
-            {manage ? (
+            {owner ? (
               <Button size="sm" variant="ghost" disabled={!ready} loading={isPending("split")} onClick={enableSplit}>
-                {shop.onboarding.subaccountSet ? "Update split account" : "Turn on split settlement"}
+                {shop.onboarding.subaccountSet ? "Update Paystack account" : "Connect Paystack"}
               </Button>
             ) : null}
           </Card>
@@ -91,7 +91,7 @@ export function PayoutsTab() {
             ]}
           />
         ) : (
-          <p className="text-sm text-fog">No payout account yet. You can still take orders; earnings wait until you add one.</p>
+          <p className="text-sm text-fog">No payment account yet. This shop cannot take jobs until the owner connects Paystack.</p>
         )}
       </Card>
     </div>

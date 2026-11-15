@@ -140,7 +140,7 @@ export function MoneyView() {
       />
 
       {!splitOn ? (
-        <Notice tone="warn" title="Connect Paystack before this shop can take jobs" action={<Link href="/settings?tab=payouts" className="pl-btn-primary pl-btn-sm">Connect Paystack</Link>}>
+        <Notice tone="warn" title="Connect Paystack before this shop can take jobs" action={<Link href="/payments" className="pl-btn-primary pl-btn-sm">Connect Paystack</Link>}>
           Student payments go straight to your Paystack account. Until that account is connected, this shop cannot be listed or receive print jobs.
         </Notice>
       ) : null}

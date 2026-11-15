@@ -62,8 +62,10 @@ describe('shop console API', () => {
     for (const h of hooks) expect(h.secret).toBe('***');
     const location = await api.call('PATCH', '/saas/me/location', { token: ops, body: {} });
     expect(location.body.data.isDiscoverable).toBe(me.isDiscoverable);
-    expect((await api.call('POST', '/saas/setup/bank-account', { token: ops, body: { accountName: 'Campus Print', bankCode: '058', accountNumber: '12345' } })).status).toBe(400);
-    expect((await api.call('POST', '/saas/setup/paystack-subaccount', { token: ops, body: { bankCode: '058', accountNumber: 'abc' } })).status).toBe(400);
+    expect((await api.call('POST', '/saas/setup/bank-account', { token: ops, body: { accountName: 'Campus Print', bankCode: '058', accountNumber: '0123456789' } })).status).toBe(403);
+    const owner = await api.login('owner@printloop.app', 'Password1!');
+    expect((await api.call('POST', '/saas/setup/bank-account', { token: owner, body: { accountName: 'Campus Print', bankCode: '058', accountNumber: '12345' } })).status).toBe(400);
+    expect((await api.call('POST', '/saas/setup/paystack-subaccount', { token: owner, body: { bankCode: '058', accountNumber: 'abc' } })).status).toBe(400);
   });
 
   it('updates branding and shop photos through an upload ticket', async () => {

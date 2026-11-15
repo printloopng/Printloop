@@ -13,7 +13,7 @@ type Member = Schemas["TeamMember"];
 
 const ROLE_COPY: Record<Member["role"], string> = {
   owner: "Everything, including payouts and closing the shop.",
-  admin: "Prices, kiosks, team (staff only) and payouts.",
+  admin: "Prices, kiosks and team (staff only). Payment accounts stay with the owner.",
   staff: "Run the queue, release jobs and do edits.",
 };
 

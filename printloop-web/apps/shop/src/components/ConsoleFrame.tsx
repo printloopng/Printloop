@@ -6,6 +6,7 @@ import {
   Banknote,
   BookOpen,
   FileEdit,
+  Landmark,
   LayoutDashboard,
   ListOrdered,
   LogOut,
@@ -22,7 +23,7 @@ import { errorMessage, unwrap } from "@printloop/api-client";
 import { useApi, useApiClient, useQueryClient } from "@printloop/api-client/react";
 import { signOut } from "@printloop/auth/client";
 import type { SessionUser } from "@printloop/auth/config";
-import { ShopProfileProvider, useShopProfile, type ShopProfile } from "@/lib/shop-context";
+import { ShopProfileProvider, useIsOwner, useShopProfile, type ShopProfile } from "@/lib/shop-context";
 
 function QueueBadge() {
   const $api = useApi();
@@ -38,7 +39,7 @@ function EditBadge() {
   return n ? <span className="pl-mono text-[11px] bg-ochre text-paper px-1.5">{n}</span> : null;
 }
 
-function navGroups(): ConsoleNavGroup[] {
+function navGroups(owner: boolean): ConsoleNavGroup[] {
   return [
     {
       items: [
@@ -62,6 +63,7 @@ function navGroups(): ConsoleNavGroup[] {
       items: [
         { href: "/catalogue", label: "Prices & promos", icon: Tags },
         { href: "/team", label: "Team", icon: UserCog },
+        ...(owner ? [{ href: "/payments", label: "Payments", icon: Landmark }] : []),
         { href: "/settings", label: "Settings", icon: Settings },
         { href: "/audit", label: "Audit log", icon: ScrollText },
         { href: "/guide", label: "Setup guide", icon: BookOpen },
@@ -99,6 +101,7 @@ function Availability() {
 
 function Frame({ user, impersonating, children }: { user: SessionUser; impersonating: boolean; children: ReactNode }) {
   const shop = useShopProfile();
+  const owner = useIsOwner();
   return (
     <ConsoleShell
       brand={
@@ -107,7 +110,7 @@ function Frame({ user, impersonating, children }: { user: SessionUser; impersona
           <span className="text-[11px] text-paper/50 truncate max-w-[12rem]">{shop.name}</span>
         </span>
       }
-      groups={navGroups()}
+      groups={navGroups(owner)}
       banner={
         impersonating ? (
           <div className="bg-persimmon text-paper text-sm px-4 py-2 flex items-center justify-between gap-3">

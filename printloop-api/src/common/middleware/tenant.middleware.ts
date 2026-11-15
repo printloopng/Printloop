@@ -142,9 +142,12 @@ export const requireTenantRole =
     if (isPlatformStaff(req)) return next();
     const memberships = (req.tenantMemberships || []).filter((m) => m.tenantId === tenantId);
     if (memberships.some((m) => roles.includes(m.role))) return next();
+    const ownerOnly = roles.length === 1 && roles[0] === TenantMemberRole.OWNER;
     res.status(403).json({
       success: false,
-      message: 'Only the shop owner or an admin can do this.',
+      message: ownerOnly
+        ? 'Only the shop owner can do this.'
+        : 'Only the shop owner or an admin can do this.',
       code: 'TENANT_ROLE_REQUIRED',
     });
   };

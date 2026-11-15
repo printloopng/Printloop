@@ -413,12 +413,12 @@ export const routes: Array<[string, string, Op]> = [
   }],
   ['POST', '/saas/resend-verification', { tag: 'Shop onboarding', summary: 'Resend the owner verification email', auth: 'none', body: obj({ email: str() }) }],
   ['POST', '/saas/setup/paystack-subaccount', {
-    tag: 'Shop onboarding', summary: 'Set up Paystack split settlement (owner/admin)', auth: 'user',
+    tag: 'Shop onboarding', summary: 'Set up Paystack split settlement (owner only)', auth: 'user',
     body: obj({ bankCode: str(), accountNumber: str({ pattern: '^[0-9]{10}$' }), businessName: str() }, ['bankCode', 'accountNumber']),
     data: obj({ subaccountCode: str(), accountName: nullable(str()) }, ['subaccountCode']),
   }],
   ['POST', '/saas/setup/bank-account', {
-    tag: 'Shop onboarding', summary: 'Set the payout bank account (owner/admin)', auth: 'user',
+    tag: 'Shop onboarding', summary: 'Set the payout bank account (owner only)', auth: 'user',
     body: obj({ accountName: str(), bankCode: str(), accountNumber: str({ pattern: '^[0-9]{10}$' }) }, ['accountName', 'bankCode', 'accountNumber']),
     data: obj({ recipientCode: nullable(str()), accountName: str(), bankCode: str() }, ['accountName', 'bankCode']),
   }],

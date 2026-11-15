@@ -1395,7 +1395,7 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Set up Paystack split settlement (owner/admin) */
+    /** Set up Paystack split settlement (owner only) */
     post: operations["postSaasSetupPaystackSubaccount"];
     delete?: never;
     options?: never;
@@ -1412,7 +1412,7 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Set the payout bank account (owner/admin) */
+    /** Set the payout bank account (owner only) */
     post: operations["postSaasSetupBankAccount"];
     delete?: never;
     options?: never;

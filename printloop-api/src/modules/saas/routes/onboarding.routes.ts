@@ -19,7 +19,7 @@ export function createOnboardingRoutes(ds: DataSource): Router {
     authenticate,
     requireVerifiedEmail,
     resolveTenant,
-    requireTenantRole(TenantMemberRole.OWNER, TenantMemberRole.ADMIN),
+    requireTenantRole(TenantMemberRole.OWNER),
     ctrl.setupPaystackSubaccount,
   );
   router.post(
@@ -27,7 +27,7 @@ export function createOnboardingRoutes(ds: DataSource): Router {
     authenticate,
     requireVerifiedEmail,
     resolveTenant,
-    requireTenantRole(TenantMemberRole.OWNER, TenantMemberRole.ADMIN),
+    requireTenantRole(TenantMemberRole.OWNER),
     ctrl.setupBankAccount,
   );
 
