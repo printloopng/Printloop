@@ -7,11 +7,18 @@ const redisConnection = bullmqConnection();
 export const notificationWorker = new Worker(
   'notifications',
   async (job: Job) => {
-    const ok = await processNotification(job.name, job.data);
-    if (!ok) {
-      throw new Error(`Notification "${job.name}" failed to send`);
+    try {
+      const ok = await processNotification(job.name, job.data);
+      if (!ok) {
+        throw new Error(
+          `Notification "${job.name}" failed to send (check RESEND_API_KEY / EMAIL_FROM)`,
+        );
+      }
+      return { ok: true };
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      throw new Error(`Notification "${job.name}" failed to send: ${detail}`);
     }
-    return { ok: true };
   },
   { connection: redisConnection, concurrency: 5 },
 );

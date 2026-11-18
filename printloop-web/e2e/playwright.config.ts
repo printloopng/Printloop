@@ -60,7 +60,7 @@ export default defineConfig({
         PRINT_DISPATCH_MODE: "kiosk-pull",
         REDIS_URL: "",
         REDIS_HOST: "",
-        SMTP_HOST: "",
+        RESEND_API_KEY: "",
         TERMII_API_KEY: "",
         CLOUDINARY_CLOUD_NAME: "",
         PAYSTACK_SECRET_KEY: "",

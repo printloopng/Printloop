@@ -98,12 +98,8 @@ const configSchema = z.object({
     }),
   }),
   email: z.object({
-    host: z.string().default(""),
-    port: z.coerce.number().default(587),
-    secure: z.boolean().default(false),
-    user: z.string().default(""),
-    password: z.string().default(""),
-    from: z.string().default("PrintLoop <noreply@printloop.ng>"),
+    apiKey: z.string().default(""),
+    from: z.string().default("PrintLoop <noreply@printloop.app>"),
   }),
   sms: z.object({
     apiKey: z.string().default(""),
@@ -264,12 +260,8 @@ export const Config = configSchema.parse({
     s3: { ...backupS3, region: backupS3.region || undefined },
   },
   email: {
-    host: env.SMTP_HOST,
-    port: env.SMTP_PORT || undefined,
-    secure: env.SMTP_SECURE === "true",
-    user: env.SMTP_USER,
-    password: env.SMTP_PASSWORD,
-    from: env.SMTP_FROM || undefined,
+    apiKey: env.RESEND_API_KEY,
+    from: env.EMAIL_FROM || undefined,
   },
   sms: {
     apiKey: env.TERMII_API_KEY,

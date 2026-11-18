@@ -1,5 +1,5 @@
 import { Config } from '@/config';
-import nodemailer, { Transporter } from 'nodemailer';
+import { Resend } from 'resend';
 import { repos } from '@/config/repos';
 import { TenantBranding } from '@/database/entities/tenantBranding.entity';
 
@@ -17,27 +17,14 @@ export interface EmailOptions {
 }
 
 export class EmailService {
-  private transporter: Transporter | null;
+  private client: Resend | null;
   private fromAddress: string;
   private enabled: boolean;
 
   constructor() {
-    this.enabled = Boolean(Config.email.host && Config.email.user && Config.email.password);
-    this.transporter = this.enabled
-      ? nodemailer.createTransport({
-          host: Config.email.host,
-          port: Config.email.port,
-          secure: Config.email.secure,
-          auth: {
-            user: Config.email.user,
-            pass: Config.email.password,
-          },
-          connectionTimeout: 10_000,
-          greetingTimeout: 10_000,
-          socketTimeout: 20_000,
-        })
-      : null;
-
+    const apiKey = Config.email.apiKey;
+    this.enabled = Boolean(apiKey);
+    this.client = this.enabled ? new Resend(apiKey) : null;
     this.fromAddress = Config.email.from;
   }
 
@@ -98,28 +85,41 @@ export class EmailService {
     `.trim();
   }
 
+  private toResendAttachments(attachments: EmailOptions['attachments']) {
+    if (!attachments?.length) return undefined;
+    return attachments.map((a) => ({
+      filename: a.filename,
+      content: a.content,
+      path: a.path,
+      contentType: a.contentType,
+    }));
+  }
+
   async send(options: EmailOptions): Promise<boolean> {
-    if (!this.enabled || !this.transporter) {
+    if (!this.enabled || !this.client) {
       console.log(
-        `[email:disabled] to=${options.to} subject=${JSON.stringify(
-          options.subject,
-        )}`,
+        `[email:disabled] to=${options.to} subject=${JSON.stringify(options.subject)}`,
       );
       return false;
     }
     try {
-      await this.transporter.sendMail({
+      const { error } = await this.client.emails.send({
         from: this.fromAddress,
         to: options.to,
         subject: options.subject,
         html: options.html,
         text: options.text,
-        attachments: options.attachments,
+        attachments: this.toResendAttachments(options.attachments),
       });
+      if (error) {
+        console.error('[email:resend] send failed:', error);
+        throw new Error(error.message || 'Resend rejected the email');
+      }
       return true;
     } catch (error) {
-      console.error('Email send error:', error);
-      return false;
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('[email:resend] send error:', message, error);
+      throw error instanceof Error ? error : new Error(message);
     }
   }
 
