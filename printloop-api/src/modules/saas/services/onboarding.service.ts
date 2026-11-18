@@ -5,7 +5,7 @@ import { randomInt } from 'node:crypto';
 import { repos } from '@/config/repos';
 import { User } from '@/database/entities/user.entity';
 import { Permission } from '@/common/middleware/rbac.middleware';
-import { EmailService } from '@/core/services/email.service';
+import { enqueueNotification } from '@/workers/notification.enqueue';
 
 const RESERVED_SLUGS = new Set<string>([
   'admin',
@@ -138,35 +138,19 @@ export async function signupTenant(input: SignupInput): Promise<SignupResult> {
   const verifyUrl = buildVerifyUrl(owner.email, verificationToken);
 
   process.nextTick(() => {
-    const mailer = new EmailService();
-    mailer
-      .sendTenantOwnerVerification({
-        to: owner.email,
-        firstName: owner.firstName,
-        businessName: tenant.name,
-        token: verificationToken,
-        verifyUrl,
-      })
-      .catch((err) =>
-        console.error(
-          `[onboarding] verification email send failed for ${owner.email}:`,
-          err,
-        ),
-      );
-
-    if (owner.phoneNumber) {
-      import('@/core/services/sms.service')
-        .then(({ SMSService }) => {
-          const sms = new SMSService();
-          return sms.sendOTP(owner.phoneNumber, verificationToken);
-        })
-        .catch((err) =>
-          console.error(
-            `[onboarding] verification SMS send failed for ${owner.phoneNumber}:`,
-            err,
-          ),
-        );
-    }
+    enqueueNotification('tenant-owner-verification', {
+      to: owner.email,
+      firstName: owner.firstName,
+      businessName: tenant.name,
+      token: verificationToken,
+      verifyUrl,
+      phoneNumber: owner.phoneNumber || undefined,
+    }).catch((err) =>
+      console.error(
+        `[onboarding] verification notification failed for ${owner.email}:`,
+        err,
+      ),
+    );
   });
 
   return {
@@ -239,27 +223,14 @@ export async function resendOwnerVerification(opts: {
     : null;
   const verifyUrl = buildVerifyUrl(user.email, newToken);
 
-  const mailer = new EmailService();
-  await mailer.sendTenantOwnerVerification({
+  await enqueueNotification('tenant-owner-verification', {
     to: user.email,
     firstName: user.firstName,
     businessName: tenant?.name || 'PrintLoop',
     token: newToken,
     verifyUrl,
+    phoneNumber: user.phoneNumber || undefined,
   });
-
-  if (user.phoneNumber) {
-    try {
-      const { SMSService } = await import('@/core/services/sms.service');
-      const sms = new SMSService();
-      await sms.sendOTP(user.phoneNumber, newToken);
-    } catch (smsErr) {
-      console.error(
-        `[onboarding] resend verification SMS failed for ${user.phoneNumber}:`,
-        smsErr,
-      );
-    }
-  }
 
   return { sent: true };
 }

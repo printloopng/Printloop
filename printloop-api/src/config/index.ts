@@ -144,6 +144,10 @@ const configSchema = z.object({
     enabled: z.boolean().default(false),
     callbackSecret: z.string().default(""),
   }),
+  bullBoard: z.object({
+    user: z.string().default("admin"),
+    password: z.string().default(""),
+  }),
   sentry: z.object({
     dsn: z.string().default(""),
     tracesSampleRate: z.number().default(0.1),
@@ -289,6 +293,10 @@ export const Config = configSchema.parse({
   render: {
     enabled: env.RENDER_ENABLED === "1",
     callbackSecret: env.RENDER_CALLBACK_SECRET,
+  },
+  bullBoard: {
+    user: env.BULL_BOARD_USER || undefined,
+    password: env.BULL_BOARD_PASSWORD,
   },
   sentry: {
     dsn: env.SENTRY_DSN,

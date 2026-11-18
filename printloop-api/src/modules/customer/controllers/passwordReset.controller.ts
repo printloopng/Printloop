@@ -5,7 +5,7 @@ import { mintToken, parseToken, secretsMatch } from '@/core/utils/resetToken';
 import { AppDataSource } from '@/config/data-source';
 import { User, UserRole } from '@/database/entities/user.entity';
 import { appUrls } from '@/core/utils/appUrls';
-import { EmailService } from '@/core/services/email.service';
+import { enqueueNotification } from '@/workers/notification.enqueue';
 
 const ANTI_ENUMERATION_OK = {
   success: true,
@@ -48,8 +48,7 @@ export class PasswordResetController {
         `?email=${encodeURIComponent(email)}&token=${encodeURIComponent(token)}`;
 
       try {
-        const mailer = new EmailService();
-        await mailer.sendPasswordReset({
+        await enqueueNotification('password-reset', {
           to: email,
           firstName: user.firstName || '',
           resetUrl,

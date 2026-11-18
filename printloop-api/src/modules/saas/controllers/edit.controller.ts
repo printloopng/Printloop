@@ -7,7 +7,7 @@ import { EditPricingConfig } from '@/database/entities/editPricingConfig.entity'
 import { loadDocumentBytes, storageKeyFromUrl } from '@/core/utils/fileStore';
 import { countPages } from '@/modules/public/services/documentConvert.service';
 import { approveEdit } from '@/modules/saas/services/editApproval.service';
-import { notificationQueue } from '@/workers/queues';
+import { enqueueNotification } from '@/workers/notification.enqueue';
 import {
   editRejectBodySchema,
   editUploadBodySchema,
@@ -186,7 +186,7 @@ export class EditController {
       await this.ds.getRepository(DocumentEdit).save(edit);
       edit.printJob.status = PrintJobStatus.AWAITING_EDIT;
       await this.ds.getRepository(PrintJob).save(edit.printJob);
-      await notificationQueue.add('edit-started', {
+      await enqueueNotification('edit-started', {
         userId: edit.printJob.userId,
         printJobId: edit.printJobId,
         editId: edit.id,
@@ -269,7 +269,7 @@ export class EditController {
     job.editedDocumentUrl = documentUrl;
     job.status = PrintJobStatus.EDIT_COMPLETE;
     await this.ds.getRepository(PrintJob).save(job);
-    await notificationQueue.add('edit-complete', {
+    await enqueueNotification('edit-complete', {
       userId: job.userId,
       printJobId: job.id,
       editId: edit.id,
@@ -323,7 +323,7 @@ export class EditController {
       await this.ds.getRepository(DocumentEdit).save(edit);
       edit.printJob.status = PrintJobStatus.AWAITING_EDIT;
       await this.ds.getRepository(PrintJob).save(edit.printJob);
-      await notificationQueue.add('edit-rejected', {
+      await enqueueNotification('edit-rejected', {
         shopId: edit.shopId,
         printJobId: edit.printJobId,
         editId: edit.id,

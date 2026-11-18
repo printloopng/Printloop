@@ -3,10 +3,7 @@ import { In } from 'typeorm';
 import { repos } from '@/config/repos';
 import { Kiosk, KioskStatus } from '@/database/entities/kiosk.entity';
 import { TenantMember, TenantMemberRole } from '@/database/entities/tenantMember.entity';
-import { User } from '@/database/entities/user.entity';
-import { Tenant } from '@/database/entities/tenant.entity';
-import { EmailService } from '@/core/services/email.service';
-import { SMSService } from '@/core/services/sms.service';
+import { enqueueNotification } from '@/workers/notification.enqueue';
 
 const ALERT_COOLDOWN_MINUTES = Config.kioskAlertCooldownMinutes;
 
@@ -37,9 +34,6 @@ export async function notifyOfflineKiosks(kioskIds: string[]): Promise<void> {
     existing.push(k);
     byTenant.set(k.tenantId, existing);
   }
-
-  const email = new EmailService();
-  const sms = new SMSService();
 
   for (const [tenantId, offlineKiosks] of byTenant) {
     const members = await memberRepo.find({
@@ -72,13 +66,13 @@ export async function notifyOfflineKiosks(kioskIds: string[]): Promise<void> {
           `<li><strong>${k.name}</strong>${k.location ? ` — ${k.location}` : ''}</li>`,
       )
       .join('');
+    const names = offlineKiosks.map((k) => k.name).join(', ');
 
     for (const user of users) {
-      await email
-        .send({
-          to: user.email,
-          subject: `⚠️ Kiosk offline — ${tenantName}`,
-          html: `
+      await enqueueNotification('kiosk-offline-alert', {
+        to: user.email,
+        subject: `⚠️ Kiosk offline — ${tenantName}`,
+        html: `
             <p>Hi ${user.firstName},</p>
             <p>The following kiosk${offlineKiosks.length > 1 ? 's' : ''} at <strong>${tenantName}</strong>
                ${offlineKiosks.length > 1 ? 'have' : 'has'} gone offline:</p>
@@ -92,29 +86,16 @@ export async function notifyOfflineKiosks(kioskIds: string[]): Promise<void> {
               <a href="https://${tenant?.slug}.printloop.app/saas/kiosks">PrintLoop dashboard</a>.
             </p>
           `,
-          text: `Hi ${user.firstName},\n\nThese kiosks at ${tenantName} have gone offline:\n${kioskList}\n\nCheck that the kiosk computer is powered on and the PrintLoop Agent is running.`,
-        })
-        .catch((err) =>
-          console.error('[kioskAlert] email send failed:', err),
-        );
-
-      if (user.phoneNumber) {
-        const names = offlineKiosks.map((k) => k.name).join(', ');
-        await sms
-          .send(
-            user.phoneNumber,
-            `PrintLoop: Kiosk${offlineKiosks.length > 1 ? 's' : ''} offline at ${tenantName}: ${names}. Check kiosk power and internet.`,
-          )
-          .catch((err) =>
-            console.error('[kioskAlert] SMS send failed:', err),
-          );
-      }
+        text: `Hi ${user.firstName},\n\nThese kiosks at ${tenantName} have gone offline:\n${kioskList}\n\nCheck that the kiosk computer is powered on and the PrintLoop Agent is running.`,
+        phoneNumber: user.phoneNumber || undefined,
+        smsMessage: `PrintLoop: Kiosk${offlineKiosks.length > 1 ? 's' : ''} offline at ${tenantName}: ${names}. Check kiosk power and internet.`,
+      }).catch((err) => console.error('[kioskAlert] enqueue failed:', err));
     }
 
     await kioskRepo.markOfflineAlertsSent(offlineKiosks.map((k) => k.id));
 
     console.log(
-      `[kioskAlert] alerted tenant ${tenantId}: ${offlineKiosks.length} kiosk(s) offline`,
+      `[kioskAlert] queued alerts for tenant ${tenantId}: ${offlineKiosks.length} kiosk(s) offline`,
     );
   }
 }

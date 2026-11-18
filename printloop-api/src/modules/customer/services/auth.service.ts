@@ -27,13 +27,8 @@ const MIN_PASSWORD_LENGTH = 10;
 
 async function sendVerificationCode(user: User, code: string): Promise<void> {
   try {
-    const { EmailService } = await import('@/core/services/email.service');
-    await new EmailService().send({
-      to: user.email,
-      subject: 'Your PrintLoop verification code',
-      text: `Your PrintLoop verification code is ${code}. It expires in 30 minutes.`,
-      html: `<p>Your PrintLoop verification code is</p><p style="font-size:24px;font-weight:bold;letter-spacing:4px">${code}</p><p>It expires in 30 minutes.</p>`,
-    });
+    const { enqueueNotification } = await import('@/workers/notification.enqueue');
+    await enqueueNotification('customer-verification', { to: user.email, code });
   } catch (err) {
     console.warn('[auth] verification email failed:', err);
   }

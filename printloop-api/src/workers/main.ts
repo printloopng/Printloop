@@ -24,6 +24,7 @@ async function main() {
   await import("./fileCleanup.worker");
   await import("./webhook.worker");
   await import("./watermark.worker");
+  await import("./notification.worker");
 
   logger.info("PrintLoop BullMQ workers registered");
 }

@@ -33,36 +33,17 @@ export async function completePrintJobPayment(
     const job = result.job;
     const user = job.user!;
     const code = result.code!;
-    const message = `Your PrintLoop code is: ${code}. Release your print at the kiosk.`;
-
-    if (user.phoneNumber) {
-      try {
-        const { SMSService } = await import('@/core/services/sms.service');
-        const sms = new SMSService();
-        await sms.sendPrintJobCode({
-          phoneNumber: user.phoneNumber,
-          jobCode: code,
-          fileName: job.fileName || 'Document',
-          cost: Number(job.cost),
-        });
-      } catch (smsErr) {
-        console.warn('[notifications] Failed to send SMS:', smsErr);
-      }
-    }
-
-    if (user.email) {
-      try {
-        const { EmailService } = await import('@/core/services/email.service');
-        const emailService = new EmailService();
-        await emailService.send({
-            to: user.email,
-          subject: 'Your PrintLoop Release Code',
-          text: message,
-          html: `<p>Your PrintLoop code is: <strong>${code}</strong>.</p><p>Release your print at the kiosk.</p>`,
-        });
-      } catch (emailErr) {
-        console.warn('[notifications] Failed to send email:', emailErr);
-      }
+    try {
+      const { enqueueNotification } = await import('@/workers/notification.enqueue');
+      await enqueueNotification('print-job-code', {
+        email: user.email || undefined,
+        phoneNumber: user.phoneNumber || undefined,
+        code,
+        fileName: job.fileName || 'Document',
+        cost: Number(job.cost),
+      });
+    } catch (notifyErr) {
+      console.warn('[notifications] Failed to queue print-job-code:', notifyErr);
     }
   }
 

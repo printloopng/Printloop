@@ -9,7 +9,7 @@ import { conversionEnabled, convertOfficeToPdf } from '@/modules/public/services
 import { countPages } from '@/modules/public/services/documentConvert.service';
 import { EditorSessionError, storedDocument } from '@/modules/saas/services/documentEditor.service';
 import { univerToHtml, univerToPdf, type UniverDocumentData } from '@/modules/saas/services/univerDocument';
-import { notificationQueue } from '@/workers/queues';
+import { enqueueNotification } from '@/workers/notification.enqueue';
 
 export interface ExportResult {
   documentUrl: string;
@@ -79,7 +79,7 @@ export class EditorExportService {
     session.lastActivityAt = new Date();
     await repos.editorSession().save(session);
 
-    await notificationQueue.add('edit-complete', {
+    await enqueueNotification('edit-complete', {
       userId: job.userId,
       printJobId: job.id,
       editId: edit.id,

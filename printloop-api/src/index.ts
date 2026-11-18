@@ -21,6 +21,9 @@ const startServer = async () => {
     const server = app.listen(Config.port, () => {
       logger.info(`${Config.service.name} v${Config.service.version} on http://localhost:${Config.port}`);
       logger.info(`Health: http://localhost:${Config.port}/health`);
+      if (REDIS_ENABLED && Config.bullBoard.password) {
+        logger.info(`Bull Board: http://localhost:${Config.port}/admin/queues`);
+      }
     });
     await editorCollaborationService.initialize(server);
     startRetentionSweep();
@@ -29,6 +32,7 @@ const startServer = async () => {
       await import("./workers/fileCleanup.worker");
       await import("./workers/webhook.worker");
       await import("./workers/watermark.worker");
+      await import("./workers/notification.worker");
       logger.info("BullMQ workers running inside the API process");
     }
   } catch (error) {

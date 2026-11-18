@@ -15,7 +15,7 @@ import { GroupSession } from '@/database/entities/groupSession.entity';
 import { User, UserRole } from '@/database/entities/user.entity';
 import { TenantMember, TenantMemberRole } from '@/database/entities/tenantMember.entity';
 import { writeAudit } from '@/core/services/audit.service';
-import { EmailService } from '@/core/services/email.service';
+import { enqueueNotification } from '@/workers/notification.enqueue';
 import { AdminDashboardService } from '@/modules/platform/services/adminDashboard.service';
 import { mintToken, INVITE_TTL_MS } from '@/core/utils/resetToken';
 import { appUrls } from '@/core/utils/appUrls';
@@ -46,7 +46,7 @@ async function sendTeamInvite(tenantName: string, email: string, role: string, t
     : `${appUrls.shop}/login`;
   const action = token ? 'Confirm your email and set your password' : 'Sign in';
   try {
-    const sent = await new EmailService().send({
+    const { ok } = await enqueueNotification('team-invite', {
       to: email,
       subject: `You've been added to ${tenantName} on PrintLoop`,
       text: `You've been added to ${tenantName} on PrintLoop as ${role}.
@@ -56,7 +56,7 @@ ${action}: ${link}
 ${token ? 'This link works for 7 days. ' : ''}If you weren't expecting this, you can ignore this email.`,
       html: `<p>You've been added to <strong>${tenantName}</strong> on PrintLoop as <strong>${role}</strong>.</p><p><a href="${link}" style="display:inline-block;background:#D14B2C;color:#fff;padding:12px 20px;text-decoration:none;font-weight:bold">${action}</a></p><p style="color:#666;font-size:13px">${token ? 'This link works for 7 days. ' : ''}If you weren't expecting this, you can ignore this email.</p>`,
     });
-    return sent === true;
+    return ok;
   } catch (mailErr) {
     console.warn('[team] invite email failed:', mailErr);
     return false;

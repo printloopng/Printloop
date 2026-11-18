@@ -19,13 +19,16 @@ const defaultJobOptions: QueueOptions['defaultJobOptions'] = {
   removeOnFail: { age: 7 * 24 * 3600 },
 };
 
-function makeQueue(name: string, options?: { deadLetterQueue?: { maxLen: number } }): JobQueue {
+const bullQueues: Queue[] = [];
+
+function makeQueue(name: string): JobQueue {
   if (REDIS_ENABLED) {
-    const queueOptions: QueueOptions = {
+    const queue = new Queue(name, {
       connection: redisConnection,
       defaultJobOptions,
-    };
-    return new Queue(name, queueOptions) as unknown as JobQueue;
+    });
+    bullQueues.push(queue);
+    return queue as unknown as JobQueue;
   }
   return {
     async add(jobName: string) {
@@ -43,6 +46,11 @@ export const renderQueue = makeQueue('render');
 export const webhookQueue = makeQueue('webhook-deliveries');
 
 export const notificationQueue = makeQueue('notifications');
+
+/** Real BullMQ Queue instances for Bull Board (empty when Redis is off). */
+export function getBullMqQueues(): Queue[] {
+  return bullQueues;
+}
 
 export async function initScheduledJobs(): Promise<void> {
   if (!REDIS_ENABLED) {

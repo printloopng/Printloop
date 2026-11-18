@@ -14,7 +14,7 @@ import {
 } from '@/modules/saas/services/documentEditor.service';
 import { editorExportService } from '@/modules/saas/services/editorExport.service';
 import { editorCollaborationService } from '@/modules/saas/services/editorCollaboration.service';
-import { notificationQueue } from '@/workers/queues';
+import { enqueueNotification } from '@/workers/notification.enqueue';
 
 const router = Router();
 
@@ -116,7 +116,7 @@ router.post('/session', authenticate, resolveTenant, async (req: Request, res: R
         edit.printJob.status = PrintJobStatus.AWAITING_EDIT;
         await AppDataSource.getRepository(PrintJob).save(edit.printJob);
       }
-      await notificationQueue.add('edit-started', {
+      await enqueueNotification('edit-started', {
         userId: edit.printJob?.userId,
         printJobId: edit.printJobId,
         editId: edit.id,
@@ -264,7 +264,7 @@ router.post('/session/:id/reject', authenticate, async (req: Request, res: Respo
     }
     session.status = EditorSessionStatus.ABANDONED;
     await AppDataSource.getRepository(EditorSession).save(session);
-    await notificationQueue.add('edit-rejected', {
+    await enqueueNotification('edit-rejected', {
       shopId: edit.shopId,
       printJobId: edit.printJobId,
       editId: edit.id,

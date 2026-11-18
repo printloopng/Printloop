@@ -308,8 +308,8 @@ export class CustomerPrintController {
           });
           await editRepo.save(edit);
 
-          const { notificationQueue } = await import('@/workers/queues');
-          await notificationQueue.add('new-edit-job', {
+          const { enqueueNotification } = await import('@/workers/notification.enqueue');
+          await enqueueNotification('new-edit-job', {
             shopId: req.tenant.id,
             printJobId: saved.id,
             editId: edit.id,

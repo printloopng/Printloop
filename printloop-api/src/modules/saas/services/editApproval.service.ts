@@ -5,7 +5,7 @@ import { File } from '@/database/entities/file.entity';
 import { loadDocumentBytes } from '@/core/utils/fileStore';
 import { countPages } from '@/modules/public/services/documentConvert.service';
 import { computeCost } from '@/modules/public/services/pricing.service';
-import { notificationQueue } from '@/workers/queues';
+import { enqueueNotification } from '@/workers/notification.enqueue';
 
 export type ApprovalResult =
   | { ok: true; printJobId: string; amountDue: number; pageCount: number }
@@ -61,7 +61,7 @@ export async function approveEdit(
   job.renderedPdfUrl = null;
   await ds.getRepository(PrintJob).save(job);
 
-  await notificationQueue.add('edit-approved', {
+  await enqueueNotification('edit-approved', {
     shopId: edit.shopId,
     printJobId: job.id,
     editId: edit.id,

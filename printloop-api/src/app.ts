@@ -122,5 +122,7 @@ export async function initApp(app: express.Express): Promise<void> {
   await runSeed();
   await ensureSystemSettings();
   await refreshPlatformCommissionRate();
+  const { mountBullBoard } = await import("./workers/bullBoard");
+  mountBullBoard(app);
   app.use("/api", createRootRoutes(AppDataSource));
 }

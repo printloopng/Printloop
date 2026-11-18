@@ -52,6 +52,10 @@ services:
           property: connectionString
       - key: JWT_SECRET
         generateValue: true
+      - key: BULL_BOARD_USER
+        value: admin
+      - key: BULL_BOARD_PASSWORD
+        sync: false
       - key: PUBLIC_BASE_URL
         value: https://printloop-api.onrender.com
       - key: PRINTLOOP_APEX_DOMAINS
