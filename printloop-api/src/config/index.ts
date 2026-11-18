@@ -192,17 +192,33 @@ export const Config = configSchema.parse({
     url: env.DATABASE_URL || undefined,
     ssl: env.DB_SSL === "true",
   },
-  redis: {
-    enabled: env.DISABLE_REDIS !== "1" && Boolean(env.REDIS_URL || env.REDIS_HOST),
-    url: env.REDIS_URL,
-    host: env.REDIS_HOST || undefined,
-    port: env.REDIS_PORT || undefined,
-    password: env.REDIS_PASSWORD,
-    username: env.REDIS_USERNAME,
-    db: env.REDIS_DB || undefined,
-    keyPrefix: env.REDIS_KEY_PREFIX || undefined,
-    ttl: env.REDIS_TTL || undefined,
-  },
+  redis: (() => {
+    const fromUrl = (() => {
+      if (!env.REDIS_URL) return null;
+      try {
+        const u = new URL(env.REDIS_URL);
+        return {
+          host: u.hostname || undefined,
+          port: u.port ? Number(u.port) : u.protocol === "rediss:" ? 6380 : 6379,
+          password: u.password ? decodeURIComponent(u.password) : undefined,
+          username: u.username ? decodeURIComponent(u.username) : undefined,
+        };
+      } catch {
+        return null;
+      }
+    })();
+    return {
+      enabled: env.DISABLE_REDIS !== "1" && Boolean(env.REDIS_URL || env.REDIS_HOST),
+      url: env.REDIS_URL,
+      host: env.REDIS_HOST || fromUrl?.host || undefined,
+      port: env.REDIS_PORT || fromUrl?.port || undefined,
+      password: env.REDIS_PASSWORD || fromUrl?.password,
+      username: env.REDIS_USERNAME || fromUrl?.username,
+      db: env.REDIS_DB || undefined,
+      keyPrefix: env.REDIS_KEY_PREFIX || undefined,
+      ttl: env.REDIS_TTL || undefined,
+    };
+  })(),
   jwt: {
     secret: env.JWT_SECRET || undefined,
     expiresIn: env.JWT_EXPIRES_IN || undefined,

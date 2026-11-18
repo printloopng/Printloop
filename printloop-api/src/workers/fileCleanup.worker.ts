@@ -1,15 +1,11 @@
-import { Config } from '@/config';
 import { Worker, Job } from 'bullmq';
 import { destroyCloudinaryDocument } from '@/core/utils/fileStore';
 import { AppDataSource } from '@/config/data-source';
 import { File } from '@/database/entities/file.entity';
 import { PrintJob, PrintJobStatus } from '@/database/entities/printJob.entity';
+import { bullmqConnection } from '@/workers/redisConnection';
 
-const redisConnection = {
-  host: Config.redis.host,
-  port: Config.redis.port,
-  password: Config.redis.password || undefined,
-};
+const redisConnection = bullmqConnection();
 
 interface FileCleanupJobData {
   printJobId: string;

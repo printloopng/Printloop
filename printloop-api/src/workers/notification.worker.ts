@@ -1,12 +1,8 @@
-import { Config } from '@/config';
 import { Worker, Job } from 'bullmq';
 import { processNotification } from '@/workers/notification.handler';
+import { bullmqConnection } from '@/workers/redisConnection';
 
-const redisConnection = {
-  host: Config.redis.host,
-  port: Config.redis.port,
-  password: Config.redis.password || undefined,
-};
+const redisConnection = bullmqConnection();
 
 export const notificationWorker = new Worker(
   'notifications',

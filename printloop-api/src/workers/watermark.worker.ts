@@ -5,12 +5,9 @@ import { v2 as cloudinary } from 'cloudinary';
 import { AppDataSource } from '@/config/data-source';
 import { File } from '@/database/entities/file.entity';
 import { loadDocumentBytes } from '@/core/utils/fileStore';
+import { bullmqConnection } from '@/workers/redisConnection';
 
-const redisConnection = {
-  host: Config.redis.host,
-  port: Config.redis.port,
-  password: Config.redis.password || undefined,
-};
+const redisConnection = bullmqConnection();
 
 cloudinary.config({
   cloud_name: Config.cloudinary.cloudName,

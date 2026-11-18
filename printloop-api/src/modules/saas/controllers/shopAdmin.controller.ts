@@ -46,16 +46,20 @@ async function sendTeamInvite(tenantName: string, email: string, role: string, t
     : `${appUrls.shop}/login`;
   const action = token ? 'Confirm your email and set your password' : 'Sign in';
   try {
-    const { ok } = await enqueueNotification('team-invite', {
-      to: email,
-      subject: `You've been added to ${tenantName} on PrintLoop`,
-      text: `You've been added to ${tenantName} on PrintLoop as ${role}.
+    const { ok } = await enqueueNotification(
+      'team-invite',
+      {
+        to: email,
+        subject: `You've been added to ${tenantName} on PrintLoop`,
+        text: `You've been added to ${tenantName} on PrintLoop as ${role}.
 
 ${action}: ${link}
 
 ${token ? 'This link works for 7 days. ' : ''}If you weren't expecting this, you can ignore this email.`,
-      html: `<p>You've been added to <strong>${tenantName}</strong> on PrintLoop as <strong>${role}</strong>.</p><p><a href="${link}" style="display:inline-block;background:#D14B2C;color:#fff;padding:12px 20px;text-decoration:none;font-weight:bold">${action}</a></p><p style="color:#666;font-size:13px">${token ? 'This link works for 7 days. ' : ''}If you weren't expecting this, you can ignore this email.</p>`,
-    });
+        html: `<p>You've been added to <strong>${tenantName}</strong> on PrintLoop as <strong>${role}</strong>.</p><p><a href="${link}" style="display:inline-block;background:#D14B2C;color:#fff;padding:12px 20px;text-decoration:none;font-weight:bold">${action}</a></p><p style="color:#666;font-size:13px">${token ? 'This link works for 7 days. ' : ''}If you weren't expecting this, you can ignore this email.</p>`,
+      },
+      { awaitDelivery: true },
+    );
     return ok;
   } catch (mailErr) {
     console.warn('[team] invite email failed:', mailErr);

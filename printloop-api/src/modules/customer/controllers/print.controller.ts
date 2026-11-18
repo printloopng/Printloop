@@ -99,6 +99,12 @@ export class CustomerPrintController {
     }
     const offlineReason = await assertTenantHasOnlineKiosk(req);
     if (offlineReason) {
+      console.warn('[print-jobs] rejected', {
+        code: 'SHOP_OFFLINE',
+        tenantId: req.tenant?.id,
+        userId: user?.id,
+        message: offlineReason,
+      });
       res.status(409).json({
         success: false,
         message: offlineReason,
@@ -108,6 +114,12 @@ export class CustomerPrintController {
     }
     const payout = payoutAccountMissing(req.tenant);
     if (req.tenant && payout) {
+      console.warn('[print-jobs] rejected', {
+        code: payout.code,
+        tenantId: req.tenant.id,
+        userId: user?.id,
+        message: payout.message,
+      });
       res.status(409).json({ success: false, message: payout.message, code: payout.code });
       return;
     }
@@ -343,6 +355,12 @@ export class CustomerPrintController {
     }
     const offlineReason = await assertTenantHasOnlineKiosk(req);
     if (offlineReason) {
+      console.warn('[print-jobs] batch rejected', {
+        code: 'SHOP_OFFLINE',
+        tenantId: req.tenant?.id,
+        userId: user?.id,
+        message: offlineReason,
+      });
       res.status(409).json({
         success: false,
         message: offlineReason,

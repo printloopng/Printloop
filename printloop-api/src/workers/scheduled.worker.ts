@@ -1,4 +1,3 @@
-import { Config } from '@/config';
 import { Worker, Job } from 'bullmq';
 import { Repository } from 'typeorm';
 import { AppDataSource } from '@/config/data-source';
@@ -10,12 +9,9 @@ import { reconcileStuckRenders } from '@/modules/public/services/renderEnqueue.s
 import { notifyOfflineKiosks } from '@/modules/saas/services/kioskAlert.service';
 import { enforceAcceptWindow } from '@/modules/customer/services/acceptWindow.service';
 import { runDatabaseBackup } from '@/modules/platform/services/backup.service';
+import { bullmqConnection } from '@/workers/redisConnection';
 
-const redisConnection = {
-  host: Config.redis.host,
-  port: Config.redis.port,
-  password: Config.redis.password || undefined,
-};
+const redisConnection = bullmqConnection();
 
 export const scheduledWorker = new Worker(
   'scheduled',

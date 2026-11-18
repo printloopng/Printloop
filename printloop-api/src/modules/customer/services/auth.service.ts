@@ -114,7 +114,6 @@ export class CustomerAuthService {
       adminPrivileges: [],
     });
     const saved = await repo.save(user);
-    await sendVerificationCode(saved, otp.code);
 
     const walletRepo = repos.wallet();
     await walletRepo.save(
@@ -124,6 +123,9 @@ export class CustomerAuthService {
         balance: 0,
       }),
     );
+
+    // enqueueNotification is non-blocking outside tests (and queues when Redis is on).
+    await sendVerificationCode(saved, otp.code);
 
     const memberships = await loadMembershipsForUser(saved.id);
     const accessToken = signAccessToken({

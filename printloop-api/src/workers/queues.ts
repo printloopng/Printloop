@@ -1,16 +1,12 @@
-import { Config } from '@/config';
 import { Queue, type QueueOptions } from 'bullmq';
 import { REDIS_ENABLED } from '@/config/redis';
+import { bullmqConnection } from '@/workers/redisConnection';
 
 export interface JobQueue {
   add(name: string, data?: any, opts?: any): Promise<{ id: string }>;
 }
 
-const redisConnection = {
-  host: Config.redis.host,
-  port: Config.redis.port,
-  password: Config.redis.password || undefined,
-};
+const redisConnection = bullmqConnection();
 
 const defaultJobOptions: QueueOptions['defaultJobOptions'] = {
   attempts: 3,

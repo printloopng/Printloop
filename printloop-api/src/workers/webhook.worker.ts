@@ -1,12 +1,8 @@
-import { Config } from '@/config';
 import { Worker, Job } from 'bullmq';
 import { deliverWebhook } from '@/modules/saas/services/tenantWebhook.service';
+import { bullmqConnection } from '@/workers/redisConnection';
 
-const redisConnection = {
-  host: Config.redis.host,
-  port: Config.redis.port,
-  password: Config.redis.password || undefined,
-};
+const redisConnection = bullmqConnection();
 
 export const webhookWorker = new Worker(
   'webhook-deliveries',
