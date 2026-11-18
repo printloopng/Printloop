@@ -53,6 +53,20 @@
   .pl-input:focus { transform: translate(-2px, -2px); box-shadow: 3px 3px 0 #d14b2c; }
   .pl-input.error { border-color: #d14b2c; }
 
+  .pl-input-password {
+    @apply relative;
+  }
+  .pl-input-password .pl-input {
+    @apply pr-11;
+  }
+  .pl-input-password-toggle {
+    @apply absolute right-2 top-1/2 -translate-y-1/2 inline-flex items-center justify-center
+           h-8 w-8 rounded text-ink/55 hover:text-ink transition-colors;
+  }
+  .pl-input-password-toggle:focus-visible {
+    @apply outline-none ring-2 ring-persimmon ring-offset-1 ring-offset-paper-light;
+  }
+
   .pl-card {
     @apply border-2 border-ink rounded-lg bg-paper-light p-5 transition-all duration-150 cursor-pointer;
   }

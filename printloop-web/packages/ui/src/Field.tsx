@@ -1,12 +1,42 @@
+"use client";
+
 import {
   forwardRef,
   useId,
+  useState,
   type InputHTMLAttributes,
   type ReactNode,
   type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
 } from "react";
 import { cx } from "./cx";
+
+function EyeIcon({ open }: { open: boolean }) {
+  if (open) {
+    return (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path
+          d="M3 3l18 18M10.5 10.6a2.5 2.5 0 003.5 3.5M9.4 5.5A10 10 0 0121 12c-.6 1.1-1.4 2.1-2.4 3M6.1 6.2A10.4 10.4 0 003 12c1.8 3.6 5.2 6 9 6a9.5 9.5 0 004.2-1"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    );
+  }
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
+      <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="2" />
+    </svg>
+  );
+}
 
 interface FieldShellProps {
   id: string;
@@ -53,19 +83,47 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 }
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ label, error, helper, className, wrapperClassName, id, ...rest }, ref) => {
+  ({ label, error, helper, className, wrapperClassName, id, type = "text", ...rest }, ref) => {
     const auto = useId();
     const inputId = id || auto;
+    const isPassword = type === "password";
+    const [visible, setVisible] = useState(false);
+    const inputType = isPassword ? (visible ? "text" : "password") : type;
+
     return (
       <FieldShell id={inputId} label={label} error={error} helper={helper} className={wrapperClassName}>
-        <input
-          ref={ref}
-          id={inputId}
-          aria-invalid={error ? true : undefined}
-          aria-describedby={describedBy(inputId, error, helper)}
-          className={cx("pl-input", error && "error", className)}
-          {...rest}
-        />
+        {isPassword ? (
+          <div className="pl-input-password">
+            <input
+              ref={ref}
+              id={inputId}
+              type={inputType}
+              aria-invalid={error ? true : undefined}
+              aria-describedby={describedBy(inputId, error, helper)}
+              className={cx("pl-input", error && "error", className)}
+              {...rest}
+            />
+            <button
+              type="button"
+              className="pl-input-password-toggle"
+              onClick={() => setVisible((v) => !v)}
+              aria-label={visible ? "Hide password" : "Show password"}
+              aria-pressed={visible}
+            >
+              <EyeIcon open={visible} />
+            </button>
+          </div>
+        ) : (
+          <input
+            ref={ref}
+            id={inputId}
+            type={type}
+            aria-invalid={error ? true : undefined}
+            aria-describedby={describedBy(inputId, error, helper)}
+            className={cx("pl-input", error && "error", className)}
+            {...rest}
+          />
+        )}
       </FieldShell>
     );
   },
