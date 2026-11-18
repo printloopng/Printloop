@@ -22,7 +22,7 @@ export class EmailService {
   private enabled: boolean;
 
   constructor() {
-    this.enabled = Boolean(Config.email.host);
+    this.enabled = Boolean(Config.email.host && Config.email.user && Config.email.password);
     this.transporter = this.enabled
       ? nodemailer.createTransport({
           host: Config.email.host,
@@ -95,7 +95,6 @@ export class EmailService {
     `.trim();
   }
 
-  
   async send(options: EmailOptions): Promise<boolean> {
     if (!this.enabled || !this.transporter) {
       console.log(
