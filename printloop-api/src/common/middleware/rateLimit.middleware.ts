@@ -60,14 +60,24 @@ export const loginLimiter = rateLimit({
   },
 } as Partial<Options>);
 
+function signupEmail(req: Request): string {
+  const email = req.body?.email ?? req.body?.ownerEmail;
+  return typeof email === 'string' ? email.trim().toLowerCase().slice(0, 254) : '';
+}
+
 export const signupLimiter = rateLimit({
+  // Campus Wi‑Fi NATs many students onto one IP — don't lock the whole hall
+  // after a few tries. Key by IP+email so retries of the same form share a
+  // bucket, and skip 4xx so "email taken" / validation don't burn quota.
   windowMs: 60 * 60 * 1000,
-  max: 3,
+  max: 20,
   standardHeaders: true,
   legacyHeaders: false,
   store: redisStore(),
   skip: shouldSkip,
-  keyGenerator: (req) => tenantKey(req, `signup:${ipToken(req)}`),
+  skipFailedRequests: true,
+  keyGenerator: (req) =>
+    tenantKey(req, `signup:${ipToken(req)}:${signupEmail(req)}`),
   message: {
     success: false,
     message: 'Too many signup attempts. Try again in an hour.',
