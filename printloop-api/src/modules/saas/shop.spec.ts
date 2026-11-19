@@ -16,7 +16,7 @@ describe('shop console API', () => {
     ds = (await import('@/config/data-source')).AppDataSource;
     const { Tenant } = await import('@/database/entities/tenant.entity');
     shopId = (await ds.getRepository(Tenant).findOne({ where: { slug: DEMO_SHOP } })).id;
-    ops = await api.login('ops@printloop.app', 'Password1!');
+    ops = await api.login('ops@printloop.ng', 'Password1!');
     customer = (await newCustomer(api, 'shopcust')).token;
   });
 
@@ -63,7 +63,7 @@ describe('shop console API', () => {
     const location = await api.call('PATCH', '/saas/me/location', { token: ops, body: {} });
     expect(location.body.data.isDiscoverable).toBe(me.isDiscoverable);
     expect((await api.call('POST', '/saas/setup/bank-account', { token: ops, body: { accountName: 'Campus Print', bankCode: '058', accountNumber: '0123456789' } })).status).toBe(403);
-    const owner = await api.login('owner@printloop.app', 'Password1!');
+    const owner = await api.login('owner@printloop.ng', 'Password1!');
     expect((await api.call('POST', '/saas/setup/bank-account', { token: owner, body: { accountName: 'Campus Print', bankCode: '058', accountNumber: '12345' } })).status).toBe(400);
     expect((await api.call('POST', '/saas/setup/paystack-subaccount', { token: owner, body: { bankCode: '058', accountNumber: 'abc' } })).status).toBe(400);
   });
@@ -87,12 +87,12 @@ describe('shop console API', () => {
 
   it('turns two-factor sign-in on and off with authenticator codes', async () => {
     const { totpAt } = await import('@/core/utils/totp');
-    const owner = await api.login('owner@printloop.app', 'Password1!');
+    const owner = await api.login('owner@printloop.ng', 'Password1!');
     const setup = (await api.call('POST', '/saas/me/2fa/setup', { token: owner })).body.data;
     expect(setup.otpauthUrl).toContain('otpauth://');
     expect((await api.call('POST', '/saas/me/2fa/enable', { token: owner, body: { code: '000000' } })).status).toBe(422);
     expect((await api.call('POST', '/saas/me/2fa/enable', { token: owner, body: { code: totpAt(setup.secret) } })).body.data.enabled).toBe(true);
-    expect((await api.call('POST', '/customer/auth/login', { body: { email: 'owner@printloop.app', password: 'Password1!' } })).status).not.toBe(200);
+    expect((await api.call('POST', '/customer/auth/login', { body: { email: 'owner@printloop.ng', password: 'Password1!' } })).status).not.toBe(200);
     expect((await api.call('POST', '/saas/me/2fa/disable', { token: owner, body: { code: totpAt(setup.secret) } })).body.data.enabled).toBe(false);
   });
 

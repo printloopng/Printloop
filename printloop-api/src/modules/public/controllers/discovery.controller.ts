@@ -499,7 +499,7 @@ export class DiscoveryController {
     }
 
     const studentUser = await AppDataSource.getRepository(User).findOne({
-      where: { email: 'student@printloop.app' },
+      where: { email: 'student@printloop.ng' },
     });
 
     const demoShops = [

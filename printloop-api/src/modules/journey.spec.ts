@@ -132,7 +132,7 @@ describe('journey: shop onboarding, student order, kiosk print', () => {
 
   describe('4. the shop goes live', () => {
     it('needs a PrintLoop operator to activate it, then a confirmed test print, then it is listed', async () => {
-      const staff = await api.login('admin@printloop.app', 'Password1!');
+      const staff = await api.login('admin@printloop.ng', 'Password1!');
       const activated = await api.call('POST', `/platform/tenants/${shopId}/reactivate`, { token: staff });
       expect(activated.body.data.status).toBe('active');
 

@@ -22,7 +22,7 @@ const configSchema = z.object({
   commissionPctDefault: z.coerce.number().default(0.1),
   allowedOrigins: z.array(z.string()),
   apexDomains: z.array(z.string()),
-  domainsCname: z.string().default("domains.printloop.app"),
+  domainsCname: z.string().default("domains.printloop.ng"),
   edgeSecret: z.string().default(""),
   urls: z.object({
     landing: z.string(),
@@ -99,7 +99,7 @@ const configSchema = z.object({
   }),
   email: z.object({
     apiKey: z.string().default(""),
-    from: z.string().default("PrintLoop <noreply@printloop.app>"),
+    from: z.string().default("PrintLoop <noreply@printloop.ng>"),
   }),
   sms: z.object({
     apiKey: z.string().default(""),
@@ -132,7 +132,7 @@ const configSchema = z.object({
   }),
   geocoder: z.object({
     provider: z.string().default("nominatim"),
-    userAgent: z.string().default("PrintLoop-SaaS/2.0 (https://printloop.app; ops@printloop.app)"),
+    userAgent: z.string().default("PrintLoop-SaaS/2.0 (https://printloop.ng; ops@printloop.ng)"),
   }),
   documentRetentionHours: z.number().optional(),
   kioskAlertCooldownMinutes: z.number().default(30),
@@ -175,7 +175,7 @@ export const Config = configSchema.parse({
     "http://localhost:3002",
     "http://localhost:3003",
   ]),
-  apexDomains: list(env.PRINTLOOP_APEX_DOMAINS, ["printloop.app", "printloop.test"]).map((d) => d.toLowerCase()),
+  apexDomains: list(env.PRINTLOOP_APEX_DOMAINS, ["printloop.ng", "printloop.test"]).map((d) => d.toLowerCase()),
   domainsCname: env.PRINTLOOP_DOMAINS_CNAME || undefined,
   edgeSecret: env.PL_EDGE_SECRET,
   urls: {

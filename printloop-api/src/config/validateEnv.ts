@@ -47,7 +47,7 @@ export function validateDeployEnv(): EnvIssue[] {
   if (process.env.SEED_DEMO === '1') {
     issues.push({
       key: 'SEED_DEMO',
-      detail: 'SEED_DEMO=1 inserts demo accounts (admin@printloop.app / Password1!) — never in production',
+      detail: 'SEED_DEMO=1 inserts demo accounts (admin@printloop.ng / Password1!) — never in production',
     });
   }
   if (process.env.DISABLE_RATE_LIMIT === '1') {

@@ -28,7 +28,7 @@ export function publicApiOrigin(): string {
 }
 
 export function apexDomains(): string[] {
-  return (process.env.PL_APEX_DOMAINS || "printloop.app,printloop.test")
+  return (process.env.PL_APEX_DOMAINS || "printloop.ng,printloop.test")
     .split(",")
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean);

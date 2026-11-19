@@ -16,7 +16,7 @@ describe('team invites and the shop logo', () => {
       return emailWorks;
     });
     api = await startTestApi();
-    owner = await api.login('owner@printloop.app', 'Password1!');
+    owner = await api.login('owner@printloop.ng', 'Password1!');
   });
 
   afterAll(async () => {
@@ -42,7 +42,7 @@ describe('team invites and the shop logo', () => {
   it('lists them as pending until they accept', async () => {
     const team = (await api.call('GET', '/saas/team', { token: owner })).body.data.members;
     expect(team.find((m: any) => m.email === email).pending).toBe(true);
-    expect(team.find((m: any) => m.email === 'owner@printloop.app').pending).toBe(false);
+    expect(team.find((m: any) => m.email === 'owner@printloop.ng').pending).toBe(false);
   });
 
   it('lets them sign in after setting a password, which also confirms their email', async () => {

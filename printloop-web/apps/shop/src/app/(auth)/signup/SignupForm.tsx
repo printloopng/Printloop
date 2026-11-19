@@ -116,7 +116,7 @@ export function SignupForm() {
       <Input
         label="Web address"
         error={formState.errors.slug?.message ?? (slugState === "taken" ? "Already taken" : undefined)}
-        helper={slug ? `${slug}.printloop.app${slugState === "free" ? " · available" : slugState === "checking" ? " · checking…" : ""}` : undefined}
+        helper={slug ? `${slug}.printloop.ng${slugState === "free" ? " · available" : slugState === "checking" ? " · checking…" : ""}` : undefined}
         {...register("slug", { onChange: () => setSlugTouched(true) })}
       />
       <div className="grid sm:grid-cols-2 gap-x-3">

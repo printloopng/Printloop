@@ -50,12 +50,12 @@ Demo data (from `npm run db-seed`, or automatically on first boot when `NODE_ENV
 
 | Account | Email | Password | Where |
 |---|---|---|---|
-| Student | `student@printloop.app` | `Password1!` | customer app |
-| Shop owner | `owner@printloop.app` | `Password1!` | shop console |
-| Shop admin | `ops@printloop.app` | `Password1!` | shop console |
-| PrintLoop staff | `admin@printloop.app` | `Password1!` | backoffice |
+| Student | `student@printloop.ng` | `Password1!` | customer app |
+| Shop owner | `owner@printloop.ng` | `Password1!` | shop console |
+| Shop admin | `ops@printloop.ng` | `Password1!` | shop console |
+| PrintLoop staff | `admin@printloop.ng` | `Password1!` | backoffice |
 
-Every seeded account uses the same password, `Password1!`. There are also `student2` to `student9@printloop.app`.
+Every seeded account uses the same password, `Password1!`. There are also `student2` to `student9@printloop.ng`.
 
 There is no default shop: a request that doesn't say which shop it is
 for gets `400 TENANT_REQUIRED`.

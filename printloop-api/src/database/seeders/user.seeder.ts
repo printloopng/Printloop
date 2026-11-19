@@ -38,7 +38,7 @@ export class UserSeeder {
         tenantId: null,
         firstName: "Print",
         lastName: "Admin",
-        email: "admin@printloop.app",
+        email: "admin@printloop.ng",
         phoneNumber: "+2348000000001",
         role: UserRole.SUPER_ADMIN
       })
@@ -50,7 +50,7 @@ export class UserSeeder {
         tenantId: shop.id,
         firstName: "Ops",
         lastName: "Manager",
-        email: "ops@printloop.app",
+        email: "ops@printloop.ng",
         phoneNumber: "+2348000000002",
         role: UserRole.ADMIN,
         adminPrivileges: [
@@ -69,7 +69,7 @@ export class UserSeeder {
         tenantId: shop.id,
         firstName: "Shop",
         lastName: "Owner",
-        email: "owner@printloop.app",
+        email: "owner@printloop.ng",
         phoneNumber: "+2348000000003",
         role: UserRole.ADMIN
       })
@@ -86,7 +86,7 @@ export class UserSeeder {
         tenantId: null,
         firstName: "Demo",
         lastName: "Student",
-        email: "student@printloop.app",
+        email: "student@printloop.ng",
         phoneNumber: "+2348000000000",
         role: UserRole.USER
       })
@@ -99,7 +99,7 @@ export class UserSeeder {
         tenantId: null,
         firstName: faker.person.firstName(),
         lastName: faker.person.lastName(),
-        email: `student${i + 2}@printloop.app`,
+        email: `student${i + 2}@printloop.ng`,
         phoneNumber: `+234${faker.string.numeric(10)}`,
         role: UserRole.USER
       });

@@ -59,7 +59,7 @@ services:
       - key: PUBLIC_BASE_URL
         value: https://printloop-api.onrender.com
       - key: PRINTLOOP_APEX_DOMAINS
-        value: printloop.app
+        value: printloop.ng
       - key: PRINTLOOP_DOMAINS_CNAME
         sync: false
       - key: LANDING_URL
@@ -113,7 +113,7 @@ services:
       - key: NEXT_PUBLIC_API_URL
         value: https://printloop-api.onrender.com
       - key: PL_APEX_DOMAINS
-        value: printloop.app
+        value: printloop.ng
       - key: NEXT_PUBLIC_LANDING_URL
         value: https://printloop-landing.onrender.com
       - key: NEXT_PUBLIC_CUSTOMER_URL
@@ -139,7 +139,7 @@ services:
       - key: NEXT_PUBLIC_API_URL
         value: https://printloop-api.onrender.com
       - key: PL_APEX_DOMAINS
-        value: printloop.app
+        value: printloop.ng
       - key: NEXT_PUBLIC_LANDING_URL
         value: https://printloop-landing.onrender.com
       - key: NEXT_PUBLIC_CUSTOMER_URL
@@ -165,7 +165,7 @@ services:
       - key: NEXT_PUBLIC_API_URL
         value: https://printloop-api.onrender.com
       - key: PL_APEX_DOMAINS
-        value: printloop.app
+        value: printloop.ng
       - key: NEXT_PUBLIC_LANDING_URL
         value: https://printloop-landing.onrender.com
       - key: NEXT_PUBLIC_CUSTOMER_URL
@@ -191,7 +191,7 @@ services:
       - key: NEXT_PUBLIC_API_URL
         value: https://printloop-api.onrender.com
       - key: PL_APEX_DOMAINS
-        value: printloop.app
+        value: printloop.ng
       - key: NEXT_PUBLIC_LANDING_URL
         value: https://printloop-landing.onrender.com
       - key: NEXT_PUBLIC_CUSTOMER_URL

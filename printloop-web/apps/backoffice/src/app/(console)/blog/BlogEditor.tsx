@@ -86,7 +86,7 @@ export function BlogEditor({ post }: { post: Post | null }) {
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
                 className="pl-input pl-mono text-sm leading-relaxed"
-                placeholder={"## A heading\n\nA paragraph with **bold**, *italic* and a [link](https://printloop.app).\n\n- a list item"}
+                placeholder={"## A heading\n\nA paragraph with **bold**, *italic* and a [link](https://printloop.ng).\n\n- a list item"}
               />
             ) : (
               <Card className="min-h-[24rem]">{content.trim() ? <Prose markdown={content} /> : <p className="text-fog text-sm">Nothing to preview yet.</p>}</Card>

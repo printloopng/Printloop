@@ -216,7 +216,7 @@ Weekly (Friday), min ₦5,000. Instant = ₦100 fee. Tenant must have verified T
 Tenants customize wordmark, logo, colors, emails. PrintLoop branding never shown to tenant's customers.
 
 ## 8. Custom domains
-CNAME to domains.printloop.app + TXT verification. TLS via Cloudflare for SaaS.
+CNAME to domains.printloop.ng + TXT verification. TLS via Cloudflare for SaaS.
 
 ## 9. Intellectual property
 PrintLoop owns Platform. Tenants own their content. Customers own their documents.

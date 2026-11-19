@@ -83,7 +83,7 @@ export async function notifyOfflineKiosks(kioskIds: string[]): Promise<void> {
                online it will re-appear automatically.</p>
             <p style="font-size:12px;color:#888;">
               You can manage your kiosks at your
-              <a href="https://${tenant?.slug}.printloop.app/saas/kiosks">PrintLoop dashboard</a>.
+              <a href="https://${tenant?.slug}.printloop.ng/saas/kiosks">PrintLoop dashboard</a>.
             </p>
           `,
         text: `Hi ${user.firstName},\n\nThese kiosks at ${tenantName} have gone offline:\n${kioskList}\n\nCheck that the kiosk computer is powered on and the PrintLoop Agent is running.`,

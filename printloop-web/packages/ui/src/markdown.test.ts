@@ -15,7 +15,7 @@ describe("markdownToHtml", () => {
   });
 
   it("only links safe destinations", () => {
-    expect(markdownToHtml("[ok](https://printloop.app/x)")).toContain('href="https://printloop.app/x" target="_blank" rel="noopener noreferrer"');
+    expect(markdownToHtml("[ok](https://printloop.ng/x)")).toContain('href="https://printloop.ng/x" target="_blank" rel="noopener noreferrer"');
     expect(markdownToHtml("[home](/pricing)")).toContain('<a href="/pricing">home</a>');
     expect(markdownToHtml("[bad](javascript:alert(1))")).toBe("<p>bad</p>");
     expect(markdownToHtml("[bad](//evil.example)")).toBe("<p>bad</p>");

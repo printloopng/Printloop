@@ -2,15 +2,15 @@ import { describe, expect, it } from "vitest";
 import { isValidSlug, tenantFromHost } from "./tenant";
 import { safeNextPath } from "./config";
 
-const apexes = ["printloop.app", "printloop.test"];
+const apexes = ["printloop.ng", "printloop.test"];
 
 describe("tenantFromHost", () => {
   it("reads shop subdomains and ignores product hosts", () => {
-    expect(tenantFromHost("unilag-copy.printloop.app", apexes)).toEqual({ slug: "unilag-copy" });
-    expect(tenantFromHost("UNILAG-COPY.printloop.app:443", apexes)).toEqual({ slug: "unilag-copy" });
-    expect(tenantFromHost("app.printloop.app", apexes)).toEqual({});
-    expect(tenantFromHost("shop.printloop.app", apexes)).toEqual({});
-    expect(tenantFromHost("printloop.app", apexes)).toEqual({});
+    expect(tenantFromHost("unilag-copy.printloop.ng", apexes)).toEqual({ slug: "unilag-copy" });
+    expect(tenantFromHost("UNILAG-COPY.printloop.ng:443", apexes)).toEqual({ slug: "unilag-copy" });
+    expect(tenantFromHost("app.printloop.ng", apexes)).toEqual({});
+    expect(tenantFromHost("shop.printloop.ng", apexes)).toEqual({});
+    expect(tenantFromHost("printloop.ng", apexes)).toEqual({});
   });
 
   it("treats foreign hosts as custom domains and local hosts as none", () => {

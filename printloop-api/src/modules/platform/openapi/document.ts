@@ -92,7 +92,7 @@ export function buildOpenApiDocument() {
         'Every JSON response is an envelope: { success, message?, data? } on success and { success: false, message, code? } on error.',
     },
     servers: [
-      { url: 'https://api.printloop.app/api', description: 'production' },
+      { url: 'https://api.printloop.ng/api', description: 'production' },
       { url: 'http://localhost:4000/api', description: 'local' },
     ],
     tags,

@@ -166,7 +166,7 @@ describe('customer API', () => {
       const listed = async () => (await api.call('GET', '/customer/print-jobs', { token })).body.data.jobs.find((j: any) => j.id === job.id);
       expect((await listed()).status).toBe('awaiting_accept');
       expect((await api.call('POST', '/webhooks/paystack', { raw: under.raw, headers: { 'x-paystack-signature': 'bad' } })).status).toBe(401);
-      const ops = await api.login('ops@printloop.app', 'Password1!');
+      const ops = await api.login('ops@printloop.ng', 'Password1!');
       expect((await api.call('POST', `/saas/jobs/${job.id}/accept`, { token: ops })).status).toBe(200);
       expect((await listed()).status).toBe('awaiting_payment');
       await api.call('POST', '/webhooks/paystack', { raw: under.raw, headers: under.headers });

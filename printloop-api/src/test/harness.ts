@@ -152,7 +152,7 @@ export async function paidJob(api: TestApi, token: string, pages = 2): Promise<{
   const job = up.body?.data?.job;
   if (!job) throw new Error(`upload failed: ${up.status} ${up.text.slice(0, 120)}`);
   if (job.status === 'awaiting_accept') {
-    const ops = await api.login('ops@printloop.app', 'Password1!');
+    const ops = await api.login('ops@printloop.ng', 'Password1!');
     const accepted = await api.call('POST', `/saas/jobs/${job.id}/accept`, { token: ops });
     if (accepted.status !== 200) throw new Error(`accept failed: ${accepted.status} ${accepted.text.slice(0, 160)}`);
   }

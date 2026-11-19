@@ -53,5 +53,5 @@ export async function seedDemoData(dataSource: DataSource, logger: Logger): Prom
   logger.info(`Login password for all seeded users: ${SEED_PASSWORD}`);
   logger.info(`Platform staff: ${platformAdmin.email}`);
   logger.info(`Shop owner: ${owner.email}  Shop admin: ${shopAdmin.email}`);
-  logger.info("Students: student@printloop.app, student2@printloop.app ... student9@printloop.app");
+  logger.info("Students: student@printloop.ng, student2@printloop.ng ... student9@printloop.ng");
 }

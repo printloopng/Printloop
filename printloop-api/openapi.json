@@ -7,7 +7,7 @@
   },
   "servers": [
     {
-      "url": "https://api.printloop.app/api",
+      "url": "https://api.printloop.ng/api",
       "description": "production"
     },
     {

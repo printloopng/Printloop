@@ -8,7 +8,7 @@ describe('Edit & Print', () => {
 
   beforeAll(async () => {
     api = await startTestApi();
-    ops = await api.login('ops@printloop.app', 'Password1!');
+    ops = await api.login('ops@printloop.ng', 'Password1!');
   });
 
   afterAll(() => api.close());

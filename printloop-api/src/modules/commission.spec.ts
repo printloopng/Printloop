@@ -22,7 +22,7 @@ describe('platform fee: one rate for every shop, with a rate of its own per shop
 
   beforeAll(async () => {
     api = await startTestApi();
-    staff = await api.login('admin@printloop.app', 'Password1!');
+    staff = await api.login('admin@printloop.ng', 'Password1!');
     const list = await api.call('GET', '/platform/tenants', { token: staff });
     shopId = list.body.data.items.find((t: any) => t.slug === 'campus-print').id;
   });
